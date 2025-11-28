@@ -123,7 +123,7 @@ def plot_napari(data: NDArray):
 
 
 if __name__ == "__main__":
-    folder = '/run/media/anokhver/Data/Veronika/ctu/Microscopy/20251030/'
+    folder = '/run/media/anokhver/Data/Veronika/ctu/Microscopy/Microscopy/20251030/'
 
     # Find all .vsi files
     vsi_files = [f for f in os.listdir(folder) if f.endswith('.vsi')]

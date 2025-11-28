@@ -120,7 +120,28 @@ class VSIBrowser:
     def load_full_volume(self, file_path: Path) -> NDArray:
         """Load full 3D volume (from viewer3D)."""
         img = AICSImage(file_path)
+    def load_full_volume(self, file_path: str) -> NDArray:
+        """Load full 3D volume with validation."""
+        img = AICSImage(str(file_path))
+
+        # Print diagnostic info
+        print(f"Physical pixel sizes: {img.physical_pixel_sizes}")
+        print(f"Available scenes: {img.scenes}")
+        print(f"Dims: {img.dims}")  # Add this
+        print(f"Shape: {img.shape}")  # Add this
+
+        # For VSI files, level 0 is typically the full resolution
         data = img.get_image_data("CZYX", S=0, T=0)
+
+        print(f"Loaded shape: {data.shape}")
+
+        if data.shape[1] < 5:
+            print(f"WARNING: Only {data.shape[1]} z-slices")
+            print("This is likely a preview. Checking for resolution levels...")
+            # Some VSI files store pyramid levels - try to access raw data
+            if hasattr(img, 'resolution_levels'):
+                print(f"Available resolution levels: {img.resolution_levels}")
+
         return data
 
     def interpolate_z_fast(self, data: NDArray) -> NDArray:
