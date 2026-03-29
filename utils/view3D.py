@@ -131,7 +131,7 @@ if __name__ == "__main__":
     print(vsi_files)
 
     # Load the first one
-    file_path = os.path.join(folder, vsi_files[0])
+    file_path = os.path.join(folder, vsi_files[13])
     data = load(file_path)
 
     print(f"Loading file: {file_path}")
