@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """
 preprocess_patches.py
-Offline preprocessing pipeline for confocal fluorescence microscopy images.
+Preprocessing pipeline for confocal fluorescence microscopy images.
 
 Pipeline:
     raw file → load (C,Z,Y,X) → MIP along Z → per-channel percentile
     normalization → tile into 128×128 patches → filter empty patches → save .npy
 
-Design decisions justified by literature:
-    - MIP for Z-handling: standard for puncta analysis (SynBot, SynapseJ)
-    - Per-channel independent percentile normalization: Cellpose [1,99],
+Design:
+    - MIP for Z-handling (SynBot, SynapseJ)
+    - Per-channel independent percentile normalization (Cellpose [1,99]),
       StarDist [1,99.8]. We use [1,99.8] with clipping to [0,1] because
       StarDist's approach better preserves bright puncta that occupy <1%
       of image area (the 99th percentile can clip them).
-    - 128×128 patches: divides 2304 evenly (18×18 grid), gives ~1024 tokens
-      for MAE with patch_size=4, compatible with SwinUNETR (divisible by 32).
-    - No background subtraction: DL papers (Cellpose, nnU-Net, CA-MAE) skip it;
-      classical puncta tools (SynBot, SynapseJ) use rolling-ball but that is
-      for thresholding pipelines, not learned feature extractors.
+    - 128×128 patches
+    - No background subtraction
 Usage:
     python preprocess_patches.py \
         --input_dir /path/to/raw_images \
@@ -31,6 +28,7 @@ Usage:
 
 import argparse
 import csv
+import gc
 import logging
 import sys
 from pathlib import Path
@@ -53,16 +51,13 @@ logger = logging.getLogger(__name__)
 def load_image(path: Path) -> np.ndarray:
     """
     Load a microscopy image file and return array with shape (C, Z, Y, X).
-
-    Supports .czi, .tif/.tiff, and .ets formats. Falls back through
-    aicsimageio → tifffile in order of preference.
+    Input: vsi files path
 
     Returns:
         np.ndarray of shape (C, Z, Y, X), original dtype preserved.
     """
-    suffix = path.suffix.lower()
 
-    # Try aicsimageio first (handles .czi, .ets, .tif, and many others)
+    # Try aicsimageio (handles .czi, .ets, .tif, and many others)
     try:
         from aicsimageio import AICSImage
         img = AICSImage(path)
@@ -79,21 +74,8 @@ def load_image(path: Path) -> np.ndarray:
     except Exception as e:
         logger.warning(f"  aicsimageio failed on {path.name}: {e}")
 
-    # Fallback: tifffile for .tif/.tiff
-    if suffix in (".tif", ".tiff"):
-        import tifffile
-        data = tifffile.imread(str(path))
-        logger.info(
-            f"  Loaded via tifffile: shape={data.shape}, dtype={data.dtype}"
-        )
-        # Expect (C, Z, Y, X) or (Z, Y, X). If 3D, add channel dim.
-        if data.ndim == 3:
-            data = data[np.newaxis]  # (1, Z, Y, X)
-        return data
-
     raise ValueError(
-        f"Cannot load {path.name}. Install aicsimageio for .czi/.ets support, "
-        f"or provide .tif files."
+        f"Cannot load {path.name}"
     )
 
 
@@ -268,14 +250,15 @@ def process_single_image(
 
     # 2. MIP along Z → (C, H, W)
     mip = maximum_intensity_projection(volume)
-    # Free the full volume immediately
     del volume
+    gc.collect()
 
     # 3. Percentile normalization per channel → [0, 1]
     mip = normalize_percentile(mip, plow=plow, phigh=phigh)
 
     # 4. Tile into patches
     patches = extract_patches(mip, patch_size=patch_size)
+    del mip
     n_patches = patches.shape[0]
     n_rows = H // patch_size
     n_cols = W // patch_size
@@ -286,8 +269,10 @@ def process_single_image(
     kept = 0
     for patch_idx in range(n_patches):
         patch = patches[patch_idx]  # (C, ps, ps)
-        if not is_foreground_patch(patch, min_mean_intensity):
-            continue
+        # NOTE: Foreground filtering is intentionally disabled but retained for potential future use.
+        # To re-enable, uncomment the following two lines:
+        # if not is_foreground_patch(patch, min_mean_intensity):
+        #     continue
 
         row = patch_idx // n_cols
         col = patch_idx % n_cols
@@ -308,6 +293,101 @@ def process_single_image(
         })
         kept += 1
 
+    del patches
+    gc.collect()
     logger.info(f"  Kept {kept}/{n_patches} patches (filtered {n_patches - kept})")
     return records
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Preprocess confocal microscopy images into normalized patches."
+    )
+    parser.add_argument(
+        "--input_dir", type=Path, required=True,
+        help="Directory containing raw microscopy files.",
+    )
+    parser.add_argument(
+        "--output_dir", type=Path, required=True,
+        help="Directory to write .npy patches and index.csv.",
+    )
+    parser.add_argument(
+        "--patch_size", type=int, default=128,
+        help="Patch side length in pixels (default: 128).",
+    )
+    parser.add_argument(
+        "--plow", type=float, default=1.0,
+        help="Lower percentile for normalization (default: 1.0).",
+    )
+    parser.add_argument(
+        "--phigh", type=float, default=99.8,
+        help="Upper percentile for normalization (default: 99.8).",
+    )
+    parser.add_argument(
+        "--min_mean_intensity", type=float, default=0.01,
+        help="Minimum mean intensity to keep a patch (default: 0.01).",
+    )
+    parser.add_argument(
+        "--file_extensions", nargs="+", default=[".czi", ".tif", ".tiff", ".ets"],
+        help="File extensions to glob for (default: .czi .tif .tiff .ets).",
+    )
+    args = parser.parse_args()
+
+    if not args.input_dir.is_dir():
+        logger.error(f"Input directory does not exist: {args.input_dir}")
+        sys.exit(1)
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+
+    files = sorted(
+        f for ext in args.file_extensions
+        for f in args.input_dir.glob(f"*{ext}")
+    )
+    if not files:
+        logger.error(
+            f"No files found in {args.input_dir} with extensions "
+            f"{args.file_extensions}"
+        )
+        sys.exit(1)
+
+    logger.info(f"Found {len(files)} image files in {args.input_dir}")
+    logger.info(
+        f"Settings: patch_size={args.patch_size}, "
+        f"percentiles=[{args.plow}, {args.phigh}], "
+        f"min_mean_intensity={args.min_mean_intensity}"
+    )
+
+    all_records = []
+    for idx, filepath in enumerate(files):
+        try:
+            records = process_single_image(
+                path=filepath,
+                output_dir=args.output_dir,
+                patch_size=args.patch_size,
+                plow=args.plow,
+                phigh=args.phigh,
+                min_mean_intensity=args.min_mean_intensity,
+                image_index=idx,
+            )
+            all_records.extend(records)
+        except Exception as e:
+            logger.error(f"Failed on {filepath.name}: {e}", exc_info=True)
+        gc.collect()
+
+    csv_path = args.output_dir / "index.csv"
+    if all_records:
+        fieldnames = list(all_records[0].keys())
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(all_records)
+
+    logger.info(
+        f"Done. {len(all_records)} patches saved to {args.output_dir}. "
+        f"Index written to {csv_path}."
+    )
+
+
+if __name__ == "__main__":
+    main()
 
