@@ -37,6 +37,7 @@ class PatchDataset(Dataset):
         root: str | Path,
         channels: list[int] | None = None,
         transform=None,
+        exclude_patterns: list[str] | None = None,
     ):
         self.root = Path(root)
         self.channels = channels
@@ -50,6 +51,21 @@ class PatchDataset(Dataset):
         with open(csv_path, "r") as f:
             reader = csv.DictReader(f)
             self.records = list(reader)
+
+        # Filter out records whose source_image matches any exclude pattern
+        if exclude_patterns:
+            patterns_upper = [p.upper() for p in exclude_patterns]
+            before = len(self.records)
+            self.records = [
+                r for r in self.records
+                if not any(p in r["source_image"].upper() for p in patterns_upper)
+            ]
+            dropped = before - len(self.records)
+            if dropped:
+                import logging
+                logging.getLogger(__name__).info(
+                    f"Excluded {dropped} patches matching {exclude_patterns}"
+                )
 
     def __len__(self) -> int:
         return len(self.records)

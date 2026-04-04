@@ -331,6 +331,11 @@ def main():
         "--file_extensions", nargs="+", default=[".czi", ".tif", ".tiff", ".ets"],
         help="File extensions to glob for (default: .czi .tif .tiff .ets).",
     )
+    parser.add_argument(
+        "--skip_patterns", nargs="+", default=["KONTROLA"],
+        help="Skip files whose name contains any of these substrings "
+             "(case-insensitive). Default: KONTROLA (control samples).",
+    )
     args = parser.parse_args()
 
     if not args.input_dir.is_dir():
@@ -339,10 +344,14 @@ def main():
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
+    skip_patterns = [p.upper() for p in (args.skip_patterns or [])]
     files = sorted(
         f for ext in args.file_extensions
         for f in args.input_dir.glob(f"*{ext}")
+        if not any(p in f.name.upper() for p in skip_patterns)
     )
+    if skip_patterns:
+        logger.info(f"Skipping files matching: {args.skip_patterns}")
     if not files:
         logger.error(
             f"No files found in {args.input_dir} with extensions "
