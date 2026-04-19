@@ -1,0 +1,16 @@
+/research-contributions/*
+papers/*
+
+# Model checkpoints (too large for GitHub)
+*.pt
+
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (too large for GitHub)
+data/
+data/*

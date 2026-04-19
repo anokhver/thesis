@@ -3,3 +3,12 @@ napari~=0.6.6
 scipy~=1.16.2
 aicsimageio~=4.14.0
 matplotlib~=3.10.7
+torch
+monai
+tqdm
+einops
+torch
+torchvision
+clear
+fsspec==2023.6.0
+jupyterlab
