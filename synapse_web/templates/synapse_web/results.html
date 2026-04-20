@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Results — SynAPSeg{% endblock %}
+
+{% block content %}
+<h1>Analysis Results</h1>
+
+{% if group_stats %}
+<div class="card">
+    <h2>Summary Statistics</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Treatment Group</th>
+                <th>N</th>
+                <th>Mean Density</th>
+                <th>Std Dev</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in group_stats %}
+            <tr>
+                <td>{{ g.treatment_group }}</td>
+                <td>{{ g.n }}</td>
+                <td>{{ g.mean_density }}</td>
+                <td>{{ g.std_density }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <!-- TODO: add chart here (matplotlib or chart.js) -->
+    <div class="plot-container">
+        <p style="color: var(--text-secondary);">Chart placeholder — visualization will be added here.</p>
+    </div>
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No completed analysis runs yet.
+       <a href="{% url 'synapse_web:upload' %}">Upload images</a> and run an analysis first.</p>
+</div>
+{% endif %}
+
+{% if run_summaries %}
+<div class="card" style="margin-top: 1.5rem;">
+    <h2>Run History</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Run ID</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Images</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in run_summaries %}
+            <tr>
+                <td><code>{{ run.id_short }}</code></td>
+                <td>{{ run.created_at|date:"Y-m-d H:i" }}</td>
+                <td><span class="badge badge-{{ run.status }}">{{ run.status }}</span></td>
+                <td>{{ run.image_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,5 +1,6 @@
 /research-contributions/*
 papers/*
+/doc/
 
 # Model checkpoints (too large for GitHub)
 *.pt
@@ -7,10 +8,27 @@ papers/*
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
 
 # Jupyter
 .ipynb_checkpoints/
 
 # Data (too large for GitHub)
 data/
-data/*
+
+# env
+.venv/
+.vscode/
+my_pck_project/
+
+# Django
+db/
+*.sqlite3
+media/
+staticfiles/
+
+# Secrets & logs
+.env
+*.log

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Images — SynAPSeg{% endblock %}
+
+{% block content %}
+<h1>Upload Microscopy Images</h1>
+
+<div class="card">
+    <h2>Add New Images</h2>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="upload">
+        <div class="form-group">
+            <label for="files">Select files</label>
+            <input type="file" id="files" name="files" multiple
+                   accept=".vsi,.ets,.tif,.tiff,.czi" required>
+        </div>
+        <div class="form-group">
+            <label for="treatment_group">Treatment group</label>
+            <input type="text" id="treatment_group" name="treatment_group"
+                   placeholder="e.g. control, treated, WT">
+        </div>
+        <button type="submit" class="btn">Upload</button>
+    </form>
+</div>
+
+{% if images %}
+<div class="card" style="margin-top: 1.5rem;">
+    <h2>Uploaded Images</h2>
+    <form method="post" action="{% url 'synapse_web:run_inference' %}">
+        {% csrf_token %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="select-all"></th>
+                    <th>Filename</th>
+                    <th>Treatment Group</th>
+                    <th>Uploaded</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for img in images %}
+                <tr>
+                    <td><input type="checkbox" name="image_ids" value="{{ img.id }}"></td>
+                    <td>{{ img.original_filename }}</td>
+                    <td>{{ img.treatment_group|default:"—" }}</td>
+                    <td>{{ img.uploaded_at|date:"Y-m-d H:i" }}</td>
+                    <td>
+                        <form method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="image_id" value="{{ img.id }}">
+                            <button type="submit" class="btn btn-danger btn-small">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="submit" class="btn" style="margin-top: 1rem;">
+            Run Analysis on Selected
+        </button>
+    </form>
+</div>
+
+<script>
+document.getElementById("select-all").addEventListener("change", function () {
+    var checkboxes = document.querySelectorAll('input[name="image_ids"]');
+    for (var i = 0; i < checkboxes.length; i++) {
+        checkboxes[i].checked = this.checked;
+    }
+});
+</script>
+{% else %}
+<div class="empty-state">
+    <p>No images uploaded yet. Use the form above to get started.</p>
+</div>
+{% endif %}
+{% endblock %}
