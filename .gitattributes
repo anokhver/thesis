@@ -1,0 +1,15 @@
+# Force LF line endings for scripts (PBS/SLURM reject CRLF)
+*.sh text eol=lf
+*.pbs text eol=lf
+
+# Keep notebooks as-is (JSON, no line ending issues)
+*.ipynb -text
+
+# Standard text files: auto-normalize on commit
+*.py text eol=lf
+*.md text eol=lf
+*.csv text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.txt text eol=lf
+*.bib text eol=lf
