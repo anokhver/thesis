@@ -30,6 +30,11 @@ class PatchDataset(Dataset):
                   training, pass e.g. channels=[0] for presynaptic only.
         transform: optional callable applied to the numpy array before
                    converting to tensor.
+        exclude_patterns: list of substrings; any patch whose `source_image`
+                  contains one of them is dropped (case-insensitive).
+        exclude_damaged: if True (default), drop patches whose `damaged`
+                  column in index.csv is truthy. If the column is absent,
+                  this flag has no effect (backward-compatible).
     """
 
     def __init__(
@@ -38,6 +43,7 @@ class PatchDataset(Dataset):
         channels: list[int] | None = None,
         transform=None,
         exclude_patterns: list[str] | None = None,
+        exclude_damaged: bool = True,
     ):
         self.root = Path(root)
         self.channels = channels
@@ -65,6 +71,22 @@ class PatchDataset(Dataset):
                 import logging
                 logging.getLogger(__name__).info(
                     f"Excluded {dropped} patches matching {exclude_patterns}"
+                )
+
+        # Drop damaged patches flagged by data_utils.damage_detection.
+        # The column is optional for backward compatibility with old
+        # index.csv files that pre-date the damage check.
+        if exclude_damaged and self.records and "damaged" in self.records[0]:
+            before = len(self.records)
+            self.records = [
+                r for r in self.records
+                if str(r.get("damaged", "")).strip().lower() not in ("true", "1")
+            ]
+            dropped = before - len(self.records)
+            if dropped:
+                import logging
+                logging.getLogger(__name__).info(
+                    f"Excluded {dropped} damaged patches"
                 )
 
     def __len__(self) -> int:
