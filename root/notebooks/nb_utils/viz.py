@@ -175,7 +175,7 @@ def plot_recon_panel(
     err_vmax = float(err.max().item()) if err.numel() else 1.0
     err_vmax = max(err_vmax, 1e-6)
 
-    fig, axes = plt.subplots(4, n, figsize=(3.2 * n, 12.0), squeeze=False)
+    fig, axes = plt.subplots(4, n, figsize=(3.2 * n, 13.5), squeeze=False)
     err_img = None
     for j in range(n):
         axes[0, j].imshow(_to_disp(inp_disp[j]))
@@ -189,24 +189,29 @@ def plot_recon_panel(
         axes[2, j].set_title("reconstruction")
         axes[2, j].axis("off")
         err_img = axes[3, j].imshow(err[j].numpy(), cmap="hot", vmin=0, vmax=err_vmax)
+        axes[3, j].set_title(f"|err|  mean={err[j].mean().item():.3f}")
         if channel_names is not None and err_per_ch.shape[1] == len(channel_names):
             per = err_per_ch[j].mean(dim=(-2, -1)).tolist()
-            tag = ", ".join(f"{n_}={v:.2f}" for n_, v in zip(channel_names, per))
-            axes[3, j].set_title(f"|err|  mean={err[j].mean().item():.3f}\n{tag}", fontsize=9)
+            lines = [f"{n_}={v:.2f}" for n_, v in zip(channel_names, per)]
+            axes[3, j].set_xlabel("\n".join(lines), fontsize=8, labelpad=6)
+            axes[3, j].tick_params(bottom=False, labelbottom=False,
+                                   left=False, labelleft=False)
         else:
-            axes[3, j].set_title(f"|err|  mean={err[j].mean().item():.3f}")
-        axes[3, j].axis("off")
-
-    if err_img is not None:
-        cbar = fig.colorbar(
-            err_img, ax=axes[3, :].tolist(),
-            fraction=0.025, pad=0.02, shrink=0.85,
-        )
-        cbar.ax.set_ylabel("|err|  (data units)", fontsize=9)
+            axes[3, j].axis("off")
 
     fig.suptitle(suptitle)
     _annotate_run(fig, run_label)
-    fig.tight_layout(rect=(0, 0, 0.97, 0.97))
+    # reserve right margin for the colorbar so tight_layout doesn't push
+    # images underneath it
+    fig.tight_layout(rect=(0, 0, 0.92, 0.97))
+
+    if err_img is not None:
+        # bottom of error-row in figure coords
+        err_bot = axes[3, 0].get_position().y0
+        err_top = axes[3, 0].get_position().y1
+        cbar_ax = fig.add_axes([0.935, err_bot, 0.012, err_top - err_bot])
+        cbar = fig.colorbar(err_img, cax=cbar_ax)
+        cbar.ax.set_ylabel("|err|  (data units)", fontsize=9)
     _save_or_show(fig, save_to)
     return fig
 
