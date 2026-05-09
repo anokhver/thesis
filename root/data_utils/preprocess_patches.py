@@ -36,6 +36,32 @@ from typing import Optional
 
 import numpy as np
 
+try:
+    # Normal case: imported as `data_utils.preprocess_patches` or via
+    # `python -m data_utils.preprocess_patches ...`.
+    from .damage_detection import (
+        DEFAULT_DEAD_MAX,
+        DEFAULT_HIGH_PERCENTILE,
+        DEFAULT_LOW_PERCENTILE,
+        DEFAULT_MAD_K,
+        DEFAULT_SATURATION_MEAN,
+        damage_summary,
+        flag_damaged,
+        patch_stats,
+    )
+except ImportError:
+    # Fallback for `python preprocess_patches.py ...` from inside data_utils/.
+    from damage_detection import (  # type: ignore[no-redef]
+        DEFAULT_DEAD_MAX,
+        DEFAULT_HIGH_PERCENTILE,
+        DEFAULT_LOW_PERCENTILE,
+        DEFAULT_MAD_K,
+        DEFAULT_SATURATION_MEAN,
+        damage_summary,
+        flag_damaged,
+        patch_stats,
+    )
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -281,15 +307,20 @@ def process_single_image(
         fname = f"img{image_index:04d}_r{row:02d}_c{col:02d}.npy"
         np.save(output_dir / fname, patch)
 
+        # Per-patch stats used by the damage detector (and as
+        # general-purpose diagnostics in index.csv).
+        stats = patch_stats(patch)
+
         records.append({
             "filename": fname,
             "source_image": path.name,
             "image_index": image_index,
             "grid_row": row,
             "grid_col": col,
-            "mean_intensity": float(patch.mean()),
+            "mean_intensity": stats["mean"],  # backward-compatible alias
             "channels": C,
             "patch_size": patch_size,
+            **stats,
         })
         kept += 1
 
@@ -335,6 +366,25 @@ def main():
         "--skip_patterns", nargs="+", default=["KONTROLA"],
         help="Skip files whose name contains any of these substrings "
              "(case-insensitive). Default: KONTROLA (control samples).",
+    )
+    parser.add_argument(
+        "--no_damage_check", action="store_true",
+        help="Skip the damaged-patch detection step entirely.",
+    )
+    parser.add_argument(
+        "--damage_mad_k", type=float, default=DEFAULT_MAD_K,
+        help=f"MAD multiplier for the per-image outlier check "
+             f"(default {DEFAULT_MAD_K}). Higher = stricter (fewer flags).",
+    )
+    parser.add_argument(
+        "--damage_saturation_mean", type=float, default=DEFAULT_SATURATION_MEAN,
+        help=f"Patch is flagged saturated if mean >= this value "
+             f"(default {DEFAULT_SATURATION_MEAN}).",
+    )
+    parser.add_argument(
+        "--damage_dead_max", type=float, default=DEFAULT_DEAD_MAX,
+        help=f"Patch is flagged dead if max <= this value "
+             f"(default {DEFAULT_DEAD_MAX}).",
     )
     args = parser.parse_args()
 
@@ -382,6 +432,47 @@ def main():
         except Exception as e:
             logger.error(f"Failed on {filepath.name}: {e}", exc_info=True)
         gc.collect()
+
+    # Damaged-patch detection (per-source-image robust outlier flag plus
+    # absolute saturated/dead checks). Adds `damaged` and `damage_reasons`
+    # columns to every record. Damaged patches are kept on disk but the
+    # CSV flag lets PatchDataset/notebooks exclude them and lets
+    # `notebooks/preprocessing/inspect_damaged_patches.ipynb` render them
+    # alongside their source image.
+    damaged_csv_path = args.output_dir / "damaged_report.csv"
+    if all_records and not args.no_damage_check:
+        flag_damaged(
+            all_records,
+            mad_k=args.damage_mad_k,
+            saturation_mean=args.damage_saturation_mean,
+            dead_max=args.damage_dead_max,
+        )
+        flagged = [r for r in all_records if r.get("damaged")]
+        for line in damage_summary(all_records).splitlines():
+            logger.info(line)
+        if flagged:
+            damage_fields = (
+                "filename", "source_image", "image_index", "grid_row",
+                "grid_col", "mean", "std", "min", "max",
+                f"low_p{int(DEFAULT_LOW_PERCENTILE)}",
+                f"high_p{int(DEFAULT_HIGH_PERCENTILE)}",
+                "damage_reasons",
+            )
+            with open(damaged_csv_path, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=damage_fields)
+                writer.writeheader()
+                for r in flagged:
+                    writer.writerow({k: r.get(k, "") for k in damage_fields})
+            logger.info(
+                f"Damaged-patch report written to {damaged_csv_path} "
+                f"({len(flagged)} entries)."
+            )
+    elif args.no_damage_check:
+        # Still set the columns so downstream code sees a stable schema.
+        for r in all_records:
+            r.setdefault("damaged", False)
+            r.setdefault("damage_reasons", "")
+        logger.info("Damage check skipped (--no_damage_check).")
 
     csv_path = args.output_dir / "index.csv"
     if all_records:
