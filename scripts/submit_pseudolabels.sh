@@ -1,17 +1,17 @@
 #!/bin/bash
-#PBS -N loaded_weights
-#PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=40gb:scratch_local=50gb:cluster=zia
-#PBS -l walltime=12:00:00
+#PBS -N pseudolabels
+#PBS -l select=1:ncpus=8:mem=64gb:scratch_local=50gb
+#PBS -l walltime=4:00:00
 #PBS -j oe
 #PBS -o /storage/brno2/home/anokhver/thesis/logs/
 #PBS -m abe
 #PBS -M your@email.com
 
-# Continuation pretrain (timm-ImageNet Swin-Tiny init) with SimMIM + VICReg.
+# Generate blob pseudo-labels for synaptic puncta (CPU-only, no GPU needed).
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-NOTEBOOK_DIR="${PROJECT_DIR}/root/notebooks/loaded-weights"
-NOTEBOOK="pretrain_simmim_vicreg.ipynb"
+NOTEBOOK_DIR="${PROJECT_DIR}/root/notebooks/pseudolabels"
+NOTEBOOK="blob_pseudolabels.ipynb"
 RUN_DIR="${NOTEBOOK_DIR}/runs"
 CONDA_ENV="microscopy"
 
@@ -28,13 +28,12 @@ cd "${NOTEBOOK_DIR}"
 echo "=== Job Info ==="
 echo "Job ID:    ${PBS_JOBID}"
 echo "Node:      $(hostname)"
-echo "GPU:       $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo 'N/A')"
 echo "Conda env: ${CONDA_ENV}"
 echo "Notebook:  ${NOTEBOOK_DIR}/${NOTEBOOK}"
 echo "Start:     $(date)"
 echo "================"
 
-OUTPUT_NOTEBOOK="${RUN_DIR}/loaded_weights_RUN_$(date +%Y%m%d_%H%M%S).ipynb"
+OUTPUT_NOTEBOOK="${RUN_DIR}/pseudolabels_RUN_$(date +%Y%m%d_%H%M%S).ipynb"
 
 python -m papermill \
     "${NOTEBOOK}" \
