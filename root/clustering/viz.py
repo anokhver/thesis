@@ -1,12 +1,4 @@
-"""Visualisations for the clustering pipeline notebook.
-
-References
-----------
-Cluster medoid grids — Caron et al. 2018 *DeepCluster*, §4 (visual
-inspection of clusters via top-K closest-to-centroid images).
-Heatmap of image x cluster frequency — standard HCS phenotyping figure
-(Caicedo et al. 2017, *Nat Methods* 14:849).
-"""
+"""Visualisations for the clustering pipeline notebook."""
 from __future__ import annotations
 
 from typing import Sequence
@@ -33,7 +25,7 @@ def plot_singular_value_spectrum(S, ax=None, mark_target_var: float = 0.95):
 
 
 def plot_resolution_stability(summary: dict, full: dict, ax=None):
-    """`summary[r] = (mean_ari, std_ari)`; `full[r] = labels`."""
+    """``summary[r] = (mean_ari, std_ari)``; ``full[r] = labels``."""
     import matplotlib.pyplot as plt
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 4))
@@ -99,12 +91,11 @@ def plot_cluster_grid(
     raw_dataset, medoids: dict, *, channel: int = 0, ncols: int | None = None,
     figsize_per_cell=(1.5, 1.5),
 ):
-    """Plot a row of example patches per cluster (medoid + samples).
+    """Row of example patches per cluster (medoid + samples).
 
-    `raw_dataset` is something indexable that returns a (C, H, W) tensor
-    or numpy array. `medoids` is the dict produced by
-    :func:`cluster_medoids`. `channel` controls which channel (or
-    composite) is shown.
+    ``raw_dataset`` is indexable, returning (C, H, W) tensor or array.
+    ``medoids`` is the dict from :func:`cluster_medoids`.
+    ``channel`` selects which channel (or composite max-projection) is shown.
     """
     import matplotlib.pyplot as plt
     cluster_ids = sorted(medoids.keys())
@@ -149,8 +140,10 @@ def plot_image_cluster_heatmap(
     freq: np.ndarray, image_names: np.ndarray, cluster_ids: np.ndarray,
     ax=None, max_images: int = 60, sort_by_dominant_cluster: bool = True,
 ):
-    """Heatmap of image x cluster frequencies. Rows can be reordered so
-    that visually similar images sit next to each other."""
+    """Heatmap of image × cluster frequencies.
+
+    Rows can be reordered so visually similar images sit adjacent.
+    """
     import matplotlib.pyplot as plt
     if sort_by_dominant_cluster:
         dom = np.argmax(freq, axis=1)
@@ -221,3 +214,125 @@ def plot_intra_image_entropy(rows, ax=None, threshold: float = 0.5):
     ax.set_title("Per-cluster source-image diversity")
     ax.set_ylim(0, 1.05); ax.grid(alpha=0.3); ax.legend(fontsize=8)
     return ax
+
+
+# ---------------------------------------------------------------------------
+# Group-level visualisations
+# ---------------------------------------------------------------------------
+
+def plot_2d_groups(
+    Z2: np.ndarray,
+    source_images: np.ndarray,
+    group_map: dict[str, str],
+    *,
+    ax=None,
+    title: str = "UMAP-2D coloured by group",
+    point_size: float = 3.0,
+):
+    """Scatter coloured by biological group. Unmapped images shown in grey."""
+    import matplotlib.pyplot as plt
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(7, 6))
+    groups = sorted(set(group_map.values()))
+    cmap = plt.get_cmap("Set1")
+    unmapped = np.array(
+        [group_map.get(str(s)) is None for s in source_images]
+    )
+    if unmapped.any():
+        ax.scatter(Z2[unmapped, 0], Z2[unmapped, 1],
+                   s=point_size, color="lightgray", alpha=0.3, label="unmapped")
+    for i, g in enumerate(groups):
+        m = np.array([group_map.get(str(s)) == g for s in source_images])
+        ax.scatter(Z2[m, 0], Z2[m, 1], s=point_size,
+                   color=cmap(i % 9), alpha=0.6, label=g)
+    ax.set_xlabel("UMAP-1"); ax.set_ylabel("UMAP-2")
+    ax.set_title(title)
+    ax.legend(loc="best", fontsize=8, markerscale=3)
+    return ax
+
+
+def plot_group_cluster_heatmap(
+    group_counts: np.ndarray,
+    group_names: Sequence[str],
+    cluster_ids: np.ndarray,
+    *,
+    ax=None,
+    normalise: bool = True,
+):
+    """Heatmap of group × cluster frequencies (rows normalised by default)."""
+    import matplotlib.pyplot as plt
+
+    data = group_counts.astype(np.float64)
+    if normalise:
+        row_sum = data.sum(axis=1, keepdims=True).clip(min=1)
+        data = data / row_sum
+    if ax is None:
+        _, ax = plt.subplots(
+            figsize=(max(5, 0.4 * len(cluster_ids) + 2),
+                     max(2, 0.5 * len(group_names) + 1)),
+        )
+    im = ax.imshow(data, aspect="auto", cmap="YlOrRd", vmin=0)
+    ax.set_xticks(range(len(cluster_ids)))
+    ax.set_xticklabels([str(c) for c in cluster_ids], fontsize=8)
+    ax.set_yticks(range(len(group_names)))
+    ax.set_yticklabels(group_names, fontsize=10)
+    ax.set_xlabel("cluster"); ax.set_ylabel("group")
+    ax.set_title("Group × cluster frequencies")
+    plt.colorbar(im, ax=ax, fraction=0.04, pad=0.02,
+                 label="fraction" if normalise else "count")
+    return ax
+
+
+def plot_group_frequency_boxplots(
+    freq: np.ndarray,
+    image_names: np.ndarray,
+    group_map: dict[str, str],
+    cluster_ids: np.ndarray,
+    *,
+    max_clusters: int = 20,
+    figsize: tuple[float, float] | None = None,
+):
+    """Per-cluster boxplot of image frequencies, split by group.
+
+    Shows which clusters drive group differences.
+    """
+    import matplotlib.pyplot as plt
+
+    groups = sorted(set(group_map.values()))
+    k = min(len(cluster_ids), max_clusters)
+    cids = cluster_ids[:k]
+
+    if figsize is None:
+        figsize = (max(8, 1.2 * k), 4)
+    fig, ax = plt.subplots(figsize=figsize)
+
+    width = 0.8 / len(groups)
+    cmap = plt.get_cmap("Set1")
+
+    for gi, g in enumerate(groups):
+        img_mask = np.array(
+            [group_map.get(str(img)) == g for img in image_names]
+        )
+        if not img_mask.any():
+            continue
+        positions = np.arange(k) + (gi - len(groups) / 2 + 0.5) * width
+        data = [freq[img_mask, ci] for ci in range(k)]
+        bp = ax.boxplot(
+            data, positions=positions, widths=width * 0.85,
+            patch_artist=True, showfliers=False, medianprops={"color": "black"},
+        )
+        for patch in bp["boxes"]:
+            patch.set_facecolor(cmap(gi % 9))
+            patch.set_alpha(0.6)
+        ax.plot([], [], color=cmap(gi % 9), label=g, linewidth=6, alpha=0.6)
+
+    ax.set_xticks(range(k))
+    ax.set_xticklabels([str(c) for c in cids], fontsize=8)
+    ax.set_xlabel("cluster")
+    ax.set_ylabel("per-image frequency")
+    ax.set_title("Cluster frequency by group")
+    ax.legend(fontsize=9)
+    ax.grid(axis="y", alpha=0.3)
+    fig.tight_layout()
+    return fig
