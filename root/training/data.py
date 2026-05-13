@@ -1,4 +1,4 @@
-"""Build datasets, dataloaders, and channel statistics."""
+"""Build datasets, dataloaders, and per-channel statistics."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from utils_data.patch_dataset import PatchDataset  # noqa: E402
 
 
 class TransformedSubset(Dataset):
-    """Apply a transform on the fly to every sample of a Subset."""
+    """Apply ``transform`` on the fly to every sample of a ``Subset``."""
 
     def __init__(self, subset, transform: Callable):
         self.subset = subset
@@ -37,6 +37,7 @@ def split_train_val(
     val_split: float,
     generator: torch.Generator,
 ) -> tuple[Subset, Subset]:
+    """Random-split ``dataset`` into ``(train, val)`` with val fraction ``val_split``."""
     n_val = int(len(dataset) * val_split)
     n_train = len(dataset) - n_val
     return random_split(dataset, [n_train, n_val], generator=generator)
@@ -48,7 +49,7 @@ def compute_channel_stats(
     max_samples: int = 4096,
     desc: str = "channel stats",
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Compute streaming per-channel mean/std over a ``(C, H, W)`` subset of ``[0, 1]`` tensors."""
+    """Compute streaming per-channel mean/std over up to ``max_samples`` ``(C, H, W)`` tensors."""
     n = min(len(subset), max_samples)
     sums = torch.zeros(in_channels, dtype=torch.float64)
     sqsums = torch.zeros(in_channels, dtype=torch.float64)
@@ -76,11 +77,9 @@ def build_dataloaders(
     val_transform: Callable,
     generator: torch.Generator,
 ) -> tuple[DataLoader, DataLoader, Subset, Subset, PatchDataset]:
-    """Build a train/val split + augmented dataloaders.
+    """Build train/val subsets and augmented dataloaders from ``data_root``.
 
-    Returns
-    -------
-    train_loader, val_loader, train_subset, val_subset, raw_dataset
+    Returns ``(train_loader, val_loader, train_subset, val_subset, raw_dataset)``.
     """
     raw = PatchDataset(root=data_root, exclude_patterns=exclude_patterns)
     train_subset, val_subset = split_train_val(raw, val_split, generator)

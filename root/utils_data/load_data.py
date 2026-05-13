@@ -1,3 +1,5 @@
+"""Load 3D microscopy volumes and z-interpolate to isotropic voxels."""
+
 from __future__ import annotations
 
 import gc
@@ -9,22 +11,16 @@ from scipy.ndimage import zoom
 
 
 def load_full_volume(file_path: str) -> NDArray:
-    """Load the full 3D volume at highest resolution.
-
-    Return a ``CZYX`` array.
-    """
+    """Load the highest-resolution 3D volume. Return ``(C, Z, Y, X)``."""
     img = AICSImage(file_path)
 
-    # Diagnostic info
     print(f"Physical pixel sizes: {img.physical_pixel_sizes}")
     print(f"Dimensions: {img.dims}")
     print(f"Shape: {img.shape}")
 
-    # Load highest resolution (S=0 for scene 0, T=0 for time 0)
     data = img.get_image_data("CZYX", S=0, T=0)
     print(f"Loaded shape: {data.shape} (C, Z, Y, X)")
 
-    # Warn if z-stack is shallow
     if data.shape[1] < 10:
         print(f"WARNING: Only {data.shape[1]} z-slices detected")
         print("This may be a preview rather than full resolution data")
@@ -35,10 +31,7 @@ def load_full_volume(file_path: str) -> NDArray:
 def interpolate_z_axis(data: NDArray,
                        z_pixel_size = 0.15, # microns
                        xy_pixel_size = 0.10685428060522417) -> NDArray:
-    """Interpolate the Z-axis to match XY pixel spacing.
-
-    Create isotropic voxels for visualisation.
-    """
+    """Z-interpolate to isotropic voxels via scipy ``zoom`` (linear, in-RAM)."""
     interpolation_factor = z_pixel_size / xy_pixel_size
 
     print(f"Z-interpolation factor: {interpolation_factor:.4f}")
@@ -53,10 +46,9 @@ def interpolate_z_axis(data: NDArray,
 
 def interpolate_z_memory_efficient(data: NDArray, xy_pixel_size: float = 0.10685428060522417,
                                    z_pixel_size: float = 0.15, chunk_size: int = 50) -> NDArray:
-    """Interpolate the Z-axis with lower memory use.
+    """Z-interpolate to isotropic voxels, processing Y in chunks.
 
-    Process data in Y-chunks to limit RAM. Use a memmap output for arrays larger than 1 GB.
-    Return data with Z spacing matched to XY spacing.
+    Spill to memmap above 1 GB output.
     """
     c, z, y, x = data.shape
 

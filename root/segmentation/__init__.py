@@ -1,9 +1,4 @@
-"""Shared segmentation utilities for the notebooks under ``root/notebooks/segmentation``.
-
-Provides segmentation-specific config, dataset, losses, model builder,
-augmentation, sliding-window inference, and visualisation on top of the
-existing ``training`` infrastructure.
-"""
+"""Segmentation config, dataset, losses, model, augmentation, inference, viz."""
 
 from .config import SegTrainCfg
 from .dataset import PseudoLabelSegDataset

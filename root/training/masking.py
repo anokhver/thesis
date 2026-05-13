@@ -1,7 +1,6 @@
-"""Sample SimMIM block masks and apply mask tokens.
+"""Sample SimMIM block masks and apply mask tokens in pixel space.
 
-Follow Xie et al. (CVPR 2022). Replace the mask token in pixel space.
-
+Xie et al. (CVPR 2022).
 Ref: https://github.com/microsoft/SimMIM
 """
 
@@ -14,9 +13,10 @@ import torch.nn.functional as F
 def random_block_mask(
     img: torch.Tensor, block_size: int, mask_ratio: float,
 ) -> torch.Tensor:
-    """Sample a per-sample grid mask on a ``(B, C, H, W)`` image.
+    """Sample a per-sample block mask for a ``(B, C, H, W)`` image.
 
-    Return a ``(B, 1, H, W)`` ``{0, 1}`` mask broadcast across channels.
+    Return ``(B, 1, H, W)`` ``{0, 1}`` mask. ``H`` and ``W`` must divide by
+    ``block_size``. ``mask_ratio`` is the fraction of blocks masked.
     """
     B, _, H, W = img.shape
     if H % block_size or W % block_size:

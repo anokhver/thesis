@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""
-Show a reassembled image from .npy patches with a grid overlay marking
-patch boundaries.
+"""Render a reassembled image from ``.npy`` patches with a patch-grid overlay.
 
 Usage:
-    python root/image_generation/preview_patch_grid.py [--image_index 0]
+    python root/imaging/preview_patch_grid.py [--image_index 0]
         [--patch_root data/patches_128] [--output outs/patch_grid.png]
 """
 
@@ -60,7 +58,7 @@ def _composite_rgb(channels: np.ndarray) -> np.ndarray:
 
 
 def draw_grid(ax, n_rows, n_cols, patch_size, color="white", lw=0.5, alpha=0.6):
-    """Draw patch grid lines on an axes."""
+    """Overlay patch-boundary grid lines on ``ax``."""
     for r in range(1, n_rows):
         ax.axhline(r * patch_size - 0.5, color=color, lw=lw, alpha=alpha)
     for c in range(1, n_cols):
@@ -72,13 +70,9 @@ def make_grid_figure(
     patch_size: int,
     source_name: str = "",
 ) -> plt.Figure:
-    """
-    Create a figure with per-channel images + composite, all with grid overlay.
+    """Render per-channel panels and a composite with patch-grid overlay.
 
-    Args:
-        full_image: (C, H, W) float32 array
-        patch_size: size of each square patch
-        source_name: label for the title
+    ``full_image`` is ``(C, H, W)`` float32. ``patch_size`` sets the grid pitch.
     """
     C, H, W = full_image.shape
     n_rows = H // patch_size

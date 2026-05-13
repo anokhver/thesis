@@ -1,4 +1,4 @@
-"""Seed RNGs and snapshot their state."""
+"""Seed RNGs and snapshot/restore RNG state."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import torch
 
 
 def seed_everything(seed: int) -> torch.Generator:
-    """Seed Python, NumPy and torch (CPU + CUDA). Returns a torch.Generator."""
+    """Seed Python, NumPy, torch CPU, torch CUDA. Return a seeded ``torch.Generator``."""
     _py_random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -20,7 +20,7 @@ def seed_everything(seed: int) -> torch.Generator:
 
 
 class RNGSnapshot:
-    """Snapshot and restore all four RNGs."""
+    """Snapshot Python, NumPy, torch CPU, torch CUDA RNG state."""
 
     def __init__(self) -> None:
         self.py = _py_random.getstate()
@@ -40,7 +40,7 @@ class RNGSnapshot:
 
 @contextmanager
 def isolated_rng(seed: int):
-    """Temporarily seed all RNGs and restore the previous state on exit."""
+    """Seed all RNGs for the block; restore prior state on exit."""
     snap = RNGSnapshot()
     try:
         _py_random.seed(seed)

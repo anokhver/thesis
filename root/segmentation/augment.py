@@ -1,7 +1,7 @@
-"""Apply joint image-mask augmentation for segmentation training.
+"""Joint image-mask augmentation for segmentation training.
 
-Apply geometric transforms to image and mask together. Apply intensity
-transforms to the image only.
+Geometric transforms applied to both image and mask. Intensity transforms
+applied to image only.
 """
 
 from __future__ import annotations
@@ -11,10 +11,10 @@ import torch.nn.functional as F
 
 
 class SegTrainTransform:
-    """Apply joint augmentation to ``(image, mask)`` pairs.
+    """Joint augmentation for ``(image, mask)`` pairs.
 
-    Accept image ``(C, H, W)`` float32 in ``[0, 1]`` and mask ``(1, H, W)``
-    float32. Return a normalised image and augmented mask with the same shapes.
+    Image: ``(C, H, W)`` float32 in ``[0, 1]``. Mask: ``(1, H, W)`` float32.
+    Returns normalised image and re-binarised mask, same shapes.
     """
 
     def __init__(
@@ -85,7 +85,7 @@ class SegTrainTransform:
 
 
 class SegValTransform:
-    """Normalise image and pass mask through."""
+    """Channel-normalise image. Pass mask through unchanged."""
 
     def __init__(self, ch_mean: torch.Tensor, ch_std: torch.Tensor):
         self.ch_mean = ch_mean.view(-1, 1, 1)
