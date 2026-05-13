@@ -11,10 +11,7 @@ from scipy.ndimage import zoom
 
 
 def load_full_volume(file_path: str) -> NDArray:
-    """Load full-resolution 3D volume.
-
-    Return ``(C, Z, Y, X)`` array.
-    """
+    """Load a 3D volume via AICSImage. Return ``(C, Z, Y, X)``."""
     img = AICSImage(file_path)
 
     print(f"Physical pixel sizes: {img.physical_pixel_sizes}")
@@ -36,10 +33,7 @@ def interpolate_z_axis(
     z_pixel_size: float = 0.15,
     xy_pixel_size: float = 0.10685428060522417,
 ) -> NDArray:
-    """Interpolate z-axis to match xy pixel spacing.
-
-    Produce isotropic voxels.
-    """
+    """Z-interpolate to isotropic voxels via scipy ``zoom`` (linear, in-RAM)."""
     interpolation_factor = z_pixel_size / xy_pixel_size
 
     print(f"Z-interpolation factor: {interpolation_factor:.4f}")
@@ -58,10 +52,9 @@ def interpolate_z_memory_efficient(
     z_pixel_size: float = 0.15,
     chunk_size: int = 50,
 ) -> NDArray:
-    """Interpolate z-axis in chunks for isotropic voxels.
+    """Z-interpolate to isotropic voxels, processing Y in chunks.
 
-    Process Y-axis in chunks of ``chunk_size`` slices. Use memmap for
-    outputs > 1 GB.
+    Spill to memmap above 1 GB output to stay within RAM.
     """
     c, z, y, x = data.shape
 
@@ -113,7 +106,7 @@ def interpolate_z_memory_efficient(
 
 
 def plot_napari(data: NDArray) -> None:
-    """Launch a napari viewer with attenuated MIP rendering."""
+    """Open napari with attenuated-MIP rendering on ``data``."""
     import napari
 
     viewer = napari.Viewer()

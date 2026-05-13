@@ -1,4 +1,4 @@
-"""Provide canonical sanity-batch indices and an overfit helper."""
+"""Fixed sanity-batch indices and overfit-on-batch helper."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def fixed_two_view_batch(
     transform: Callable,
     seed: int,
 ) -> tuple[torch.Tensor, torch.Tensor, list[int]]:
-    """Apply a two-view transform with a fixed seed; outer RNG is preserved."""
+    """Apply ``transform`` (two-view) at fixed seed. Restore outer RNG on exit."""
     idxs = _safe_indices(indices, len(subset))
     v1, v2 = [], []
     with isolated_rng(seed):
@@ -46,7 +46,7 @@ def fixed_single_view_batch(
     transform: Callable,
     seed: int,
 ) -> tuple[torch.Tensor, list[int]]:
-    """Apply a single-view (val) transform deterministically."""
+    """Apply ``transform`` (single-view) at fixed seed. Restore outer RNG on exit."""
     idxs = _safe_indices(indices, len(subset))
     out = []
     with isolated_rng(seed):
@@ -69,11 +69,10 @@ def overfit_on_batch(
     restore_state: bool = False,
     logger=None,
 ) -> dict:
-    """Run a tiny overfit loop on a fixed batch.
+    """Run ``n_steps`` of overfit on a fixed two-view batch.
 
-    Mutates encoder + heads in place. Pass ``restore_state=True`` to
-    snapshot/restore weights and RNG state afterwards.
-    Returns dict with per-step loss history and recon-loss drop.
+    Mutates encoder + heads in place. Set ``restore_state=True`` to snapshot
+    and restore weights + RNG on exit. Returns ``{history, recon_drop, n_steps}``.
     """
     from .losses import compute_simmim_vicreg_loss
 

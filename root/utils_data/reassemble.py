@@ -1,4 +1,4 @@
-"""Reconstruct full MIP images from tiled .npy patches and slice arrays back."""
+"""Reassemble full MIPs from tiled ``.npy`` patches; slice arrays back."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import numpy as np
 
 
 def _load_index(patch_root):
-    """Load and group index.csv records by image_index."""
+    """Load ``index.csv`` and group records by ``image_index``."""
     patch_root = Path(patch_root)
     csv_path = patch_root / "index.csv"
     if not csv_path.exists():
@@ -27,10 +27,11 @@ def _load_index(patch_root):
 
 
 def reassemble_image(patch_root, image_index, exclude_patterns=None):
-    """Reconstruct a full image from its tiled patches.
+    """Reassemble one image from its tiled patches.
 
-    Return ``(full_image, records)`` where ``full_image`` is ``(C, H, W)`` float32.
-    Raise ValueError if ``image_index`` is missing or matches an exclude pattern.
+    Return ``(full_image, records)`` with ``full_image`` shaped ``(C, H, W)``
+    float32. Raise ValueError if ``image_index`` is absent or its source
+    matches ``exclude_patterns``.
     """
     patch_root = Path(patch_root)
     by_image = _load_index(patch_root)
@@ -67,10 +68,10 @@ def reassemble_image(patch_root, image_index, exclude_patterns=None):
 
 
 def slice_to_patches(full_array, records, patch_size=None):
-    """Slice a full image back into per-patch arrays matching the CSV grid.
+    """Slice ``(C, H, W)`` or ``(H, W)`` back into per-patch arrays.
 
-    Accept ``(C, H, W)`` or ``(H, W)`` input. Override ``patch_size`` to ignore the
-    value stored in ``records``. Return a dict mapping filename to patch array.
+    Override ``patch_size`` to ignore the value stored in ``records``.
+    Return a dict mapping filename to patch array.
     """
     if patch_size is None:
         patch_size = int(records[0]["patch_size"])
@@ -93,7 +94,7 @@ def slice_to_patches(full_array, records, patch_size=None):
 
 
 def list_image_indices(patch_root, exclude_patterns=None):
-    """Return sorted list of available image indices."""
+    """Return sorted ``image_index`` values, skipping ``exclude_patterns`` matches."""
     by_image = _load_index(patch_root)
     indices = sorted(by_image.keys())
 

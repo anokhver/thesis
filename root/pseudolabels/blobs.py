@@ -2,14 +2,18 @@
 
 Channel convention: 0=presynaptic, 1=postsynaptic, 2=structural/neurite.
 
-Pipeline: LoG blobs (pre+post) → co-localisation → structural mask gate
-(Meijering dendrite + soma) → shape filter → optional z-score filter.
+Pipeline: scikit-image LoG blobs on pre+post → co-localisation via
+intersection after small dilation → restrict to dendrite ∪ soma
+structural mask (Meijering ridge + intensity threshold) → shape filter
+→ optional per-blob annular z-score (SynQuant-lite).
 
 References:
-* Meijering et al. (Cytometry A, 2004) — neurite ridge filter.
-* Lindeberg (IJCV, 1998) — scale-normalised LoG.
-* Wang et al. (Bioinformatics, 2020) — SynQuant annular z-score.
-* Fantuzzo et al. (eNeuro, 2017) — puncta size/intensity calibration.
+* Meijering et al. (Cytometry A 2004) — neurite ridge filter.
+* Lindeberg (IJCV 1998) — scale-normalised LoG.
+* Wang et al. (Bioinformatics 2020) — SynQuant annular z-score.
+* Fantuzzo et al. (eNeuro 2017) — puncta size/intensity calibration.
+
+Ref: https://github.com/scikit-image/scikit-image
 """
 from __future__ import annotations
 
@@ -38,7 +42,8 @@ from skimage.morphology import (
 class BlobPseudoCfg:
     """Pseudo-label pipeline configuration.
 
-    Defaults calibrated for 107 nm/px confocal: puncta 2-5 px, dendrites 4-18 px.
+    Defaults calibrated for 107 nm/px confocal: puncta 2-5 px,
+    dendrites 4-18 px.
     """
 
     # channel roles
@@ -107,7 +112,13 @@ def detect_blobs_log(
     image: np.ndarray,
     cfg: BlobPseudoCfg,
 ) -> np.ndarray:
-    """Run scale-space LoG on a (H, W) channel. Returns (N, 3) (row, col, sigma)."""
+    """Scale-space LoG blob detection on a 2D channel.
+
+    Return ``(N, 3)`` array of ``(row, col, sigma)``. Scale-normalised LoG
+    (Lindeberg, IJCV 1998).
+
+    Ref: https://github.com/scikit-image/scikit-image
+    """
     if image.ndim != 2:
         raise ValueError(f"detect_blobs_log expects 2D, got shape {image.shape}")
     blobs = blob_log(
@@ -123,7 +134,7 @@ def detect_blobs_log(
 
 
 def blobs_to_mask(blobs: np.ndarray, shape: Tuple[int, int]) -> np.ndarray:
-    """Render LoG blobs as a union of disks (radius = sqrt(2)*sigma)."""
+    """Render LoG blobs as a union of disks (radius = ``sqrt(2) * sigma``)."""
     mask = np.zeros(shape, dtype=np.uint8)
     for row, col, sigma in blobs:
         radius = max(1, int(np.round(np.sqrt(2.0) * sigma)))
@@ -140,9 +151,10 @@ def meijering_response(
     image: np.ndarray,
     sigmas: Iterable[int],
 ) -> np.ndarray:
-    """Multi-scale Meijering ridge response on (H, W) structural channel.
+    """Multi-scale Meijering ridge response on a 2D structural channel.
 
-    ``black_ridges=False`` — fluorescent neurites are bright on dark.
+    ``black_ridges=False`` for bright-on-dark fluorescence. Meijering et al.
+    (Cytometry A 2004).
     """
     return meijering(image, sigmas=list(sigmas), black_ridges=False)
 
@@ -153,9 +165,9 @@ def compute_global_meijering_threshold(
     method: str = "otsu",
     percentile: float = 90.0,
 ) -> float:
-    """Pool Meijering responses across patches and return one global threshold.
+    """Pool Meijering responses across patches and return a single threshold.
 
-    Stabilise the threshold when per-patch Otsu fails on neurite-free patches.
+    Stabilises the threshold against per-patch Otsu failure on neurite-free patches.
     """
     pooled = []
     sigmas = list(sigmas)
@@ -181,7 +193,7 @@ def make_dendrite_mask(
     sigmas: Iterable[int],
     threshold: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Returns (response, mask). Mask is `response > threshold`."""
+    """Return ``(response, response > threshold)``."""
     response = meijering_response(structural_image, sigmas)
     return response, response > threshold
 
@@ -193,10 +205,10 @@ def make_soma_mask(
     closing_radius: int = 0,
     fill_holes: bool = False,
 ) -> np.ndarray:
-    """Build a soma mask from high-intensity connected components.
+    """Soma mask from high-intensity connected components in the structural channel.
 
-    Recover bright solid somas that Meijering misses. Keep components with area
-    at least ``min_area`` after optional closing and hole filling.
+    Recovers bright solid somas that Meijering misses. Keep CCs with
+    area ≥ ``min_area`` after optional closing and hole-fill.
     """
     if structural_image.ndim != 2:
         raise ValueError("make_soma_mask expects 2D")
@@ -216,7 +228,7 @@ def make_structural_mask(
     image: np.ndarray,
     cfg: BlobPseudoCfg,
 ) -> dict:
-    """Build dendrite ∪ soma mask + dilated near-neuron zone from (C, H, W) patch."""
+    """Build dendrite ∪ soma mask plus dilated near-neuron zone from ``(C, H, W)``."""
     if cfg.dendrite_threshold is None:
         raise ValueError(
             "cfg.dendrite_threshold is None -- call "
@@ -253,10 +265,7 @@ def colocalize_intersect(
     post_mask: np.ndarray,
     dilation_radius: int = 2,
 ) -> np.ndarray:
-    """Dilate the pre-mask, then intersect it with the post-mask.
-
-    Handle sub-pixel co-localisation offsets.
-    """
+    """Dilate ``pre_mask`` and intersect with ``post_mask``. Sub-pixel offset tolerance."""
     if dilation_radius > 0:
         pre = dilation(pre_mask.astype(bool), morph_disk(dilation_radius))
     else:
@@ -283,9 +292,9 @@ def score_blob_zscore(
     r_in: int,
     r_out: int,
 ) -> dict:
-    """Compute an annular-background z-score for one LoG blob.
+    """Annular-background z-score for one LoG blob (SynQuant-lite, local window).
 
-    Use the SynQuant-lite local-window variant. Wang et al. (Bioinformatics, 2020).
+    Wang et al. (Bioinformatics 2020).
     """
     rri, cci = int(round(row)), int(round(col))
     half = r_out
@@ -328,6 +337,7 @@ def score_blobs_zscore(
     blobs: np.ndarray,
     cfg: BlobPseudoCfg,
 ) -> List[dict]:
+    """Score every blob and tag ``kept`` against ``cfg.zscore_threshold``."""
     out = []
     for row, col, sigma in blobs:
         rec = score_blob_zscore(
@@ -348,7 +358,10 @@ def filter_by_size_shape(
     mask: np.ndarray,
     cfg: BlobPseudoCfg,
 ) -> np.ndarray:
-    """Drop CCs violating min/max area, aspect ratio, or fill ratio. SynQuant-style shape priors."""
+    """Drop CCs violating min/max area, aspect ratio, or bbox fill.
+
+    SynQuant-style shape priors. Fantuzzo et al. (eNeuro 2017) size calibration.
+    """
     lbl = cc_label(mask, connectivity=2)
     out = np.zeros_like(mask)
     for prop in regionprops(lbl):
@@ -380,8 +393,9 @@ def generate_blob_pseudolabel(
 ) -> Tuple[np.ndarray, dict, dict]:
     """Run the pseudo-label pipeline on one ``(C, H, W)`` patch.
 
-    Use ``precomputed_struct`` to reuse a full-image structural mask slice and avoid
-    border artifacts. Return ``(label_mask, intermediates, stats)``.
+    Pass ``precomputed_struct`` (a structural-mask slice from the full
+    image) to avoid per-patch border artifacts. Return
+    ``(label_mask, intermediates, stats)``.
     """
     if patch.ndim != 3:
         raise ValueError(f"patch must be (C, H, W); got {patch.shape}")
@@ -479,9 +493,9 @@ def compute_fullimage_structural_mask(
     full_image: np.ndarray,
     cfg: BlobPseudoCfg,
 ) -> dict:
-    """Run Meijering and soma detection on a full ``(C, H, W)`` image.
+    """Run Meijering + soma detection on a full ``(C, H, W)`` image.
 
-    Avoid per-patch border artifacts and fragmented cross-boundary somas.
+    Avoids per-patch border artifacts and fragmented cross-boundary somas.
     """
     return make_structural_mask(full_image, cfg)
 
@@ -492,7 +506,7 @@ def generate_pseudolabels_fullimage(
     cfg: BlobPseudoCfg,
     patch_size: int | None = None,
 ) -> dict[str, np.ndarray]:
-    """Generate pseudo-labels with a full-image structural mask and per-patch LoG.
+    """Per-patch LoG + co-localisation gated by a full-image structural mask.
 
     Return a dict mapping filename to ``(H, W)`` ``uint8`` mask.
     """

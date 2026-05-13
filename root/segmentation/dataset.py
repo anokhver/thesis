@@ -1,8 +1,7 @@
-"""Load fluorescence patches with blob pseudo-labels.
+"""Fluorescence-patch dataset with blob pseudo-label masks.
 
-Support per-patch and full-image pseudo-label modes. Optionally cache masks
-to disk. Return ``(image, mask)`` as ``(C, H, W)`` and ``(1, H, W)``
-float32 tensors.
+Supports per-patch and full-image pseudo-label modes with optional disk
+cache. Returns ``(image, mask)`` as ``(C, H, W)`` and ``(1, H, W)`` float32.
 """
 
 from __future__ import annotations
@@ -23,10 +22,10 @@ from utils_data.patch_dataset import PatchDataset  # noqa: E402
 
 
 class PseudoLabelSegDataset(Dataset):
-    """Generate and cache blob pseudo-labels per patch.
+    """Blob pseudo-label dataset with optional disk cache.
 
-    Use ``precomputed_masks`` (``filename -> (H, W) uint8``) to skip per-patch
-    generation. Use ``cache_dir`` to enable ``.npy`` disk caching.
+    ``precomputed_masks`` (``filename -> (H, W) uint8``) skips per-patch
+    generation. ``cache_dir`` enables ``.npy`` disk caching.
     """
 
     def __init__(
@@ -56,7 +55,7 @@ class PseudoLabelSegDataset(Dataset):
         return self.cache_dir / f"{stem}_pseudo.npy"
 
     def _get_raw_numpy(self, idx: int) -> np.ndarray:
-        """Load the raw (C, H, W) numpy patch (bypassing tensor conversion)."""
+        """Return the raw ``(C, H, W)`` float32 patch."""
         rec = self.patch_ds.records[idx]
         patch = np.load(self.patch_ds.root / rec["filename"])
         if self.patch_ds.channels is not None:
@@ -64,7 +63,7 @@ class PseudoLabelSegDataset(Dataset):
         return patch.astype(np.float32)
 
     def _get_mask(self, idx: int, patch_np: np.ndarray) -> np.ndarray:
-        """Return (H, W) uint8 pseudo-label mask, using cache if available."""
+        """Return ``(H, W)`` uint8 pseudo-label mask, using cache if present."""
         rec = self.patch_ds.records[idx]
 
         # 1. precomputed from full-image mode

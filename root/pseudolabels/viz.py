@@ -1,7 +1,7 @@
 """Diagnostic plots for the blob pseudo-label pipeline.
 
-Companion to `pseudolabels.blobs`. Functions return matplotlib axes
-or figures so the notebook can compose them into larger panels.
+Companion to ``pseudolabels.blobs``. Functions return matplotlib axes
+or figures so notebooks can compose them.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def show_3channel_grid(
     figsize=(14, 4),
     vmax=0.5,
 ):
-    """Display the composite and each channel side by side."""
+    """Show the channel-max composite and each channel side by side."""
     C, H, W = patch.shape
     fig, axes = plt.subplots(1, C + 1, figsize=figsize)
     composite = patch.max(axis=0)
@@ -47,7 +47,7 @@ def show_3channel_grid(
 
 
 def show_blob_overlay(image, blobs, ax, color="lime", linewidth=0.8, vmax=0.5):
-    """Draw circles for each blob (radius = sqrt(2)*sigma) over `image`."""
+    """Draw a circle (radius = ``sqrt(2) * sigma``) per blob over ``image``."""
     ax.imshow(image, cmap="gray", vmin=0, vmax=vmax)
     for row, col, sigma in blobs:
         radius = float(np.sqrt(2.0) * sigma)
@@ -66,8 +66,10 @@ def show_scored_blobs(
     color_rejected="red",
     show_rejected=True,
 ):
-    """`scored` is a list of dicts (from score_blobs_zscore).
-    Lime = z-score above threshold (kept); red = below (rejected)."""
+    """Overlay blobs from ``score_blobs_zscore``, coloured by ``kept``.
+
+    Kept (``z >= threshold``) → ``color_kept``; rejected → ``color_rejected``.
+    """
     ax.imshow(image, cmap="gray", vmin=0, vmax=vmax)
     for s in scored:
         radius = float(np.sqrt(2.0) * s["sigma"])
@@ -84,7 +86,7 @@ def show_scored_blobs(
 
 
 def show_mask_overlay(image, mask, ax, color=(1, 0.2, 0.2), alpha=0.4, vmax=0.5):
-    """Semi-transparent coloured fill for `mask` over greyscale `image`."""
+    """Semi-transparent coloured fill for ``mask`` over greyscale ``image``."""
     ax.imshow(image, cmap="gray", vmin=0, vmax=vmax)
     rgba = np.zeros((*mask.shape, 4))
     rgba[..., 0] = color[0]
@@ -103,7 +105,7 @@ def show_pipeline_stages(
     figsize=(18, 12),
     vmax=0.5,
 ):
-    """3x3 diagnostic figure showing every intermediate stage on one patch."""
+    """3x3 diagnostic figure of every intermediate stage on one patch."""
     fig, axes = plt.subplots(3, 3, figsize=figsize)
 
     composite = patch.max(axis=0)
@@ -156,7 +158,7 @@ def show_pipeline_stages(
 
 
 def plot_zscore_histogram(scored_pre, scored_post, threshold, ax=None, bins=50):
-    """Histograms of per-blob z-scores so you can pick a threshold."""
+    """Per-blob z-score histograms (pre, post) with the threshold line."""
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 4))
     pre_z = np.array([s["z"] for s in scored_pre if not np.isnan(s["z"])])

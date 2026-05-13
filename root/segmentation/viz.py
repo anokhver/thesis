@@ -1,6 +1,6 @@
-"""Provide segmentation visualisation helpers.
+"""Segmentation visualisation helpers.
 
-Return Matplotlib figures without calling ``plt.show()``.
+Returns Matplotlib figures. Does not call ``plt.show()``.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ SEG_LOSS_LABELS: dict[str, str] = {
 
 
 def _to_display(img: np.ndarray | torch.Tensor, ch: int = 0) -> np.ndarray:
-    """Convert (C, H, W) to (H, W) single-channel for display."""
+    """Reduce ``(C, H, W)`` to ``(H, W)`` float32 single-channel."""
     if torch.is_tensor(img):
         img = img.detach().cpu().numpy()
     if img.ndim == 3:
@@ -54,7 +54,7 @@ def plot_seg_overlay(
     save_to: str | Path | None = None,
     figsize: tuple = (15, 5),
 ) -> plt.Figure:
-    """Plot image, ground-truth, and optional prediction overlays."""
+    """Plot image, ground-truth, and optional prediction as overlays."""
     img = _normalise_01(_to_display(image, channel))
     gt = _to_display(mask, 0) if mask is not None else None
     n_cols = 2 if prediction is None else 3
@@ -104,7 +104,7 @@ def plot_seg_comparison(
     title: str = "",
     save_to: str | Path | None = None,
 ) -> plt.Figure:
-    """Plot channels, pseudo-label, prediction, and residual."""
+    """Plot per-channel image, pseudo-label, prediction, and residual."""
     C = min(image.shape[0], len(channel_names))
     fig, axes = plt.subplots(2, C + 1, figsize=(4 * (C + 1), 8))
 
@@ -166,7 +166,7 @@ def plot_seg_curves(
     run_label: str = "",
     save_to: str | Path | None = None,
 ) -> plt.Figure:
-    """Plot training/validation loss and Dice curves from metrics CSV."""
+    """Plot loss, Dice, and LR curves from a metrics CSV."""
     csv_path = Path(csv_path)
     rows = []
     with open(csv_path, "r") as f:

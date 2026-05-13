@@ -1,7 +1,8 @@
-"""Compute SimMIM + VICReg losses and validation metrics.
+"""SimMIM + VICReg losses, Fourier auxiliary, and validation metrics.
 
-Include custom foreground reweighting and pooling.
-
+Includes custom foreground sigmoid reweighting (precedent: VasoMIM, Huang et
+al., AAAI 2026) and custom foreground-weighted spatial pooling for the VICReg
+branch.
 Ref: https://github.com/microsoft/SimMIM
 Ref: https://github.com/facebookresearch/mae
 Ref: https://github.com/facebookresearch/vicreg
@@ -19,7 +20,7 @@ from .masking import apply_mask, random_block_mask
 
 
 def _encode_at(encoder: nn.Module, x: torch.Tensor, stage_index: int = -1) -> torch.Tensor:
-    """Return encoder feature map at ``stage_index``. -1 = deepest."""
+    """Return encoder feature map at ``stage_index``; ``-1`` = deepest."""
     return encoder(x.contiguous())[stage_index]
 
 
@@ -30,11 +31,12 @@ def _fg_weighted_mask(
     tau: float,
     temp: float,
 ) -> torch.Tensor:
-    """Scale ``mask`` by foreground weight ``1 + alpha * sigmoid((target - tau) / temp)``.
+    """Scale ``mask`` by ``1 + alpha * sigmoid((target - tau) / temp)``.
 
-    ``alpha <= 0`` → returns ``mask`` unchanged.
-    Counters background-focus collapse. Custom sigmoid reweighting; related
-    concept in VasoMIM (Huang et al., AAAI 2026).
+    Channel-wise ``amax`` over the logit. ``alpha <= 0`` returns ``mask`` unchanged.
+    Counters background-focus collapse on sparse foreground.
+    Anatomy-weighted recon precedent: VasoMIM (Huang et al., AAAI 2026).
+    Ref: https://github.com/microsoft/SimMIM
     """
     if alpha <= 0.0:
         return mask
@@ -47,8 +49,7 @@ def _per_patch_normalize(target: torch.Tensor, patch_size: int) -> torch.Tensor:
     """Normalise each ``patch_size x patch_size`` tile to mean 0 / std 1.
 
     Breaks channel-mean shortcut. He et al. (CVPR 2022) §4.2.
-    Raises ``ValueError`` if spatial dims not divisible by ``patch_size``.
-
+    Raises ``ValueError`` if spatial dims do not divide by ``patch_size``.
     Ref: https://github.com/facebookresearch/mae
     """
     if patch_size <= 0:
@@ -75,10 +76,10 @@ def _fg_recon_metric(
     per_patch_target_norm: bool = False,
     target_norm_patch_size: int = 8,
 ) -> torch.Tensor:
-    """Compute masked L1 on foreground pixels only.
+    """Masked L1 on foreground pixels only. Eval-time diagnostic; no grad.
 
-    Foreground = intensity > ``threshold`` in any channel.
-    Eval metric, no grad. Exposes background-focus collapse. Custom, no paper precedent.
+    Foreground: ``target_raw.amax(channels) > threshold``. Custom diagnostic;
+    exposes background-focus collapse independently of training-time fg weighting.
     """
     fg = (target_raw.amax(dim=1, keepdim=True) > threshold).to(target_raw.dtype)
     if per_patch_target_norm:
@@ -95,8 +96,7 @@ def _simmim_recon_l1(
     pred, target, mask,
     fg_alpha: float = 0.0, fg_tau: float = 0.0, fg_temp: float = 1.0,
 ) -> torch.Tensor:
-    # SimMIM Eq. (1). fg_alpha == 0 matches upstream verbatim.
-    # fg_alpha > 0: custom fg-reweighting; weighted denom keeps scale invariant.
+    """Masked L1 (SimMIM Eq. 1). ``fg_alpha > 0`` applies sigmoid fg-reweighting."""
     wm = _fg_weighted_mask(target, mask, fg_alpha, fg_tau, fg_temp)
     err = (pred - target).abs() * wm
     denom = wm.sum() * pred.shape[1] + 1e-8
@@ -114,11 +114,10 @@ def simmim_recon_loss(
     per_patch_target_norm: bool = False,
     target_norm_patch_size: int = 8,
 ) -> torch.Tensor:
-    """Compute masked reconstruction loss. Use ``'l1'``.
+    """Masked reconstruction loss. ``kind='l1'`` only.
 
-    ``per_patch_target_norm``: tile-wise mean 0 / std 1. He et al. (CVPR 2022).
-    ``fg_alpha > 0``: custom sigmoid fg-reweighting. Weighted denom keeps scale.
-
+    ``per_patch_target_norm``: per-tile mean 0 / std 1 (MAE §4.2).
+    ``fg_alpha > 0``: sigmoid fg-reweighting; weighted denom preserves scale.
     Ref: https://github.com/microsoft/SimMIM
     """
     if per_patch_target_norm:
@@ -134,12 +133,13 @@ def fourier_recon_loss(
     mask: torch.Tensor,
     block_size: int,
 ) -> torch.Tensor:
-    """Compute per-tile FFT magnitude L1 on masked blocks.
+    """Per-tile FFT L1 on masked blocks. Counters spatial-domain over-smoothing.
 
-    Counters L1/L2 over-smoothing. Adapted from Kraus et al. (CVPR 2024).
-    Restrict to masked tiles only.
-
-    Ref: https://github.com/recursionpharma/maes_microscopy
+    Inspired by CA-MAE (Kraus et al., CVPR 2024). Diverges: CA-MAE compares
+    FFT magnitudes only (phase-invariant); this compares full complex spectra
+    ``|F_pred - F_target|`` so within-tile shifts are also penalised. Uses
+    ``norm='ortho'``.
+    Ref: https://github.com/recursionpharma/maes_microscopy/blob/main/loss.py
     """
     B, C, H, W = pred.shape
     p = block_size
@@ -156,11 +156,9 @@ def fourier_recon_loss(
 
 
 def vicreg_terms(z1: torch.Tensor, z2: torch.Tensor, eps: float = 1e-4):
-    """Compute VICReg sim / std / cov terms. Return ``(L_sim, L_std, L_cov)``.
+    """VICReg sim/std/cov terms on ``(B, D)`` projections. Returns ``(L_sim, L_std, L_cov)``.
 
-    Bardes et al. (ICLR 2022). Prevents representation collapse.
-    fp32 forced — avoids fp16 overflow on var/cov.
-
+    Bardes et al. (ICLR 2022). Forced fp32 — avoids fp16 var/cov overflow.
     Ref: https://github.com/facebookresearch/vicreg
     """
     z1 = z1.float()
@@ -188,10 +186,12 @@ def _fg_pool(
     tau: float,
     temp: float,
 ) -> torch.Tensor:
-    """Pool ``z`` (B, C, S, S) → (B, C) weighted by foreground intensity.
+    """Foreground-weighted spatial pool of ``z`` (B, C, S, S) -> (B, C).
 
-    ``alpha <= 0`` → plain spatial mean. Counters background-dominated pooling.
-    Custom, no paper precedent.
+    Pixel weight ``1 + alpha * sigmoid((view_clean - tau) / temp)`` is downsampled
+    to ``(S, S)`` and used as pooling weights. ``alpha <= 0`` recovers
+    ``z.mean(spatial)``. Counters background-dominated pooling for the VICReg
+    branch. Custom; no published joint-embedding precedent found.
     """
     if alpha <= 0.0:
         return z.float().mean(dim=(-2, -1))
@@ -213,10 +213,11 @@ def compute_simmim_vicreg_loss(
     *,
     fixed_mask: torch.Tensor | None = None,
 ):
-    """Compute joint SimMIM + VICReg loss. Return ``(loss, metrics_dict)``.
+    """Joint SimMIM + VICReg + Fourier loss on two views. Returns ``(loss, metrics)``.
 
-    ``w_vicreg == 0`` skips clean-view forward. ``fixed_mask=None`` samples fresh mask.
-    fp32 forced for all loss math.
+    ``w_vicreg == 0`` skips the clean-view encoder pass (projector still runs
+    under ``no_grad`` for diagnostics). ``fixed_mask=None`` samples a fresh
+    block mask. All loss math runs in fp32 under disabled autocast.
     """
     decoder    = heads["decoder"]
     mask_token = heads["mask_token"]
@@ -335,10 +336,10 @@ def validation_simmim(
     batch: torch.Tensor,
     ssl_cfg: SSLCfg,
 ) -> dict:
-    """Run a single-view validation step. Return a metrics dict.
+    """Single-view validation step. Returns a metrics dict.
 
-    Compute ``L_recon``, ``L_recon_fg``, ``L_fourier``, ``L_std``, and ``L_cov``.
-    Omit ``L_sim`` because it requires two views. Use ``L_std`` and ``L_cov`` as collapse diagnostics.
+    Computes ``recon``, ``recon_fg``, ``fourier``, ``std``, ``cov``. ``sim`` is
+    omitted (needs two views). ``std`` and ``cov`` serve as collapse diagnostics.
     """
     decoder    = heads["decoder"]
     mask_token = heads["mask_token"]
