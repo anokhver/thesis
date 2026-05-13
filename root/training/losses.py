@@ -134,12 +134,16 @@ def fourier_recon_loss(
     mask: torch.Tensor,
     block_size: int,
 ) -> torch.Tensor:
-    """Compute per-tile FFT magnitude L1 on masked blocks.
+    """Per-tile FFT L1 on masked blocks.  Counters spatial-domain over-smoothing.
 
-    Counters L1/L2 over-smoothing. Adapted from Kraus et al. (CVPR 2024).
-    Restrict to masked tiles only.
+    Adapted from Kraus et al. (CA-MAE, CVPR 2024, Eq. 2).
+    Deviation: CA-MAE compares FFT magnitudes only (L1(|F_pred|, |F_target|),
+    discarding phase).  We compare full complex spectra (|F_pred - F_target|),
+    which also penalises spatial-shift errors within each tile -- stricter, but
+    better suited for downstream segmentation where exact structure placement
+    matters.  Uses ``norm="ortho"`` (absorbed by ``w_fourier``).
 
-    Ref: https://github.com/recursionpharma/maes_microscopy
+    Ref: https://github.com/recursionpharma/maes_microscopy/blob/main/loss.py
     """
     B, C, H, W = pred.shape
     p = block_size
