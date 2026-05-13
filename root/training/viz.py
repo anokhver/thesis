@@ -1,7 +1,4 @@
-"""Plot training visualisations.
-
-Produce Matplotlib figures from tensors/arrays. Never call ``plt.show()``.
-"""
+"""Matplotlib figures for SSL diagnostics. Never calls ``plt.show()``."""
 
 from __future__ import annotations
 
@@ -17,8 +14,7 @@ import torch
 # --------------------------------------------------------------------- labels
 
 # Mathtext labels for every metric key emitted by ``losses.py`` and the CSV
-# logger. Used by every curve plot so figures speak the same language as the
-# thesis text.
+# logger. Shared across curve plots.
 LOSS_LABELS: dict[str, str] = {
     "loss":          r"$\mathcal{L}_\mathrm{total}$",
     "ssl_loss":      r"$\mathcal{L}_\mathrm{total}$",
@@ -44,7 +40,7 @@ LOSS_LABELS: dict[str, str] = {
 
 
 def loss_label(key: str) -> str:
-    """Return the math-style label for ``key`` (falls back to the key itself)."""
+    """Return the mathtext label for ``key`` (fallback: ``key`` itself)."""
     return LOSS_LABELS.get(key, key)
 
 
@@ -55,7 +51,7 @@ def _save_or_show(fig, save_to: str | Path | None):
 
 
 def _annotate_run(fig, run_label: str | None):
-    """Print a small left-aligned identifier (method / init / epoch) below the suptitle."""
+    """Stamp ``run_label`` at the top-left of ``fig`` below the suptitle."""
     if not run_label:
         return
     fig.text(
@@ -66,10 +62,7 @@ def _annotate_run(fig, run_label: str | None):
 
 
 def _to_disp(t: torch.Tensor) -> np.ndarray:
-    """Convert ``(C, H, W)`` to a display array.
-
-    Return ``(H, W, 3)`` for 3 channels. Return channel mean otherwise.
-    """
+    """Convert ``(C, H, W)`` to displayable array. RGB for ``C == 3``; channel mean otherwise."""
     if t.shape[0] == 3:
         return t.permute(1, 2, 0).cpu().numpy()
     return t.mean(0).cpu().numpy()
@@ -84,7 +77,7 @@ def plot_two_views(
     suptitle: str = "Two-view augmentation",
     save_to: str | Path | None = None,
 ):
-    """Plot ``view1 / view2`` of every channel for the given indices."""
+    """Plot view1/view2 per channel for each sample in ``indices``."""
     n = len(indices)
     C = len(channel_names)
     fig, axes = plt.subplots(n, 2 * C, figsize=(2 * 2 * C, 2 * n), squeeze=False)
@@ -112,7 +105,7 @@ def plot_channel_histograms(
     suptitle: str = "Post-normalisation channel histograms",
     save_to: str | Path | None = None,
 ):
-    """Plot a histogram of each channel after normalisation."""
+    """Plot per-channel histogram of ``batch`` after normalisation."""
     C = len(channel_names)
     fig, axes = plt.subplots(1, C, figsize=(4 * C, 3), squeeze=False)
     axes = axes[0]
@@ -141,10 +134,10 @@ def plot_recon_panel(
     run_label: str | None = None,
     channel_names: Sequence[str] | None = None,
 ):
-    """Plot 4 rows x N cols: target | masked input | reconstruction | absolute error.
+    """Plot 4xN reconstruction panel: target / masked input / recon / |err|.
 
-    Share one colorbar across the error row. Show per-channel mean error when
-    ``channel_names`` is supplied.
+    Shares one colorbar across the error row. Adds per-channel mean error in
+    the label when ``channel_names`` is supplied.
     """
     n = view.shape[0]
     mu = ch_mean.view(1, -1, 1, 1).to(view.device)
@@ -209,10 +202,10 @@ def plot_loss_curves(
     log_y: bool = True,
     run_label: str | None = None,
 ):
-    """Plot training curves from the CSV produced by ``CSVMetricLogger``.
+    """Plot 2x2 training curves from a ``CSVMetricLogger`` CSV.
 
-    2x2 grid: total objective, SimMIM recon, VICReg components, LR schedule.
-    Falls back gracefully when columns are missing.
+    Panels: total objective, SimMIM recon, VICReg components, LR schedule.
+    Skips panels with no data.
     """
     rows = list(_csv.DictReader(open(csv_path, encoding="utf-8")))
     if not rows:
@@ -341,9 +334,9 @@ def plot_overfit_curves(
     save_to: str | Path | None = None,
     run_label: str | None = None,
 ):
-    """Plot two log-scale panels for the overfit-on-batch sanity check.
+    """Plot overfit-on-batch curves on two log-scale panels.
 
-    Left: total objective + SimMIM recon. Right: VICReg sim/std/cov.
+    Left: total + SimMIM recon. Right: VICReg sim/std/cov.
     """
     eps = 1e-12
 
@@ -386,15 +379,13 @@ def plot_embedding_2d(
     save_to: str | Path | None = None,
     singular_values: np.ndarray | None = None,
     method: str | None = None,
-    effective_rank_value: float | None = None,
-    mean_pairwise_cos_value: float | None = None,
     n_samples: int | None = None,
     run_label: str | None = None,
 ):
-    """Scatter ``Z2`` with optional singular-value spectrum panel.
+    """Scatter ``Z2`` (N, 2); optional singular-value panel.
 
-    Stamps N, effective rank, and mean pairwise cosine on the figure.
-    When ``method='pca'``, axis labels show explained-variance fractions.
+    With ``method='pca'`` and ``singular_values`` set, axis labels show
+    explained-variance fractions.
     """
     has_spec = singular_values is not None
     fig, axes = plt.subplots(1, 2 if has_spec else 1,
@@ -419,27 +410,9 @@ def plot_embedding_2d(
     else:
         ax.set_xlabel("dim 1"); ax.set_ylabel("dim 2")
 
-    # Stamp collapse diagnostics in the upper-left corner of the scatter.
-    diag_lines = []
     if n_samples is not None:
-        diag_lines.append(f"N = {n_samples}")
-    if effective_rank_value is not None:
-        if has_spec:
-            diag_lines.append(
-                f"effective rank = {effective_rank_value:.1f} / "
-                f"{len(np.asarray(singular_values))}"
-            )
-        else:
-            diag_lines.append(f"effective rank = {effective_rank_value:.1f}")
-    if mean_pairwise_cos_value is not None:
-        verdict = "COLLAPSED" if mean_pairwise_cos_value > 0.95 else "OK"
-        diag_lines.append(
-            r"mean pairwise $\cos$ = "
-            f"{mean_pairwise_cos_value:.3f}  ({verdict})"
-        )
-    if diag_lines:
         ax.text(
-            0.02, 0.98, "\n".join(diag_lines),
+            0.02, 0.98, f"N = {n_samples}",
             transform=ax.transAxes, ha="left", va="top",
             fontsize=9,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
@@ -455,11 +428,6 @@ def plot_embedding_2d(
         ax_s.set_xlabel("rank")
         ax_s.set_ylabel(r"$\sigma_i / \sigma_1$")
         ax_s.grid(alpha=0.25)
-        if effective_rank_value is not None:
-            ax_s.axvline(effective_rank_value, color="r", linestyle=":",
-                         linewidth=0.9, alpha=0.7,
-                         label=f"effective rank = {effective_rank_value:.1f}")
-            ax_s.legend(fontsize=8, loc="upper right")
     _annotate_run(fig, run_label)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     _save_or_show(fig, save_to)
