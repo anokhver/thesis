@@ -10,13 +10,14 @@ from numpy.typing import NDArray
 
 
 def configure_matplotlib_backend(backend: str = "Qt5Agg") -> None:
-    """Set matplotlib backend (call before any plotting)."""
+    """Set matplotlib backend. Call before any plotting."""
     import matplotlib
     matplotlib.use(backend)
 
 
 class VSIBrowser:
     """Browse VSI files with thumbnail preview and napari 3D view."""
+
 
     # Physical dimensions from microscopy setup
 
@@ -27,7 +28,7 @@ class VSIBrowser:
         self.items_per_page = items_per_page
 
     def set_folder(self, folder_path: str) -> bool:
-        """Set and validate folder path, load VSI file list."""
+        """Validate folder path and populate the VSI file list."""
         path = Path(folder_path).expanduser().resolve()
 
         if not path.exists():
@@ -50,7 +51,7 @@ class VSIBrowser:
         return True
 
     def load_thumbnail(self, file_path: Path, target_size: int = 256) -> NDArray:
-        """Load embedded VSI preview via PIL for fast thumbnailing."""
+        """Return grayscale thumbnail downsampled to ``target_size`` (longest side)."""
         try:
             from PIL import Image
 
@@ -71,7 +72,7 @@ class VSIBrowser:
             return np.zeros((target_size, target_size), dtype=np.uint8)
 
     def show_page(self) -> None:
-        """Display current page in a 2x2 grid of thumbnails."""
+        """Render the current page as a 2x2 thumbnail grid."""
         start_idx = self.current_page * self.items_per_page
         end_idx = min(start_idx + self.items_per_page, len(self.vsi_files))
         page_files = self.vsi_files[start_idx:end_idx]
@@ -100,13 +101,13 @@ class VSIBrowser:
         plt.pause(0.1)
 
     def total_pages(self) -> int:
-        """Calculate total number of pages."""
+        """Return total page count."""
         if not self.vsi_files:
             return 0
         return (len(self.vsi_files) + self.items_per_page - 1) // self.items_per_page
 
     def next_page(self) -> bool:
-        """Advance to next page if available."""
+        """Advance one page. Return False if already on last page."""
         if self.current_page < self.total_pages() - 1:
             self.current_page += 1
             return True
@@ -114,7 +115,7 @@ class VSIBrowser:
         return False
 
     def prev_page(self) -> bool:
-        """Go back to previous page if available."""
+        """Move back one page. Return False if already on first page."""
         if self.current_page > 0:
             self.current_page -= 1
             return True
@@ -122,7 +123,7 @@ class VSIBrowser:
         return False
 
     def visualize_napari(self, data: NDArray, title: str) -> None:
-        """Launch napari viewer with 3D volume rendering."""
+        """Open napari viewer with attenuated-MIP 3D rendering."""
         viewer = napari.Viewer()
         viewer.add_image(
             data,
@@ -135,7 +136,7 @@ class VSIBrowser:
         napari.run()
 
     def visualize(self, idx: int) -> None:
-        """Load and visualize a VSI file by index in napari."""
+        """Load VSI by file-list index, z-interpolate, and open in napari."""
         from imaging.volume import load_full_volume, interpolate_z_axis
 
         if not self._validate_index(idx):
@@ -159,7 +160,7 @@ class VSIBrowser:
             traceback.print_exc()
 
     def _validate_index(self, idx: int) -> bool:
-        """Check if index is valid for current file list."""
+        """Return True if ``idx`` is in range of the current file list."""
         if idx < 0 or idx >= len(self.vsi_files):
             print(f"Invalid index. Choose 0 to {len(self.vsi_files) - 1}")
             return False
@@ -167,13 +168,13 @@ class VSIBrowser:
 
 
 class BrowserInterface:
-    """Run the command-line interface for ``VSIBrowser``."""
+    """Command-line interface for ``VSIBrowser``."""
 
     def __init__(self, browser: VSIBrowser):
         self.browser = browser
 
     def run(self) -> None:
-        """Run the interaction loop."""
+        """Run the interactive folder-select then browse loop."""
         self._print_header()
 
         while True:
@@ -191,7 +192,7 @@ class BrowserInterface:
         print("=" * 60)
 
     def _folder_selection_loop(self) -> bool:
-        """Handle folder selection. Returns False to exit."""
+        """Prompt for a folder. Return False to exit."""
         while True:
             # folder_input = input("\nEnter folder path (or 'q' to quit): ").strip()
             folder_input = '/run/media/anokhver/Data/Veronika/ctu/Microscopy/Microscopy/20251030/'
@@ -203,7 +204,7 @@ class BrowserInterface:
                 return True
 
     def _browsing_loop(self):
-        """Handle file browsing and visualization. Returns False to exit."""
+        """Browse pages and dispatch commands. Return False to exit."""
         while True:
             plt.close('all')
             self.browser.show_page()
@@ -230,7 +231,7 @@ class BrowserInterface:
         print("  'q' - quit")
 
     def _parse_command(self, choice: str) -> str:
-        """Parse user command and execute. Returns 'quit', 'back', or 'continue'."""
+        """Dispatch a single user command. Return ``'quit'``, ``'back'``, or ``'continue'``."""
         if choice == 'q':
             return 'quit'
         elif choice == 'b':

@@ -1,4 +1,4 @@
-"""Post-training visualisation and embedding diagnostics for SSL runs."""
+"""Post-training visualisation: checkpoint reload, reconstruction, curves."""
 
 from .post_training import (
     build_run_label,
@@ -6,7 +6,6 @@ from .post_training import (
     reload_best_checkpoint,
     post_training_reconstruction,
     plot_post_training_curves,
-    embedding_diagnostics,
 )
 
 __all__ = [
@@ -15,5 +14,4 @@ __all__ = [
     "reload_best_checkpoint",
     "post_training_reconstruction",
     "plot_post_training_curves",
-    "embedding_diagnostics",
 ]
