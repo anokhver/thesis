@@ -183,23 +183,7 @@ def load_pretrained_into_encoder(
 
     target_sd = encoder.state_dict()
 
-    if base_cfg.init_source == "timm_imagenet":
-        try:
-            import timm
-        except ImportError as e:
-            raise ImportError(
-                "timm is required for init_source='timm_imagenet'. "
-                "Install with `pip install timm`."
-            ) from e
-        log(f"[init] downloading timm `{base_cfg.timm_model_name}` ...")
-        timm_model = timm.create_model(
-            base_cfg.timm_model_name, pretrained=True, num_classes=0,
-        )
-        new_sd, summary = convert_timm_to_swinunetr_state_dict(
-            timm_model.state_dict(), target_sd,
-            target_in_chans=model_cfg.in_channels,
-        )
-    elif base_cfg.init_source == "moby":
+    if base_cfg.init_source == "moby":
         if not base_cfg.pretrained_ckpt_path:
             raise ValueError(
                 "init_source='moby' but base_cfg.pretrained_ckpt_path is None. "
@@ -224,7 +208,7 @@ def load_pretrained_into_encoder(
     else:
         raise ValueError(
             f"Unknown init_source={base_cfg.init_source!r}. "
-            "Use 'timm_imagenet' / 'moby' / 'local_ckpt' / 'scratch'."
+            "Use 'moby' / 'local_ckpt' / 'scratch'."
         )
 
     incompatible = encoder.load_state_dict(new_sd, strict=False)
