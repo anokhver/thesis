@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
-"""Preprocess confocal fluorescence images into normalized patches.
+"""Preprocess confocal fluorescence into pseudolabel patches.
 
-Pipeline: load (C,Z,Y,X) → MIP → per-channel 2D background subtraction →
-percentile normalization → tile 128×128 → save .npy.
+Pipeline: load (C,Z,Y,X) → MIP along Z → per-channel 2D Gaussian
+background subtraction → per-channel percentile normalisation → tile
+into 128x128 patches → save ``.npy``.
 
-MIP-then-background-subtraction order: SynBot (Savage et al., Cell Reports
-Methods 2024). See ``Syn_Bot.ijm`` which Z-projects first (``zProject`` /
-``run("Z Project...", "projection=[Max Intensity]")``) and then calls
-``run("Subtract Background...", "rolling=50")`` on the 2D projection.
-Rolling-ball background subtraction: Sternberg (IEEE Computer 1983),
-implemented here as a Gaussian high-pass approximation — the same
-substitute used in CellProfiler's ``CorrectIlluminationCalculate`` and
-the standard scikit-image idiom (``image - skimage.filters.gaussian(image)``).
-Per-channel (not pooled) parameter handling: Simhal et al. (Neuroinformatics
-2017).
-Per-channel percentile norm: Cellpose (Stringer et al., Nature Methods 2021),
-StarDist/CSBDeep (Schmidt & Weigert). Per-channel norm default: nnU-Net
-(Isensee et al., Nature Methods 2021).
+For SSL pretraining patches (no background subtraction) use
+``preprocess_training.py``.
 
-Ref: https://github.com/Eroglu-Lab/Syn_Bot (Syn_Bot.ijm, zProject + post-MIP
-     Subtract Background)
+MIP-then-background-subtraction order: SynBot (Savage et al., Cell
+Reports Methods 2024). Gaussian high-pass approximation to rolling-ball
+(Sternberg, IEEE Computer 1983) — same substitute used in CellProfiler
+and scikit-image. Per-channel parameters: Simhal et al.
+(Neuroinformatics 2017). Per-channel percentile norm: Cellpose
+(Stringer et al., Nature Methods 2021) and StarDist/CSBDeep (Schmidt &
+Weigert).
+
+Ref: https://github.com/Eroglu-Lab/Syn_Bot
 Ref: https://github.com/GB3Trinity/SynapseJ
 Ref: https://github.com/MouseLand/cellpose
 Ref: https://github.com/stardist/stardist
@@ -68,10 +65,10 @@ DEFAULT_CHANNEL_ROLES: list[str] = ["pre_synaptic", "post_synaptic", "structural
 #     percentile is safe because the signal is broad and the upper tail
 #     is not dominated by a few bright punctum pixels.
 ROLE_DEFAULTS: dict[str, dict[str, float]] = {
-    "pre_synaptic":  {"median_size": 0, "rolling_ball_radius": 50.0, "plow": 1.0, "phigh": 99.8},
-    "post_synaptic": {"median_size": 0, "rolling_ball_radius": 50.0, "plow": 1.0, "phigh": 99.8},
-    "synaptic":      {"median_size": 0, "rolling_ball_radius": 50.0, "plow": 1.0, "phigh": 99.8},
-    "structural":    {"median_size": 0, "rolling_ball_radius": 0.0,  "plow": 1.0, "phigh": 99.8},
+    "pre_synaptic":  {"median_size": 0, "rolling_ball_radius": 50.0, "plow": 1.0, "phigh": 99.8, "smooth_sigma": 0.0},
+    "post_synaptic": {"median_size": 0, "rolling_ball_radius": 50.0, "plow": 1.0, "phigh": 99.8, "smooth_sigma": 0.0},
+    "synaptic":      {"median_size": 0, "rolling_ball_radius": 50.0, "plow": 1.0, "phigh": 99.8, "smooth_sigma": 0.0},
+    "structural":    {"median_size": 0, "rolling_ball_radius": 0.0,  "plow": 1.0, "phigh": 99.8, "smooth_sigma": 2.0},
 }
 
 
@@ -81,9 +78,9 @@ def _resolve_role_or_value(
     channel_roles: list[str],
     param: str,
 ):
-    """Resolve a CLI value to a per-channel list using ROLE_DEFAULTS as fallback.
+    """Resolve a CLI value to a per-channel list, defaulting from ``ROLE_DEFAULTS``.
 
-    None → role defaults. Scalar or length-1 list → broadcast. Length-C list → as-is.
+    ``None`` → role defaults. Scalar or length-1 → broadcast. Length-C → as-is.
     """
     if value is None:
         return [ROLE_DEFAULTS[r][param] for r in channel_roles]
@@ -95,14 +92,12 @@ def _resolve_role_or_value(
 # ---------------------------------------------------------------------------
 
 def _select_largest_scene(img) -> None:
-    """Switch ``img`` to its largest scene in-place.
+    """Switch ``img`` to its largest scene in place.
 
-    Bio-Formats containers like Olympus ``.vsi`` (and many ``.czi`` mosaics)
-    expose multiple scenes/series: a small RGB label/thumbnail plus one or
-    more pyramid levels of the real acquisition. ``AICSImage`` defaults to
-    scene 0, which on ``.vsi`` is typically the 512×512×3 thumbnail —
-    that's the wrong ``(…, 512, 512, 3)`` shape we kept hitting. Picking
-    the scene with the largest Y·X·Z lands on the pyramid base instead.
+    Multi-scene Bio-Formats containers (``.vsi``, mosaic ``.czi``) expose
+    a small RGB thumbnail at scene 0 plus pyramid levels of the real
+    acquisition. Pick the scene with the largest Y·X·Z to land on the
+    pyramid base instead of the thumbnail.
     """
     scenes = list(img.scenes)
     if len(scenes) <= 1:
@@ -127,13 +122,11 @@ def _select_largest_scene(img) -> None:
 
 
 def load_image(path: Path) -> np.ndarray:
-    """Load a microscopy image and return ``(C, Z, Y, X)`` (original dtype).
+    """Load a microscopy file via aicsimageio. Return ``(C, Z, Y, X)``.
 
-    Uses ``aicsimageio`` (Bio-Formats backend) which handles .czi, .ets,
-    .tif and many other formats. For multi-scene containers (notably
-    Olympus ``.vsi``) the largest scene is selected before reading so we
-    don't accidentally return the embedded RGB thumbnail — see
-    ``_select_largest_scene``.
+    For multi-scene containers the largest scene is selected first to
+    avoid embedded RGB thumbnails. The aicsimageio handle is closed in a
+    ``finally`` to release JPype/Bio-Formats Java proxies.
     """
     # Try aicsimageio (handles .czi, .ets, .vsi, .tif, and many others)
     try:
@@ -175,7 +168,7 @@ def load_image(path: Path) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 def _to_per_channel_list(value, n_channels: int, name: str):
-    """Coerce a scalar/sequence into a list of length n_channels."""
+    """Coerce a scalar or sequence into a list of length ``n_channels``."""
     if value is None:
         raise ValueError(f"{name} must not be None at this point.")
     if not isinstance(value, (list, tuple, np.ndarray)):
@@ -195,17 +188,11 @@ def denoise_volume(
     median_size=0,
     rolling_ball_radius: float = 50.0,
 ) -> np.ndarray:
-    """Denoise each channel and Z-slice independently before MIP.
+    """Per-channel per-Z-slice median filter and Gaussian background subtraction.
 
-    Apply optional median filtering for hot pixels, then Gaussian background subtraction
-    (Sternberg 1983). Set ``rolling_ball_radius=0`` to skip for dense structural signal.
-    Follow the per-channel per-slice model of Simhal et al. (Neuroinformatics 2017).
-    Return ``(C, Z, Y, X)`` float32.
-
-    Note: ``process_single_image`` no longer calls this — it uses ``denoise_mip``
-    on the 2D projection to match SynBot ordering. ``denoise_volume`` is kept
-    for backward compatibility with notebooks that compare per-slice vs.
-    post-MIP denoising.
+    Set ``rolling_ball_radius=0`` to skip on a channel. Return ``(C, Z, Y, X)``
+    float32. Kept for parity with notebooks that compare pre-MIP vs post-MIP
+    denoising; ``process_single_image`` uses ``denoise_mip`` instead.
     """
     C = volume.shape[0]
     median_sizes = _to_per_channel_list(median_size, C, "median_size")
@@ -243,32 +230,22 @@ def denoise_mip(
     median_size=0,
     rolling_ball_radius: float = 50.0,
 ) -> np.ndarray:
-    """Per-channel 2D background subtraction on a max-intensity projection.
+    """Per-channel 2D Gaussian-high-pass background subtraction on a MIP.
 
-    Apply an optional 2D median filter, then a Gaussian high-pass background
-    subtraction on each ``(H, W)`` channel of a ``(C, H, W)`` MIP. The Gaussian
-    high-pass approximates Sternberg's rolling-ball (Sternberg 1983) — the
-    same substitute used in CellProfiler's ``CorrectIlluminationCalculate``
-    and the standard scikit-image idiom (``image - filters.gaussian(image)``).
-
-    Order matches SynBot (Savage et al., Cell Reports Methods 2024):
-    ``Syn_Bot.ijm`` Z-projects first and then runs
-    ``run("Subtract Background...", "rolling=" + r)`` on the 2D projection.
-
-    Set ``rolling_ball_radius=0`` (or ``median_size=0``) to skip the
-    corresponding step on a per-channel basis — used for the structural
-    channel where a sigma≈50 Gaussian background estimate would fall inside
-    the signal distribution.
+    Optional 2D median filter, then ``image - gaussian(image, sigma)`` per
+    channel. ``rolling_ball_radius=0`` (or ``median_size=0``) skips that
+    step on a channel. Order follows SynBot (project first, subtract
+    background after).
 
     Args:
-        mip: ``(C, H, W)`` array (any numeric dtype).
-        median_size: scalar or length-C list of median-filter window sizes
-            (0 = off).
-        rolling_ball_radius: scalar or length-C list of Gaussian sigmas
-            (0 = off).
+        mip: ``(C, H, W)`` array.
+        median_size: scalar or length-C list of median window sizes (0 = off).
+        rolling_ball_radius: scalar or length-C list of Gaussian sigmas (0 = off).
 
     Returns:
-        ``(C, H, W)`` float32 array.
+        ``(C, H, W)`` float32.
+
+    Ref: https://github.com/Eroglu-Lab/Syn_Bot
     """
     if mip.ndim != 3:
         raise ValueError(
@@ -302,25 +279,60 @@ def denoise_mip(
     return out
 
 
+def smooth_mip(
+    mip: np.ndarray,
+    smooth_sigma=0,
+) -> np.ndarray:
+    """Per-channel Gaussian low-pass smoothing on a MIP.
+
+    Fills pixelation gaps and connects fragmented structures (e.g. patchy
+    dendrites or somas on the structural channel).  This is a *low-pass*
+    blur — conceptually opposite to ``denoise_mip`` which is high-pass
+    background subtraction.  ``smooth_sigma=0`` skips that channel.
+
+    Applied after background subtraction but before percentile
+    normalisation so that the blur operates on physical intensities.
+
+    Args:
+        mip: ``(C, H, W)`` array.
+        smooth_sigma: scalar or length-C list of Gaussian sigmas (0 = off).
+
+    Returns:
+        ``(C, H, W)`` float32.
+    """
+    if mip.ndim != 3:
+        raise ValueError(
+            f"smooth_mip expects (C, H, W); got shape {mip.shape}"
+        )
+    C = mip.shape[0]
+    sigmas = _to_per_channel_list(smooth_sigma, C, "smooth_sigma")
+
+    if all(s <= 0 for s in sigmas):
+        return mip.astype(np.float32, copy=False)
+
+    from scipy.ndimage import gaussian_filter as _gaussian_filter
+
+    out = mip.astype(np.float32, copy=True)
+    for c in range(C):
+        s = float(sigmas[c])
+        if s > 0:
+            out[c] = _gaussian_filter(out[c], sigma=s)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Maximum intensity projection
 # ---------------------------------------------------------------------------
 
 def maximum_intensity_projection(volume: np.ndarray) -> np.ndarray:
-    """
-    Collapse Z-stack via maximum intensity projection along axis 1.
-
-    Returns (C, Y, X) float32.
-    """
+    """MIP along Z (axis 1). ``(C, Z, Y, X)`` → ``(C, Y, X)`` float32."""
     # MIP along Z axis (axis=1)
     mip = volume.max(axis=1)
     return mip.astype(np.float32, copy=False)
 
 
 def best_z_slice(volume: np.ndarray) -> int:
-    """
-    Return the Z-index with the highest total intensity across all channels.
-    """
+    """Return the Z-index with the highest summed intensity across C·Y·X."""
     # Sum over C, Y, X for each z → shape (Z,)
     intensity_per_z = volume.sum(axis=(0, 2, 3))
     return int(np.argmax(intensity_per_z))
@@ -335,11 +347,10 @@ def normalize_percentile(
     plow=1.0,
     phigh=99.8,
 ) -> np.ndarray:
-    """Normalize each channel by percentiles and clip to ``[0, 1]``.
+    """Per-channel percentile rescale to ``[0, 1]`` with clipping.
 
-    Rescale each channel from its ``[plow, phigh]`` percentile range to ``[0, 1]``.
-    Follow the StarDist/CSBDeep convention; Cellpose uses the same idea without clipping.
-    Return ``(C, H, W)`` float32.
+    Rescale each channel from its ``[plow, phigh]`` percentiles to ``[0, 1]``.
+    StarDist/CSBDeep convention. Return ``(C, H, W)`` float32.
 
     Ref: https://github.com/stardist/stardist
     Ref: https://github.com/CSBDeep/CSBDeep
@@ -368,10 +379,9 @@ def extract_patches(
     image: np.ndarray,
     patch_size: int = 128,
 ) -> np.ndarray:
-    """Tile ``(C, H, W)`` into non-overlapping patches.
+    """Tile ``(C, H, W)`` into non-overlapping ``(N, C, ps, ps)`` patches.
 
-    Discard the rightmost and bottom strips if ``H`` or ``W`` is not divisible by
-    ``patch_size``. Return ``(N, C, patch_size, patch_size)`` float32.
+    Trim the bottom/right strip if ``H`` or ``W`` is not divisible by ``patch_size``.
     """
     C, H, W = image.shape
     n_rows = H // patch_size
@@ -402,11 +412,13 @@ def process_single_image(
     channel_roles: Optional[list[str]] = None,
     median_size=None,
     rolling_ball_radius=None,
+    smooth_sigma=None,
 ) -> list[dict]:
-    """Run the full preprocessing pipeline on one image file.
+    """Run the full pseudolabel-preprocessing pipeline on one image file.
 
-    Per-channel params accept a scalar or length-``C`` list. ``None`` falls back to
-    ``ROLE_DEFAULTS``. Return one CSV-index record per saved patch.
+    Per-channel params accept a scalar or length-C list. ``None`` falls back
+    to ``ROLE_DEFAULTS`` for the matching role. Return one CSV-index record
+    per saved patch.
     """
     logger.info(f"Processing [{image_index}]: {path.name}")
 
@@ -424,11 +436,13 @@ def process_single_image(
 
     median_sizes_pc = _resolve_role_or_value(median_size, C, roles, "median_size")
     radii_pc        = _resolve_role_or_value(rolling_ball_radius, C, roles, "rolling_ball_radius")
+    smooth_pc       = _resolve_role_or_value(smooth_sigma, C, roles, "smooth_sigma")
     plows_pc        = _resolve_role_or_value(plow, C, roles, "plow")
     phighs_pc       = _resolve_role_or_value(phigh, C, roles, "phigh")
     logger.info(
         f"  Per-channel ({roles}): median={median_sizes_pc}, "
-        f"radius={radii_pc}, plow={plows_pc}, phigh={phighs_pc}"
+        f"radius={radii_pc}, smooth={smooth_pc}, "
+        f"plow={plows_pc}, phigh={phighs_pc}"
     )
 
     # 2. MIP along Z → (C, H, W). Follow SynBot ordering: project first,
@@ -451,6 +465,12 @@ def process_single_image(
             median_size=median_sizes_pc,
             rolling_ball_radius=radii_pc,
         )
+
+    # 3b. Per-channel Gaussian low-pass smoothing. Fills pixelation gaps
+    #     and connects fragmented dendrites / somas on the structural
+    #     channel. Skipped when smooth_sigma=0 (default for synaptic).
+    if any(s > 0 for s in smooth_pc):
+        mip = smooth_mip(mip, smooth_sigma=smooth_pc)
 
     # 4. Per-channel percentile normalization → [0, 1]
     mip = normalize_percentile(mip, plow=plows_pc, phigh=phighs_pc)
@@ -547,6 +567,15 @@ def main():
              "erases legitimate signal).",
     )
     parser.add_argument(
+        "--smooth_sigma", type=float, nargs="+", default=None,
+        help="Sigma for Gaussian low-pass smoothing applied to the 2D "
+             "MIP after background subtraction but before percentile "
+             "normalisation. Fills pixelation gaps and connects "
+             "fragmented dendrites/somas. Pass one value (broadcast) or "
+             "one per channel. Default: role-based (0 for synaptic, "
+             "2.0 for structural).",
+    )
+    parser.add_argument(
         "--file_extensions", nargs="+", default=[".czi", ".tif", ".tiff", ".ets", ".vsi"],
         help="File extensions to glob for (default: .czi .tif .tiff .ets .vsi). "
              "Multi-scene containers (notably .vsi, and some .czi mosaics) "
@@ -587,7 +616,8 @@ def main():
         f"channel_roles={args.channel_roles}, "
         f"percentiles=(plow={args.plow}, phigh={args.phigh}), "
         f"median_size={args.median_size}, "
-        f"rolling_ball_radius={args.rolling_ball_radius} "
+        f"rolling_ball_radius={args.rolling_ball_radius}, "
+        f"smooth_sigma={args.smooth_sigma} "
         f"(None ⇒ role-based default from ROLE_DEFAULTS)"
     )
 
@@ -600,6 +630,7 @@ def main():
         channel_roles=args.channel_roles,
         median_size=args.median_size,
         rolling_ball_radius=args.rolling_ball_radius,
+        smooth_sigma=args.smooth_sigma,
     )
 
     for idx, filepath in enumerate(files):
