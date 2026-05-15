@@ -27,10 +27,8 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 
-# ---- path setup (same convention as notebooks) ----
-_SCRIPT = Path(__file__).resolve()
-_REPO = _SCRIPT.parents[1]          # thesis/
-_ROOT = _REPO / "root"              # thesis/root/  (Python packages)
+_REPO = Path(__file__).resolve().parents[1]
+_ROOT = _REPO / "root"
 for p in (_ROOT, _REPO):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
