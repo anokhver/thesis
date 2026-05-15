@@ -2,7 +2,7 @@
 """Render a reassembled image from ``.npy`` patches with a patch-grid overlay.
 
 Usage:
-    python root/imaging/preview_patch_grid.py [--image_index 0]
+    python imaging/preview_patch_grid.py [--image_index 0]
         [--patch_root data/patches_128] [--output outs/patch_grid.png]
 """
 
@@ -15,10 +15,11 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
 # ---------------------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# Add thesis/root/ to sys.path so utils_data imports work without installation.
+_REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO / "root"))
 
-from utils_data.reassemble import reassemble_image
+from utils_data.reassemble import reassemble_image  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Same fluorescence colormaps as preview_ets_stack.py
