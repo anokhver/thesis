@@ -1,4 +1,4 @@
-"""Run sliding-window inference for full-image segmentation."""
+"""Sliding-window inference for full-image segmentation."""
 
 from __future__ import annotations
 
@@ -27,9 +27,9 @@ def sliding_window_predict(
     overlap: float = 0.5,
     batch_size: int = 16,
 ) -> np.ndarray:
-    """Run sliding-window inference on a ``(C, H, W)`` float32 image.
+    """Sliding-window inference on a ``(C, H, W)`` float32 image.
 
-    Returns ``(H, W)`` float32 probability map in [0, 1].
+    Returns ``(H, W)`` float32 probability map in ``[0, 1]``.
     """
     C, H, W = full_image.shape
     stride = max(1, int(patch_size * (1 - overlap)))
@@ -91,7 +91,7 @@ def predict_full_image(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Reassemble a full image and run sliding-window prediction.
 
-    Returns ``(full_image, prob_map)`` both as numpy arrays.
+    Returns ``(full_image, prob_map)`` as numpy arrays.
     """
     full_image, _records = reassemble_image(
         patch_root, image_index, exclude_patterns=exclude_patterns,

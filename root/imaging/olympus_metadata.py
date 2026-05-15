@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Extract metadata from Olympus cellSens files (.vsi, .ets, .oex).
 
-Try available backends independently. Missing dependencies disable only one source.
+Try every available backend independently. A missing optional dependency
+only disables one source.
 
-Usage::
-
+Usage:
     python extract_olympus_metadata.py <file1> [<file2> ...]
 
-Optional: ``pip install tifffile aicsimageio bioio bioio-bioformats python-bioformats``
+Optional deps: ``tifffile``, ``aicsimageio``, ``bioio``, ``bioio-bioformats``,
+``python-bioformats``.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ from typing import Any
 # helpers
 # ---------------------------------------------------------------------------
 def _safe(fn, *args, **kwargs):
-    """Run *fn* and return its result or a dict describing the failure."""
+    """Call ``fn`` and return its result, or a dict with error + traceback."""
     try:
         return fn(*args, **kwargs)
     except Exception as exc:  # noqa: BLE001
@@ -49,7 +50,7 @@ def _file_stat(path: Path) -> dict[str, Any]:
 
 
 def _xml_to_dict(elem: ET.Element) -> Any:
-    """Convert an ElementTree node into a JSON-serialisable structure."""
+    """Convert an ElementTree node to a JSON-serialisable dict/str."""
     node: dict[str, Any] = {}
     if elem.attrib:
         node["@attrs"] = dict(elem.attrib)

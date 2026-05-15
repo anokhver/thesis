@@ -1,4 +1,4 @@
-"""Save, load, and discover checkpoints."""
+"""Save, load, and discover SSL training checkpoints."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def save_checkpoint(
     train_loss: float,
     extra: dict | None = None,
 ) -> None:
-    """Persist a full training checkpoint."""
+    """Save a full training checkpoint (encoder + heads + optim + sched + scaler + metrics)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -71,7 +71,7 @@ def load_checkpoint(
     scaler=None,
     map_location=None,
 ) -> dict:
-    """Restore everything that was saved by :func:`save_checkpoint`."""
+    """Load encoder, heads, optimizer, scheduler, scaler from ``path``. Return the raw checkpoint dict."""
     ckpt = torch.load(path, map_location=map_location, weights_only=False)
     if "encoder_state_dict" in ckpt:
         encoder.load_state_dict(ckpt["encoder_state_dict"])
@@ -94,10 +94,10 @@ def find_latest_checkpoint(
     pattern: str = "*.pt",
     prefer_filename: str = "last.pt",
 ) -> Path | None:
-    """Return the most recent checkpoint under ``search_root``.
+    """Return the most recent checkpoint under ``search_root``, or ``None``.
 
-    Prefer the newest file named ``prefer_filename``.
-    Otherwise rank by ``epoch_<n>`` in the filename, then by mtime.
+    Prefer the newest file named ``prefer_filename``. Otherwise rank by
+    ``epoch_<n>`` parsed from the filename, then mtime.
     """
     root = Path(search_root)
     if not root.exists():

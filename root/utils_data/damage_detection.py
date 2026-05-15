@@ -1,8 +1,8 @@
 """Detect damaged patches by per-source-image intensity outlier analysis.
 
-Flag patches if base or mean intensity is a MAD outlier, mean is saturated,
-or max is near zero. Return records ready for ``index.csv`` with ``mean``, ``std``,
-``min``, ``max``, ``low_p5``, ``high_p95``, ``damaged``, and ``damage_reasons``.
+Flag patches whose base or mean intensity is a MAD outlier within the
+source image, or whose mean is saturated, or max is near zero. Append
+``damaged`` and ``damage_reasons`` plus per-patch stats to records.
 """
 from __future__ import annotations
 
@@ -31,9 +31,9 @@ def patch_stats(
     low_p: float = DEFAULT_LOW_PERCENTILE,
     high_p: float = DEFAULT_HIGH_PERCENTILE,
 ) -> dict[str, float]:
-    """Compute scalar intensity stats over all channels and pixels.
+    """Return per-patch intensity stats pooled over channels and pixels.
 
-    Return ``mean``, ``std``, ``min``, ``max``, ``low_p{n}``, and ``high_p{n}``.
+    Keys: ``mean``, ``std``, ``min``, ``max``, ``low_p{n}``, ``high_p{n}``.
     """
     arr = np.asarray(patch, dtype=np.float64)
     return {
@@ -51,8 +51,7 @@ def patch_stats(
 # ---------------------------------------------------------------------------
 
 def _median_mad(values: Sequence[float]) -> tuple[float, float]:
-    """Return (median, MAD) of a 1-D iterable. MAD is floored to MAD_FLOOR
-    to avoid divide-by-zero."""
+    """Return ``(median, MAD)``. MAD floored at ``MAD_FLOOR`` to avoid div-by-zero."""
     arr = np.asarray(values, dtype=np.float64)
     med = float(np.median(arr))
     mad = float(np.median(np.abs(arr - med)))
@@ -68,10 +67,10 @@ def flag_damaged(
     dead_max:         float = DEFAULT_DEAD_MAX,
     low_p:            float = DEFAULT_LOW_PERCENTILE,
 ) -> list[dict]:
-    """Annotate each record with ``damaged`` and ``damage_reasons``.
+    """Annotate each record with ``damaged`` and ``damage_reasons`` in place.
 
-    Mutate and return the input list. Records must already contain ``patch_stats`` keys.
-    Run MAD outlier checks within each ``group_key`` group. Skip them for single-patch groups.
+    Records must already contain ``patch_stats`` keys. Run MAD outlier
+    checks within each ``group_key`` group; skip them for single-patch groups.
     """
     low_key = f"low_p{int(low_p)}"
 
@@ -145,7 +144,7 @@ def attach_stats(
 ) -> list[dict]:
     """Load each patch from disk and merge ``patch_stats`` into its record.
 
-    Require a ``filename`` field on each record. Return records with stat keys added.
+    Each record must have a ``filename`` field. Stats are appended to a copy.
     """
     out: list[dict] = []
     for r in records:
@@ -157,8 +156,7 @@ def attach_stats(
 
 
 def coerce_record_floats(records: list[dict], keys: Iterable[str]) -> None:
-    """When records are loaded from CSV every value is a string; cast the
-    listed numeric keys to float in-place."""
+    """Cast the listed string keys to float in place. CSV-load helper."""
     for r in records:
         for k in keys:
             if k in r and isinstance(r[k], str) and r[k] != "":
@@ -173,7 +171,7 @@ def coerce_record_floats(records: list[dict], keys: Iterable[str]) -> None:
 # ---------------------------------------------------------------------------
 
 def damage_summary(records: list[dict]) -> str:
-    """Return a multi-line text summary of `flag_damaged` output."""
+    """Return a multi-line text summary of ``flag_damaged`` output."""
     n = len(records)
     if n == 0:
         return "no records"

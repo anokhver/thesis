@@ -1,4 +1,4 @@
-"""Segmentation config, dataset, losses, model, augmentation, inference, and visualisation."""
+"""Segmentation config, dataset, losses, model, augmentation, inference, viz."""
 
 from .config import SegTrainCfg
 from .dataset import PseudoLabelSegDataset

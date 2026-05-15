@@ -1,4 +1,4 @@
-"""Set up logging and append metrics to CSV."""
+"""Set up loggers and append metrics to CSV."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ def setup_logger(
     log_file: str | Path | None = None,
     level: int = logging.INFO,
 ) -> logging.Logger:
-    """Return a logger that writes to stdout and (optionally) to a file."""
+    """Return a logger writing to stdout and optionally to ``log_file``."""
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.propagate = False
@@ -36,7 +36,7 @@ def setup_logger(
 
 
 class CSVMetricLogger:
-    """Append metrics to a CSV with fixed fields."""
+    """Append rows to a CSV with a fixed field set."""
 
     def __init__(self, path: str | Path, fields: Iterable[str]):
         path = Path(path)

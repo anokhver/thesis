@@ -1,4 +1,4 @@
-"""Define segmentation training configuration."""
+"""SwinUNETR fine-tuning configuration."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 @dataclass
 class SegTrainCfg:
-    """Store SwinUNETR fine-tuning settings."""
+    """SwinUNETR fine-tuning hyperparameters."""
 
     epochs: int = 100
     warmup_epochs: int = 5

@@ -20,9 +20,9 @@ def load(file_path: str) -> NDArray:
 
 def interpolate_z_memory_efficient(data: NDArray, xy_pixel_size: float = 0.10685428060522417,
                                    z_pixel_size: float = 0.15, chunk_size: int = 50) -> NDArray:
-    """Interpolate z-axis in chunks for isotropic voxels.
+    """Z-interpolate to isotropic voxels, processing Y in chunks.
 
-    Process Y-axis in chunks of ``chunk_size`` slices.
+    Use when the full output does not fit in RAM. Spills to memmap above ~1 GB.
     """
     c, z, y, x = data.shape
 
@@ -89,10 +89,7 @@ def interpolate_z_memory_efficient(data: NDArray, xy_pixel_size: float = 0.10685
 
 def interpolate_z_fast(data: NDArray, xy_pixel_size: float = 0.10685428060522417,
                        z_pixel_size: float = 0.15) -> NDArray:
-    """Interpolate z-axis in one pass.
-
-    Use only when the full array fits in RAM.
-    """
+    """Z-interpolate to isotropic voxels in one pass. RAM-only."""
     interpolation_factor = z_pixel_size / xy_pixel_size
 
     print(f"Fast interpolation: {data.shape} -> factor {interpolation_factor:.4f}")
