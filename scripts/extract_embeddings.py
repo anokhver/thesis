@@ -7,7 +7,7 @@ run on CPU from the cached ``.npy`` file.
 Usage:
     python scripts/extract_embeddings.py \
         --checkpoint outputs/my_run/best_model.pt \
-        --data-root  ../../../data/patches_128 \
+        --data-root  data/patches_128 \
         --output     outputs/my_run/embeddings.npy
 
 Output is a pickled dict with keys:
@@ -29,8 +29,8 @@ from tqdm.auto import tqdm
 
 # ---- path setup (same convention as notebooks) ----
 _SCRIPT = Path(__file__).resolve()
-_ROOT = _SCRIPT.parents[1]          # root/
-_REPO = _ROOT.parent                # thesis/
+_REPO = _SCRIPT.parents[1]          # thesis/
+_ROOT = _REPO / "root"              # thesis/root/  (Python packages)
 for p in (_ROOT, _REPO):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         help="Path to encoder checkpoint (.pt) with 'encoder_state_dict'.",
     )
     p.add_argument(
-        "--data-root", type=str, default="../../../data/patches_128",
+        "--data-root", type=str, default=str(_REPO / "data" / "patches_128"),
         help="Root directory of patch dataset (must contain index.csv).",
     )
     p.add_argument(

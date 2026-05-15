@@ -6,10 +6,10 @@ Usage:
     python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby.json --dry-run
     python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby.json --resume outputs/my_run/last.pt
 
-All paths in the config are resolved relative to ``root/`` (the parent of
-``scripts/``).  An existing run's ``config.json`` (dumped by the notebook)
-can be used as a starting point — any missing top-level keys are filled
-with sensible defaults.
+All paths in the config are resolved relative to ``root/`` (the Python
+package source directory, sibling of ``scripts/``).  An existing run's
+``config.json`` (dumped by the notebook) can be used as a starting point —
+any missing top-level keys are filled with sensible defaults.
 """
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ from torch.utils.data import DataLoader, random_split
 
 # ── Path setup (same convention as notebooks & extract_embeddings.py) ──
 _SCRIPT = Path(__file__).resolve()
-_ROOT = _SCRIPT.parents[1]   # root/
-_REPO = _ROOT.parent         # thesis/
+_REPO = _SCRIPT.parents[1]   # thesis/
+_ROOT = _REPO / "root"       # thesis/root/  (Python packages)
 for _p in (_ROOT, _REPO):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))

@@ -10,7 +10,7 @@
 # Generate blob pseudo-labels for synaptic puncta (CPU-only, no GPU needed).
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-NOTEBOOK_DIR="${PROJECT_DIR}/root/notebooks/pseudolabels"
+NOTEBOOK_DIR="${PROJECT_DIR}/notebooks/pseudolabels"
 NOTEBOOK="blob_pseudolabels.ipynb"
 RUN_DIR="${NOTEBOOK_DIR}/runs"
 CONDA_ENV="microscopy"
