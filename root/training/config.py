@@ -158,23 +158,9 @@ class SSLCfg:
     # target has tile-std 1, so the loss never collapses to background).
     per_patch_target_norm: bool = False
     target_norm_patch_size: int = 8
-    # Foreground-weighted spatial pooling for the VICReg branch.
-    # Before the projector, encoder feature maps are spatially averaged with
-    # sigmoid weights ``1 + alpha * sigmoid((input - tau) / temp)`` computed
-    # from the *clean* (unmasked) input view at pixel resolution and then
-    # downsampled to the feature-map grid. ``alpha=0`` recovers plain
-    # ``z.mean(spatial)``. Using the same ``(alpha, tau, temp)`` as
-    # ``fg_weight_*`` is a good default; separate knobs are exposed so the
-    # recon and VICReg foreground bias can be tuned independently.
-    fg_pool_alpha: float = 5.0  #5.0
-    fg_pool_tau: float = 1.0    #1.0
-    fg_pool_temp: float = 0.5    #0.5
     # Threshold (in z-scored target space) above which a pixel counts as
-    # foreground for the diagnostic ``recon_fg`` metric. Independent of the
-    # training-time foreground weighting (``fg_weight_*``) so the metric
-    # stays comparable across runs that sweep those knobs. ``tau=1`` means
-    # "one channel std above the channel mean" -- the rough definition of
-    # a punctum in the z-scored microscopy inputs.
+    # foreground for the diagnostic recon_fg metric. tau=1 means "one
+    # channel std above the channel mean" — a punctum in z-scored inputs.
     fg_metric_threshold: float = 1.0
 
 def _to_jsonable(obj: Any) -> Any:
