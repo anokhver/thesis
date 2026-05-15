@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thesis-synapse-segmentation"
+version = "0.1.0"
+description = "Self-supervised segmentation of synaptic structures in fluorescence microscopy"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Veronika Anokhina" },
+]
+license = { text = "Proprietary" }
+
+# Core runtime dependencies. See requirements.txt for the full pinned list
+# used in development (CUDA-specific torch builds belong there, not here).
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "scikit-image>=0.21",
+    "matplotlib>=3.7",
+    "tqdm>=4.65",
+    "monai>=1.3",
+    "einops>=0.7",
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+
+[project.optional-dependencies]
+# Heavy or environment-specific extras — install only when needed.
+imaging = [
+    "aicsimageio~=4.14.0",
+    "napari>=0.6",
+]
+notebooks = [
+    "jupyterlab",
+    "ipywidgets",
+]
+dev = [
+    "pytest>=7",
+]
+
+# ---------------------------------------------------------------------------
+# Package layout
+# ---------------------------------------------------------------------------
+# The Python source lives in ``root/`` (kept at this name to minimize churn).
+# Each top-level subfolder of ``root/`` is its own package.
+# ``imaging/`` lives at the repo root and is NOT shipped — it is a utility
+# folder for image generation/browsing, not part of the installable package.
+# ``notebooks/``, ``tests/``, ``configs/``, ``scripts/`` are also outside
+# the package.
+[tool.setuptools]
+package-dir = {"" = "root"}
+
+[tool.setuptools.packages.find]
+where = ["root"]
+include = [
+    "clustering*",
+    "models*",
+    "pseudolabels*",
+    "segmentation*",
+    "ssl_training*",
+    "training*",
+    "utils_data*",
+]
+exclude = ["__pycache__*"]
