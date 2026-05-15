@@ -6,7 +6,7 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data (too large for GitHub)
-data/
+/data/
 *.pt
 
 
@@ -18,3 +18,13 @@ notebooks/**/outputs/
 
 # Personall notes
 .my/
+.old/
+
+.venv/
+.runs-analyse/
+inspo
+.venv1
+.planning
+.papers
+.tmp_papers
+*md
