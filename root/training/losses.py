@@ -179,29 +179,6 @@ def vicreg_terms(z1: torch.Tensor, z2: torch.Tensor, eps: float = 1e-4):
     return L_sim, L_std, L_cov
 
 
-def _fg_pool(
-    z: torch.Tensor,
-    view_clean: torch.Tensor,
-    alpha: float,
-    tau: float,
-    temp: float,
-) -> torch.Tensor:
-    """Foreground-weighted spatial pool of ``z`` (B, C, S, S) -> (B, C).
-
-    Pixel weight ``1 + alpha * sigmoid((view_clean - tau) / temp)`` is downsampled
-    to ``(S, S)`` and used as pooling weights. ``alpha <= 0`` recovers
-    ``z.mean(spatial)``. Counters background-dominated pooling for the VICReg
-    branch. Custom; no published joint-embedding precedent found.
-    """
-    if alpha <= 0.0:
-        return z.float().mean(dim=(-2, -1))
-    zf = z.float()
-    fg_logit = ((view_clean.float() - tau) / temp).amax(dim=1, keepdim=True)
-    w_pixel = 1.0 + alpha * torch.sigmoid(fg_logit)  # (B, 1, H, W)
-    # Downsample weight map to feature-map resolution.
-    S = zf.shape[-1]
-    w_feat = F.adaptive_avg_pool2d(w_pixel, S)  # (B, 1, S, S)
-    return (zf * w_feat).sum(dim=(-2, -1)) / w_feat.sum(dim=(-2, -1)).clamp(min=1e-8)
 
 
 def compute_simmim_vicreg_loss(
@@ -288,14 +265,8 @@ def compute_simmim_vicreg_loss(
         if ssl_cfg.w_vicreg > 0:
             z1_clean = _encode_at(encoder, view1.contiguous(), ssl_cfg.head_stage_index)
             z2_clean = _encode_at(encoder, view2.contiguous(), ssl_cfg.head_stage_index)
-            p1 = projector(_fg_pool(
-                z1_clean, view1,
-                ssl_cfg.fg_pool_alpha, ssl_cfg.fg_pool_tau, ssl_cfg.fg_pool_temp,
-            ))
-            p2 = projector(_fg_pool(
-                z2_clean, view2,
-                ssl_cfg.fg_pool_alpha, ssl_cfg.fg_pool_tau, ssl_cfg.fg_pool_temp,
-            ))
+            p1 = projector(z1_clean.float().mean(dim=(-2, -1)))
+            p2 = projector(z2_clean.float().mean(dim=(-2, -1)))
             L_sim, L_std, L_cov = vicreg_terms(p1, p2)
             L_vicreg = (
                 ssl_cfg.lambda_sim * L_sim
@@ -367,12 +338,9 @@ def validation_simmim(
         recon.float(), batch.float(), mask.float(), ssl_cfg.mask_block_size,
     )
 
-    # ── VICReg diagnostics: clean view + fg-weighted pooling ─────────
+    # ── VICReg diagnostics: clean view + GeM pooling ──────────────
     z_clean = _encode_at(encoder, batch.contiguous(), ssl_cfg.head_stage_index)
-    p = projector(_fg_pool(
-        z_clean, batch,
-        ssl_cfg.fg_pool_alpha, ssl_cfg.fg_pool_tau, ssl_cfg.fg_pool_temp,
-    )).float()
+    p = projector(z_clean.float().mean(dim=(-2, -1))).float()
     B, D = p.shape
     eps = 1e-4
     std = torch.sqrt(p.var(dim=0, unbiased=False) + eps)
