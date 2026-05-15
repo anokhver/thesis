@@ -3,12 +3,11 @@
 # Submit all three notebooks under notebooks/ to PBS.
 #
 # Usage from the cluster login node:
-#   bash scripts/submit_all_new.sh             # submit all three
-#   bash scripts/submit_all_new.sh loadedmoby     # submit only loaded-weights MOBY
-#   bash scripts/submit_all_new.sh scratch     # submit only from-scratch
-#   bash scripts/submit_all_new.sh cluster     # submit only clustering
-
-#   bash scripts/submit_all_new.sh chain       # loaded -> clustering (afterok)
+#   bash scripts/submit_all.sh             # submit all three
+#   bash scripts/submit_all.sh loadedmoby  # submit only loaded-weights MOBY
+#   bash scripts/submit_all.sh scratch     # submit only from-scratch
+#   bash scripts/submit_all.sh cluster     # submit only clustering
+#   bash scripts/submit_all.sh chain       # loadedmoby -> clustering (afterok)
 #
 # Each individual script is independently runnable with `qsub`.
 # ─────────────────────────────────────────────────────────────
@@ -42,7 +41,7 @@ case "$mode" in
         submit "$CLUSTER" >/dev/null
         ;;
     chain)
-        loaded_id=$(submit "$LOADED")
+        loaded_id=$(submit "$LOADEDMOBY")
         submit "$CLUSTER" -W "depend=afterok:${loaded_id}" >/dev/null
         ;;
     all)

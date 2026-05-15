@@ -304,7 +304,12 @@ def _apply_config_file(args: argparse.Namespace, config_path: Path) -> None:
         setattr(args, key, val)
 
 
-def main():
+def _parse_args() -> argparse.Namespace:
+    """Parse CLI args with config-file fallback.
+
+    Resolution order: hard-coded defaults -> config file values ->
+    explicit CLI flags. Explicit CLI flags always win.
+    """
     parser = argparse.ArgumentParser(
         description="Preprocess confocal microscopy images into normalized patches."
     )
@@ -357,12 +362,27 @@ def main():
              "Each worker spawns its own JVM, so memory usage scales "
              "linearly. 2-4 is a good starting point on Metacentrum.",
     )
-    args = parser.parse_args()
 
-    # Apply JSON config (if given) as a base; CLI args that were
-    # explicitly provided on the command line take precedence.
+    # Two-pass parse: config supplies defaults, then CLI overrides them.
+    # `provided_args` records which flags the user actually typed so we
+    # can re-apply them after the config injects its values.
+    provided_args = {
+        action.dest
+        for action in parser._actions
+        if any(opt in sys.argv[1:] for opt in action.option_strings)
+    }
+
+    args = parser.parse_args()
     if args.config is not None:
+        cli_explicit = {k: getattr(args, k) for k in provided_args}
         _apply_config_file(args, args.config)
+        for k, v in cli_explicit.items():
+            setattr(args, k, v)
+    return args
+
+
+def main():
+    args = _parse_args()
 
     if not args.input_dir.is_dir():
         logger.error(f"Input directory does not exist: {args.input_dir}")

@@ -116,7 +116,7 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--patch_root", type=Path,
-                        default=PROJECT_ROOT / ".." / "data" / "patches_128",
+                        default=_REPO / "data" / "patches_128",
                         help="Directory with .npy patches and index.csv")
     parser.add_argument("--image_index", type=int, default=0,
                         help="Image index to reassemble (default: 0)")

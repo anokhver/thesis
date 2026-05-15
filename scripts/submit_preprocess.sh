@@ -31,7 +31,7 @@ echo "Conda env: ${CONDA_ENV}"
 echo "Start:     $(date)"
 echo "================"
 
-python "${PROJECT_DIR}/root/utils_data/preprocess_pseudolabels.py" \
+python "${PROJECT_DIR}/root/synaptic_ssl/utils_data/preprocess_training.py" \
     --file_extensions .vsi \
     2>&1
 

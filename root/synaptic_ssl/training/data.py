@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Callable
 
@@ -10,12 +9,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset, Subset, random_split
 from tqdm.auto import tqdm
 
-_THIS = Path(__file__).resolve()
-_ROOT = _THIS.parents[1]  # root/
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-
-from ..utils_data.patch_dataset import PatchDataset  # noqa: E402
+from ..utils_data.patch_dataset import PatchDataset
 
 
 class TransformedSubset(Dataset):

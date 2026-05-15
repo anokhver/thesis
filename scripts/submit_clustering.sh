@@ -12,7 +12,7 @@
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
 NOTEBOOK_DIR="${PROJECT_DIR}/notebooks/clustering"
-NOTEBOOK="clustering_check.ipynb"
+NOTEBOOK="clustering_pipeline.ipynb"
 RUN_DIR="${NOTEBOOK_DIR}/runs"
 CONDA_ENV="microscopy"
 
