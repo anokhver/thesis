@@ -6,16 +6,14 @@ Usage:
     python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby.json --dry-run
     python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby.json --resume outputs/my_run/last.pt
 
-All paths in the config are resolved relative to ``root/`` (the Python
-package source directory, sibling of ``scripts/``).  An existing run's
-``config.json`` (dumped by the notebook) can be used as a starting point —
-any missing top-level keys are filled with sensible defaults.
+Relative paths in the config are resolved against ``root/``. An existing
+run's ``config.json`` can be reused as a starting point; missing keys
+fall back to defaults.
 """
 from __future__ import annotations
 
-# Headless backend BEFORE any other matplotlib/pyplot import.
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("Agg")  # headless: must precede any pyplot import
 
 import argparse
 import gc
@@ -29,10 +27,8 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader, random_split
 
-# ── Path setup (same convention as notebooks & extract_embeddings.py) ──
-_SCRIPT = Path(__file__).resolve()
-_REPO = _SCRIPT.parents[1]   # thesis/
-_ROOT = _REPO / "root"       # thesis/root/  (Python packages)
+_REPO = Path(__file__).resolve().parents[1]
+_ROOT = _REPO / "root"
 for _p in (_ROOT, _REPO):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))

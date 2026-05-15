@@ -15,14 +15,12 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
 # ---------------------------------------------------------------------------
-# Add thesis/root/ to sys.path so utils_data imports work without installation.
+# Add thesis/root/ to sys.path so synaptic_ssl imports work without `pip install -e .`.
 _REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO / "root"))
 
 from synaptic_ssl.utils_data.reassemble import reassemble_image  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# Same fluorescence colormaps as preview_ets_stack.py
 # ---------------------------------------------------------------------------
 CHANNEL_COLORS = ["green", "magenta", "cyan", "yellow", "red", "blue"]
 CHANNEL_RGB = [
