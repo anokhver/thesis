@@ -452,7 +452,7 @@ def main():
         "best_val_metric", "best_epoch",
         "grad_norm_mean", "grad_norm_max",
         "train_recon", "train_fourier", "train_sim", "train_std", "train_cov", "train_vicreg",
-        "val_recon", "val_recon_fg", "val_fourier", "val_std", "val_cov",
+        "val_recon", "val_fourier", "val_std", "val_cov",
     ]
     csv_logger = CSVMetricLogger(save_dir / "metrics.csv", csv_fields)
 
@@ -564,7 +564,6 @@ def main():
                 train_cov=train_components.get("cov"),
                 train_vicreg=train_components.get("vicreg"),
                 val_recon=val_accum.get("recon"),
-                val_recon_fg=val_accum.get("recon_fg"),
                 val_fourier=val_accum.get("fourier"),
                 val_std=val_accum.get("std"),
                 val_cov=val_accum.get("cov"),
@@ -573,7 +572,6 @@ def main():
                 f"ep {epoch:3d}/{train_cfg.epochs} [{phase}]  "
                 f"train={train_loss:.5f}  val[{train_cfg.val_metric_key}]={val_metric:.5f}  "
                 f"recon(t/v)={train_components.get('recon', 0):.4f}/{val_accum.get('recon', 0):.4f}  "
-                f"recon_fg(t/v)={train_components.get('recon_fg', 0):.4f}/{val_accum.get('recon_fg', 0):.4f}  "
                 f"std(t/v)={train_components.get('std', 0):.4f}/{val_accum.get('std', 0):.4f}  "
                 f"lr(enc/head)={enc_lr:.2e}/{head_lr:.2e}  t={epoch_time:.1f}s  gn={gmean:.2f}{improved}"
             )
