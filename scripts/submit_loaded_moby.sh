@@ -11,7 +11,7 @@
 # Shorter walltime than from_scratch because epoch budget is 1x.
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-NOTEBOOK_DIR="${PROJECT_DIR}/root/notebooks/loaded-weights"
+NOTEBOOK_DIR="${PROJECT_DIR}/notebooks/loaded-weights"
 NOTEBOOK="pretrain_simmim_vicreg_moby.ipynb"
 RUN_DIR="${NOTEBOOK_DIR}/runs"
 CONDA_ENV="microscopy"

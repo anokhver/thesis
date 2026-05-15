@@ -11,7 +11,7 @@
 # Inference only -- modest GPU is enough; no training, short walltime.
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-NOTEBOOK_DIR="${PROJECT_DIR}/root/notebooks/clustering"
+NOTEBOOK_DIR="${PROJECT_DIR}/notebooks/clustering"
 NOTEBOOK="clustering_check.ipynb"
 RUN_DIR="${NOTEBOOK_DIR}/runs"
 CONDA_ENV="microscopy"

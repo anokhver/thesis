@@ -8,11 +8,10 @@
 #PBS -M your@email.com
 
 # SimMIM+VICReg pretrain from MoBY weights (script version).
-# Outputs go to root/outputs/ (separate from notebook outputs).
+# Outputs go to outputs/ at the repo root.
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-ROOT_DIR="${PROJECT_DIR}/root"
-CONFIG="${ROOT_DIR}/configs/pretrain_moby/default.json"
+CONFIG="${PROJECT_DIR}/configs/pretrain_moby/default.json"
 CONDA_ENV="microscopy"
 
 set -euo pipefail
@@ -22,7 +21,7 @@ mkdir -p "${PROJECT_DIR}/logs"
 source /cvmfs/software.metacentrum.cz/conda/envs/miniforge3-25.3.1-0/etc/profile.d/conda.sh
 conda activate /storage/brno2/home/anokhver/.conda/envs/${CONDA_ENV}
 
-cd "${ROOT_DIR}"
+cd "${PROJECT_DIR}"
 
 echo "=== Job Info ==="
 echo "Job ID:    ${PBS_JOBID}"

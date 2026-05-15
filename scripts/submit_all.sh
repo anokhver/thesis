@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────
-# Submit all three notebooks under root/notebooks-new/ to PBS.
+# Submit all three notebooks under notebooks/ to PBS.
 #
 # Usage from the cluster login node:
 #   bash scripts/submit_all_new.sh             # submit all three
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOADEDMOBY="${SCRIPT_DIR}/submit_loaded_weights_moby.sh"
+LOADEDMOBY="${SCRIPT_DIR}/submit_loaded_moby.sh"
 SCRATCH="${SCRIPT_DIR}/submit_from_scratch.sh"
 CLUSTER="${SCRIPT_DIR}/submit_clustering.sh"
 
