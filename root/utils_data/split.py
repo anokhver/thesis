@@ -1,4 +1,4 @@
-"""Filter PatchDataset to an image-level split from a v2 split JSON."""
+"""Filter ``PatchDataset`` to one side of an image-level split."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ from .patch_dataset import PatchDataset
 
 
 class SplitPatchDataset(Dataset):
-    """Load patches filtered to the train or val image-level split.
+    """``PatchDataset`` filtered to the train or val image-level split.
 
-    Read indices, exclude patterns, and foreground stats from the split JSON.
-    Raise ValueError if ``which`` is not ``"train"`` or ``"val"``.
+    Reads patch indices, exclude patterns, and foreground stats from
+    ``split_json``. Raise ValueError if ``which`` is not ``"train"`` or ``"val"``.
     """
 
     def __init__(

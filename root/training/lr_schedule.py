@@ -1,7 +1,8 @@
-"""Build layer-wise LR decay and warmup/cosine schedules.
+"""Layer-wise LR decay param groups and warmup+cosine LR schedule.
 
-Adapt timm / MAE ``util/lr_decay.py`` to MONAI ``SwinTransformer``
-parameter naming (``layers1.0...layers4.0``).
+Adapted from timm / MAE ``util/lr_decay.py`` for MONAI ``SwinTransformer``
+parameter naming (``layers1.0 .. layers4.0``).
+Ref: https://github.com/huggingface/pytorch-image-models
 """
 
 from __future__ import annotations
@@ -24,15 +25,11 @@ def param_groups_layer_decay(
     layer_decay: float,
     no_decay_keywords: tuple[str, ...] = _NO_DECAY_KEYWORDS,
 ) -> list[dict]:
-    """Build per-stage AdamW param groups for a MONAI ``SwinTransformer``.
+    """Build per-stage AdamW param groups with layer-wise LR decay.
 
-    Stage assignment::
-
-        depth 0 : patch_embed
-        depth d : layers{d}            (1..4)
-        depth 5 : everything else (final norm, etc.)
-
-    Decay multiplier: ``layer_decay ** (5 - d)``.
+    Stages: ``patch_embed`` -> 0, ``layers{1..4}`` -> 1..4, everything else -> 5.
+    LR scale per stage: ``layer_decay ** (5 - stage)``. ``no_decay_keywords``
+    names skip weight decay.
     """
     n_stages = 5
     scales = [layer_decay ** (n_stages - d) for d in range(n_stages + 1)]
@@ -65,7 +62,7 @@ def param_groups_layer_decay(
 
 
 def make_warmup_cosine(warmup_epochs: int, total_epochs: int):
-    """Apply linear warmup for ``warmup_epochs`` then cosine decay to 0."""
+    """Return an ``LambdaLR`` lambda: linear warmup then cosine decay to 0."""
     def lr_lambda(epoch):
         if epoch < warmup_epochs:
             return epoch / max(1, warmup_epochs)

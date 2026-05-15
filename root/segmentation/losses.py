@@ -1,4 +1,4 @@
-"""Define Dice + BCE losses for single-class binary segmentation."""
+"""Dice + BCE losses for binary segmentation."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 
 class SoftDiceLoss(nn.Module):
-    """Compute differentiable Dice loss for binary segmentation."""
+    """Differentiable Dice loss for binary segmentation."""
 
     def __init__(self, smooth: float = 1.0):
         super().__init__()
@@ -26,9 +26,9 @@ class SoftDiceLoss(nn.Module):
 
 
 class DiceBCELoss(nn.Module):
-    """Combine Dice and BCE loss for binary segmentation.
+    """Weighted sum of Dice and BCE.
 
-    Compute ``loss = dice_weight * DiceLoss + bce_weight * BCEWithLogitsLoss``.
+    ``loss = dice_weight * SoftDiceLoss + bce_weight * BCEWithLogitsLoss``.
     """
 
     def __init__(
@@ -60,7 +60,7 @@ def compute_dice_metric(
     threshold: float = 0.5,
     smooth: float = 1e-6,
 ) -> torch.Tensor:
-    """Compute Dice coefficient (metric, not loss) for a batch."""
+    """Hard Dice coefficient (metric, not loss) for a batch."""
     pred = (torch.sigmoid(logits) > threshold).float()
     pred_flat = pred.view(pred.size(0), -1)
     target_flat = target.view(target.size(0), -1)

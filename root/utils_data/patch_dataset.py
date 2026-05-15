@@ -13,11 +13,12 @@ from torch.utils.data import Dataset
 
 
 class PatchDataset(Dataset):
-    """Load pre-extracted ``.npy`` patches indexed by ``index.csv``.
+    """Indexed ``.npy`` patch dataset from ``index.csv``.
 
-    Keep patches as ``(C, H, W)`` float32 in ``[0, 1]``. Select channels with
-    ``channels`` when set. Drop damaged patches and exclude-pattern matches by default.
-    Apply ``transform`` before converting to tensor.
+    Patches are ``(C, H, W)`` float32 in ``[0, 1]``. Channel subset is taken
+    when ``channels`` is set. Damaged patches and ``exclude_patterns``
+    matches on ``source_image`` are dropped. ``transform`` runs on the
+    numpy array before tensor conversion.
     """
 
     def __init__(

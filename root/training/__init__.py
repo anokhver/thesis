@@ -1,4 +1,4 @@
-"""SSL training infrastructure: config, data, augmentation, losses, scheduling, and visualisation."""
+"""SSL training package: config, data, augmentation, losses, scheduling, viz."""
 
 from .config import BaseCfg, DataCfg, ModelCfg, TrainCfg, SSLCfg, dump_config
 from .seeding import seed_everything

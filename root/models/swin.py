@@ -1,9 +1,12 @@
-"""Define encoder + heads for SimMIM + VICReg pretraining.
+"""Encoder and SSL heads for SimMIM + VICReg pretraining.
 
-Use MONAI ``SwinTransformer`` (Hatamizadeh et al., 2022) with timm ``swin_tiny_patch4_window7_224`` compatibility for weight loading.
-Decode with 1x1 Conv + PixelShuffle (Xie et al., CVPR 2022, sec. 3.2).
-Store learnable mask token with truncated-normal init (std=0.02).
-Project with 3-layer BN+ReLU MLP (Bardes et al., ICLR 2022, sec. 4.1).
+Encoder: MONAI ``SwinTransformer`` (Hatamizadeh et al., 2022).
+SimMIM decoder: 1x1 Conv + PixelShuffle (Xie et al., CVPR 2022).
+VICReg projector: 3-layer BN+ReLU MLP (Bardes et al., ICLR 2022).
+
+Ref: https://github.com/Project-MONAI/MONAI
+Ref: https://github.com/microsoft/SimMIM
+Ref: https://github.com/facebookresearch/vicreg
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ from training.config import ModelCfg, SSLCfg
 
 
 def build_swin_encoder(model_cfg: ModelCfg) -> nn.Module:
-    """Construct the MONAI SwinTransformer encoder from ``model_cfg``."""
+    """Build a MONAI ``SwinTransformer`` from ``model_cfg``."""
     patch_size = (model_cfg.patch_size,) * model_cfg.spatial_dims
     window_size = (model_cfg.window_size,) * model_cfg.spatial_dims
     return SwinTransformer(
@@ -39,9 +42,10 @@ def build_swin_encoder(model_cfg: ModelCfg) -> nn.Module:
 
 
 class SimMIMDecoder(nn.Module):
-    """Decode with 1x1 Conv + PixelShuffle.
+    """1x1 Conv + PixelShuffle upsampler.
 
-    Xie et al., CVPR 2022, sec. 3.2.
+    Xie et al. (CVPR 2022), sec. 3.2.
+    Ref: https://github.com/microsoft/SimMIM
     """
 
     def __init__(self, enc_ch: int, out_channels: int, encoder_stride: int):
@@ -58,9 +62,10 @@ class SimMIMDecoder(nn.Module):
 
 
 class MaskToken(nn.Module):
-    """Store learnable per-channel mask token ``(1, C, 1, 1)``.
+    """Learnable per-channel mask token of shape ``(1, C, 1, 1)``.
 
-    Use truncated-normal init (std=0.02).
+    Trunc-normal init, std=0.02.
+    Ref: https://github.com/microsoft/SimMIM
     """
 
     def __init__(self, in_channels: int):
@@ -73,9 +78,10 @@ class MaskToken(nn.Module):
 
 
 class VICRegProjector(nn.Module):
-    """Project pooled features with 3-layer BN+ReLU MLP.
+    """3-layer BN+ReLU MLP projector for pooled features.
 
-    Bardes et al., ICLR 2022, sec. 4.1.
+    Bardes et al. (ICLR 2022), sec. 4.1.
+    Ref: https://github.com/facebookresearch/vicreg
     """
 
     def __init__(self, in_dim: int, hidden_dim: int, out_dim: int):
@@ -95,7 +101,7 @@ class VICRegProjector(nn.Module):
 
 
 def _resolve_stage_index(model_cfg: ModelCfg, stage_index: int) -> int:
-    """Normalise ``stage_index`` into ``[0, len(depths)]`` (5 levels for default Swin-T)."""
+    """Normalise ``stage_index`` into ``[0, len(depths)]``."""
     n_stages = len(model_cfg.depths) + 1  # patch-embed level + len(depths) downsamples
     idx = stage_index if stage_index >= 0 else n_stages + stage_index
     if not 0 <= idx < n_stages:
@@ -109,7 +115,7 @@ def _resolve_stage_index(model_cfg: ModelCfg, stage_index: int) -> int:
 def _encoder_stride_and_channels(
     model_cfg: ModelCfg, stage_index: int = -1,
 ) -> tuple[int, int, int]:
-    """Return channels, spatial size, and total stride at encoder feature level ``stage_index``."""
+    """Return ``(channels, spatial, stride)`` at encoder stage ``stage_index``."""
     idx = _resolve_stage_index(model_cfg, stage_index)
     enc_ch = model_cfg.feature_size * (2 ** idx)
     encoder_stride = model_cfg.patch_size * (2 ** idx)
@@ -125,7 +131,7 @@ def _encoder_stride_and_channels(
 def build_simmim_vicreg_heads(
     model_cfg: ModelCfg, ssl_cfg: SSLCfg,
 ) -> dict[str, nn.Module]:
-    """Return decoder, mask token, and projector modules as a dict."""
+    """Build decoder, mask token, and projector. Return dict."""
     enc_ch, _, encoder_stride = _encoder_stride_and_channels(
         model_cfg, ssl_cfg.head_stage_index,
     )

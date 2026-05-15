@@ -1,7 +1,4 @@
-"""Generate two-view training augmentations and a validation transform.
-
-Follow microscopy SSL conventions (Ma 2024; Kraus et al. 2024).
-"""
+"""Two-view augmentation and val-only z-score transform for microscopy SSL."""
 
 from __future__ import annotations
 
@@ -12,10 +9,11 @@ import torch.nn.functional as F
 
 
 class MicroscopyTwoViewTransform:
-    """Generate two augmented views for multi-channel microscopy SSL.
+    """Produce two augmented views of a ``(C, H, W)`` float tensor in ``[0, 1]``.
 
-    Input: ``(C, H, W)`` float32 tensor in ``[0, 1]``.
-    Output: ``(view1, view2)``. Each view is ``(C, H, W)`` float32 after normalisation.
+    Pipeline: flips/rot90 -> integer translate -> optional Gaussian blur ->
+    Poisson + Gaussian noise -> per-channel z-score. Output is two ``(C, H, W)``
+    float32 tensors.
     """
 
     def __init__(
@@ -104,7 +102,7 @@ class MicroscopyTwoViewTransform:
 
 
 class ValSingleViewTransform:
-    """Apply per-channel z-score without augmentation."""
+    """Apply per-channel z-score. No augmentation."""
 
     def __init__(self, ch_mean: torch.Tensor, ch_std: torch.Tensor):
         self.ch_mean = ch_mean.view(-1, 1, 1)

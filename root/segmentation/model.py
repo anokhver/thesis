@@ -1,7 +1,10 @@
-"""Build SwinUNETR models and load pretrained encoders.
+"""MONAI SwinUNETR builder with pretrained encoder loading.
 
-Wrap MONAI ``SwinUNETR`` and load a SimMIM+VICReg encoder into
-``swinViT``. Leave the decoder randomly initialised.
+Encoder weights load into ``swinViT``. Decoder stays random.
+Hatamizadeh et al. (2022).
+
+Ref: https://github.com/Project-MONAI/research-contributions/tree/main/SwinUNETR
+Ref: https://github.com/Project-MONAI/MONAI
 """
 
 from __future__ import annotations
@@ -19,17 +22,15 @@ def build_swinunetr(
     model_cfg: ModelCfg,
     out_channels: int = 1,
 ) -> nn.Module:
-    """Instantiate a MONAI SwinUNETR for 2D segmentation."""
+    """Build a 2D MONAI ``SwinUNETR``.
+
+    Forwards every backbone hyperparameter from ``ModelCfg`` explicitly so
+    ``swinViT`` matches the SimMIM+VICReg pretraining encoder exactly.
+    Mismatched ``patch_size`` / ``window_size`` / ``mlp_ratio`` / ``qkv_bias``
+    silently drops pretrained ``patch_embed`` at load time.
+    """
     from monai.networks.nets import SwinUNETR
 
-    # Forward every backbone hyper-parameter from ``ModelCfg`` explicitly so
-    # the segmentation ``swinViT`` is byte-for-byte identical to the encoder
-    # used during SimMIM+VICReg pretraining. Previously ``patch_size``,
-    # ``window_size``, ``mlp_ratio`` and ``qkv_bias`` were left at MONAI's
-    # defaults, which silently dropped the pretrained ``patch_embed``
-    # weights at load time when they didn't match. ``img_size`` was also
-    # removed from MONAI ``SwinUNETR`` in recent releases (the divisibility
-    # check now runs in ``_check_input_size`` at forward time).
     model = SwinUNETR(
         in_channels=model_cfg.in_channels,
         out_channels=out_channels,
@@ -113,7 +114,7 @@ def load_pretrained_encoder_into_swinunetr(
 
 
 def count_params(model, only_trainable: bool = False) -> int:
-    """Count model parameters."""
+    """Count parameters in a module or dict of modules."""
     if isinstance(model, dict):
         return sum(count_params(v, only_trainable) for v in model.values())
     if isinstance(model, nn.Module):
