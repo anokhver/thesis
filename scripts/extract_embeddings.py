@@ -35,11 +35,11 @@ for p in (_ROOT, _REPO):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from training.config import ModelCfg                # noqa: E402
-from training.augment import ValSingleViewTransform # noqa: E402
-from training.data import compute_channel_stats     # noqa: E402
-from models.swin import build_swin_encoder          # noqa: E402
-from utils_data.patch_dataset import PatchDataset   # noqa: E402
+from synaptic_ssl.training.config import ModelCfg                # noqa: E402
+from synaptic_ssl.training.augment import ValSingleViewTransform # noqa: E402
+from synaptic_ssl.training.data import compute_channel_stats     # noqa: E402
+from synaptic_ssl.models.swin import build_swin_encoder          # noqa: E402
+from synaptic_ssl.utils_data.patch_dataset import PatchDataset   # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:

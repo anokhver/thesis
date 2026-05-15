@@ -19,7 +19,7 @@ from matplotlib.colors import LinearSegmentedColormap
 _REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO / "root"))
 
-from utils_data.reassemble import reassemble_image  # noqa: E402
+from synaptic_ssl.utils_data.reassemble import reassemble_image  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Same fluorescence colormaps as preview_ets_stack.py

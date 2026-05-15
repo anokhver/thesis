@@ -16,7 +16,7 @@ import torch.nn as nn
 
 from monai.networks.nets.swin_unetr import SwinTransformer
 
-from training.config import ModelCfg, SSLCfg
+from ..training.config import ModelCfg, SSLCfg
 
 
 def build_swin_encoder(model_cfg: ModelCfg) -> nn.Module:

@@ -15,7 +15,7 @@ _ROOT = _THIS.parents[1]  # root/
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from utils_data.patch_dataset import PatchDataset  # noqa: E402
+from ..utils_data.patch_dataset import PatchDataset  # noqa: E402
 
 
 class TransformedSubset(Dataset):

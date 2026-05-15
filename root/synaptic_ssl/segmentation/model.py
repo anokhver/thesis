@@ -15,7 +15,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from training.config import ModelCfg
+from ..training.config import ModelCfg
 
 
 def build_swinunetr(

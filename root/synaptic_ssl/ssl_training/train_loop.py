@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from tqdm.auto import tqdm
 
-from training.losses import compute_simmim_vicreg_loss, validation_simmim
+from ..training.losses import compute_simmim_vicreg_loss, validation_simmim
 
 
 def set_train(encoder: nn.Module, heads: dict[str, nn.Module], training: bool) -> None:

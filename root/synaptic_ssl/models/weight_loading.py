@@ -16,7 +16,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from training.config import BaseCfg, ModelCfg
+from ..training.config import BaseCfg, ModelCfg
 
 
 def _remap_timm_key_to_monai(k: str) -> str | None:

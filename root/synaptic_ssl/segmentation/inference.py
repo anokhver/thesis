@@ -14,7 +14,7 @@ _ROOT = _THIS.parents[1]  # root/
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from utils_data.reassemble import reassemble_image  # noqa: E402
+from ..utils_data.reassemble import reassemble_image  # noqa: E402
 
 
 def sliding_window_predict(

@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from training.config import BaseCfg, DataCfg, ModelCfg, TrainCfg, SSLCfg
+from ..training.config import BaseCfg, DataCfg, ModelCfg, TrainCfg, SSLCfg
 
 from .unfreeze import default_unfreeze_schedule
 

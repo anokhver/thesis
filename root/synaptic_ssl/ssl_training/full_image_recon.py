@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from tqdm.auto import tqdm
 
-from training.masking import apply_mask, random_block_mask
+from ..training.masking import apply_mask, random_block_mask
 
 
 @torch.no_grad()
@@ -111,7 +111,7 @@ def run_full_image_recon(
     logger,
 ) -> None:
     """Run full-image sliding-window reconstruction and save .npz + .png."""
-    from utils_data.reassemble import reassemble_image, list_image_indices
+    from ..utils_data.reassemble import reassemble_image, list_image_indices
 
     save_dir = Path(save_dir)
 
