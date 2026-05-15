@@ -1,4 +1,4 @@
-"""Define configuration dataclasses for training runs."""
+"""Dataclasses for SSL pretraining configuration."""
 
 from __future__ import annotations
 
@@ -166,9 +166,9 @@ class SSLCfg:
     # ``z.mean(spatial)``. Using the same ``(alpha, tau, temp)`` as
     # ``fg_weight_*`` is a good default; separate knobs are exposed so the
     # recon and VICReg foreground bias can be tuned independently.
-    fg_pool_alpha: float = 0.0  #5.0
-    fg_pool_tau: float = 0.0    #1.0
-    fg_pool_temp: float = 1.0    #0.5
+    fg_pool_alpha: float = 5.0  #5.0
+    fg_pool_tau: float = 1.0    #1.0
+    fg_pool_temp: float = 0.5    #0.5
     # Threshold (in z-scored target space) above which a pixel counts as
     # foreground for the diagnostic ``recon_fg`` metric. Independent of the
     # training-time foreground weighting (``fg_weight_*``) so the metric
@@ -176,7 +176,6 @@ class SSLCfg:
     # "one channel std above the channel mean" -- the rough definition of
     # a punctum in the z-scored microscopy inputs.
     fg_metric_threshold: float = 1.0
-
 
 def _to_jsonable(obj: Any) -> Any:
     if dataclasses.is_dataclass(obj):
@@ -189,8 +188,7 @@ def _to_jsonable(obj: Any) -> Any:
         return {k: _to_jsonable(v) for k, v in obj.items()}
     return obj
 
-
 def dump_config(path: str | Path, **cfgs: Any) -> None:
-    """Dump a set of named configs to a JSON file next to the run."""
+    """Write named configs to ``path`` as JSON."""
     payload = {name: _to_jsonable(cfg) for name, cfg in cfgs.items()}
     Path(path).write_text(json.dumps(payload, indent=2))

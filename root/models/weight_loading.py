@@ -1,7 +1,11 @@
-"""Load pretrained weights from timm Swin into MONAI SwinTransformer.
+"""Load pretrained Swin weights into MONAI ``SwinTransformer``.
 
-Ref: https://github.com/huggingface/pytorch-image-models
+Supports timm ImageNet, MoBY self-supervised, and local SimMIM checkpoints.
+
 Ref: https://github.com/Project-MONAI/MONAI
+Ref: https://github.com/microsoft/SimMIM
+Ref: https://github.com/SwinTransformer/Transformer-SSL
+Ref: https://github.com/huggingface/pytorch-image-models
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from training.config import BaseCfg, ModelCfg
 
 
 def _remap_timm_key_to_monai(k: str) -> str | None:
-    """Rewrite a timm Swin key to MONAI ``SwinTransformer`` naming. Return None if no equivalent."""
+    """Map a timm Swin key to MONAI ``SwinTransformer`` naming. Return None if no match."""
     if k.startswith(("head.", "norm.", "norm_pre.", "norm_post.", "pre_logits.")):
         return None
     if k.startswith("patch_embed."):
@@ -51,7 +55,7 @@ def _remap_timm_key_to_monai(k: str) -> str | None:
 
 
 def _adapt_first_conv(weight: torch.Tensor, target_in_chans: int) -> torch.Tensor:
-    """Average-then-tile ``patch_embed.proj.weight`` to match ``target_in_chans``."""
+    """Average-then-tile ``patch_embed.proj.weight`` to ``target_in_chans``."""
     src_in = weight.shape[1]
     if src_in == target_in_chans:
         return weight
@@ -65,7 +69,10 @@ def convert_timm_to_swinunetr_state_dict(
     target_sd: dict[str, torch.Tensor],
     target_in_chans: int,
 ) -> tuple[dict[str, torch.Tensor], dict]:
-    """Remap a timm Swin state-dict to MONAI's ``SwinTransformer`` naming."""
+    """Remap a timm Swin state-dict to MONAI ``SwinTransformer`` naming.
+
+    Returns ``(remapped_state_dict, summary_dict)``.
+    """
     new_sd: dict[str, torch.Tensor] = {}
     skipped, shape_mismatch, copied = [], [], []
     for k, v in timm_sd.items():
@@ -102,7 +109,12 @@ def _load_moby_ckpt(
     target_sd: dict[str, torch.Tensor],
     target_in_chans: int,
 ) -> tuple[dict[str, torch.Tensor], dict]:
-    """Load MoBY checkpoint (Xie et al. 2021) and remap to MONAI naming."""
+    """Load a MoBY checkpoint (Xie et al., 2021) and remap to MONAI naming.
+
+    Strips ``module.`` and ``encoder.`` prefixes; drops projector / contrastive
+    head keys.
+    Ref: https://github.com/SwinTransformer/Transformer-SSL
+    """
     ckpt = torch.load(path, map_location="cpu", weights_only=False)
 
     if "model" in ckpt:
@@ -168,17 +180,23 @@ def load_pretrained_into_encoder(
     """Load pretrained weights into ``encoder`` based on ``base_cfg.init_source``.
 
     Recognised values: ``"scratch"``, ``"timm_imagenet"``, ``"moby"``, ``"local_ckpt"``.
+    Returns a summary dict with load statistics.
     """
     log = (logger.info if logger is not None else print)
     if base_cfg.init_source == "scratch":
-        log(f"[init] scratch -- {len(encoder.state_dict())} params kept random")
+        target_sd = encoder.state_dict()
+        log(f"[init] scratch -- {len(target_sd)} params kept random")
         return {
             "source": "scratch",
             "n_loaded": 0,
-            "n_random_init": len(encoder.state_dict()),
-            "n_target_params": len(encoder.state_dict()),
+            "n_random_init": len(target_sd),
+            "n_target_params": len(target_sd),
             "n_shape_mismatch": 0,
             "n_skipped_in_source": 0,
+            "random_init": list(target_sd.keys()),
+            "shape_mismatch": [],
+            "unexpected_keys": [],
+            "missing_keys": list(target_sd.keys()),
         }
 
     target_sd = encoder.state_dict()
