@@ -1,24 +1,15 @@
-"""Provide five post-training visualisation steps.
-
-Covers checkpoint reload, reconstruction, curves, and embedding diagnostics.
-"""
+"""Post-training visualisation steps: checkpoint reload, reconstruction, curves."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Sequence
 
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 
 from training.checkpoints import load_checkpoint
-from clustering.core import (
-    extract_pooled_embeddings,
-    effective_rank,
-    mean_pairwise_cos,
-    reduce_2d,
-)
 from training.masking import apply_mask, random_block_mask
 from training.sanity_batch import (
     SANITY_TRAIN_INDICES,
@@ -27,7 +18,6 @@ from training.sanity_batch import (
     fixed_two_view_batch,
 )
 from training.viz import (
-    plot_embedding_2d,
     plot_loss_curves,
     plot_recon_panel,
 )
@@ -44,7 +34,7 @@ def build_run_label(
     val_metric: float | None = None,
     extra: str | None = None,
 ) -> str:
-    """Build a run identifier string for figure labels.
+    """Build run identifier string for figure labels.
 
     Accepts ``base_cfg`` or individual fields. Returns ``""`` if nothing supplied.
     """
@@ -72,10 +62,7 @@ def eval_recon_batch(
     view: torch.Tensor,
     mask: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Run masked encoder + decoder once and return (recon, masked_view).
-
-    Used by both the overfit sanity step and the post-training panels.
-    """
+    """Run masked encoder + decoder once. Returns (recon, masked_view)."""
     encoder.eval()
     for h in heads.values():
         h.eval()
@@ -96,10 +83,9 @@ def reload_best_checkpoint(
     name: str = "best_model.pt",
     logger=None,
 ) -> dict | None:
-    """Reload ``best_model.pt`` if it exists; warn (and no-op) otherwise.
+    """Reload ``best_model.pt`` if it exists; warn and no-op otherwise.
 
-    Returns the checkpoint dict (or ``None`` when no checkpoint was found),
-    so callers can extract ``epoch`` / ``val_metric`` for the figure label.
+    Returns the checkpoint dict, or ``None`` when no checkpoint was found.
     """
     save_dir = Path(save_dir)
     best_path = save_dir / name
@@ -140,7 +126,7 @@ def post_training_reconstruction(
     device: torch.device | None = None,
     show: bool = True,
 ):
-    """Reconstruct the canonical sanity batch and plot the result.
+    """Reconstruct canonical sanity batch and plot.
 
     ``view='train'``: two-view augmented batch from ``SANITY_TRAIN_INDICES``.
     ``view='val'``: single-view (no aug) from ``SANITY_VAL_INDICES``.
@@ -219,61 +205,3 @@ def plot_post_training_curves(
     if show:
         plt.show()
     return fig
-
-
-# ----------------------------------------------------- step 5: embedding diags
-
-def embedding_diagnostics(
-    encoder: nn.Module,
-    val_loader: Iterable,
-    device: torch.device,
-    save_dir: str | Path,
-    *,
-    base_seed: int = 0,
-    max_batches: int = 32,
-    save_name: str = "embedding_2d.png",
-    run_label: str | None = None,
-    logger=None,
-    show: bool = True,
-) -> dict:
-    """Pool encoder embeddings, plot 2-D projection + spectrum.
-
-    Returns dict with keys: ``Z``, ``effective_rank``, ``r_max``,
-    ``singular_values``, ``mean_pairwise_cos``, ``Z2``, ``method``.
-    """
-    log = (logger.info if logger is not None else print)
-    save_dir = Path(save_dir)
-
-    Z = extract_pooled_embeddings(
-        encoder, val_loader, device=device, max_batches=max_batches,
-    )
-    log(f"embeddings: N={Z.shape[0]}  D={Z.shape[1]}")
-    eff, r_max, S = effective_rank(Z)
-    mc = mean_pairwise_cos(Z)
-    log(f"effective rank = {eff:.1f} / {r_max} ({100 * eff / max(r_max, 1):.1f}%)")
-    log(f"mean pairwise cosine = {mc:.4f}  ({'COLLAPSED' if mc > 0.95 else 'OK'})")
-
-    Z2, used = reduce_2d(Z, method="auto", seed=base_seed)
-    plot_embedding_2d(
-        Z2,
-        title=f"Val embeddings ({used.upper()})",
-        singular_values=S,
-        method=used,
-        effective_rank_value=eff,
-        mean_pairwise_cos_value=mc,
-        n_samples=int(Z.shape[0]),
-        save_to=save_dir / save_name,
-        run_label=run_label,
-    )
-    if show:
-        plt.show()
-
-    return {
-        "Z": Z,
-        "effective_rank": float(eff),
-        "r_max": int(r_max),
-        "singular_values": S,
-        "mean_pairwise_cos": float(mc),
-        "Z2": Z2,
-        "method": used,
-    }
