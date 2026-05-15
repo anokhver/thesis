@@ -1,11 +1,12 @@
 """Load pretrained Swin weights into MONAI ``SwinTransformer``.
 
-Supports timm ImageNet, MoBY self-supervised, and local SimMIM checkpoints.
+Supports MoBY self-supervised and local SimMIM checkpoints. The internal
+timm-to-MONAI key remapping is reused by the MoBY loader because MoBY's
+on-disk format is timm-compatible.
 
 Ref: https://github.com/Project-MONAI/MONAI
 Ref: https://github.com/microsoft/SimMIM
 Ref: https://github.com/SwinTransformer/Transformer-SSL
-Ref: https://github.com/huggingface/pytorch-image-models
 """
 
 from __future__ import annotations
@@ -179,7 +180,7 @@ def load_pretrained_into_encoder(
 ) -> dict:
     """Load pretrained weights into ``encoder`` based on ``base_cfg.init_source``.
 
-    Recognised values: ``"scratch"``, ``"timm_imagenet"``, ``"moby"``, ``"local_ckpt"``.
+    Recognised values: ``"scratch"``, ``"moby"``, ``"local_ckpt"``.
     Returns a summary dict with load statistics.
     """
     log = (logger.info if logger is not None else print)

@@ -36,6 +36,7 @@ imaging = [
 notebooks = [
     "jupyterlab",
     "ipywidgets",
+    "papermill",
 ]
 dev = [
     "pytest>=7",

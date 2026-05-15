@@ -13,7 +13,7 @@
     "dry_run": false
   },
   "data": {
-    "data_root": "../data/patches_128",
+    "data_root": "../data/patches_32",
     "exclude_patterns": [
       "KONTROLA"
     ],
