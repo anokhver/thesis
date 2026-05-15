@@ -5,9 +5,14 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 from collections import defaultdict
+from typing import Sequence
 
 import numpy as np
 
+
+# ---------------------------------------------------------------------------
+# Index loading
+# ---------------------------------------------------------------------------
 
 def _load_index(patch_root):
     """Load ``index.csv`` and group records by ``image_index``."""
@@ -24,6 +29,33 @@ def _load_index(patch_root):
         by_image[int(r["image_index"])].append(r)
 
     return by_image
+
+
+def load_patch_records(
+    patch_root,
+    exclude_patterns: Sequence[str] | None = None,
+) -> list[dict]:
+    """Load ``index.csv`` as a flat list, filtering damaged / excluded records.
+
+    Unlike ``_load_index`` this returns a **flat** list (not grouped by image)
+    and drops rows where ``damaged`` is truthy or ``source_image`` matches
+    any pattern in *exclude_patterns* (case-insensitive substring match).
+    """
+    patch_root = Path(patch_root)
+    csv_path = patch_root / "index.csv"
+    if not csv_path.exists():
+        raise FileNotFoundError(f"No index.csv in {patch_root}")
+
+    with open(csv_path, "r") as f:
+        records = list(csv.DictReader(f))
+
+    pats = [p.upper() for p in (exclude_patterns or [])]
+    return [
+        r
+        for r in records
+        if str(r.get("damaged", "")).strip().lower() not in ("true", "1")
+        and not any(p in r["source_image"].upper() for p in pats)
+    ]
 
 
 def reassemble_image(patch_root, image_index, exclude_patterns=None):
@@ -109,3 +141,52 @@ def list_image_indices(patch_root, exclude_patterns=None):
         ]
 
     return indices
+
+
+# ---------------------------------------------------------------------------
+# Caching image accessor
+# ---------------------------------------------------------------------------
+
+class ImageCache:
+    """Lazy-reassembly cache for full images and per-position patch slices.
+
+    Reassembles each source image at most once and keeps it in memory.
+    Call ``clear()`` to free everything.
+    """
+
+    def __init__(
+        self,
+        patch_root,
+        patch_records: list[dict],
+    ) -> None:
+        self.patch_root = Path(patch_root)
+        self.patch_records = patch_records
+        self._cache: dict[int, np.ndarray] = {}
+
+        self.image_to_positions: dict[int, list[int]] = defaultdict(list)
+        for pos, rec in enumerate(patch_records):
+            self.image_to_positions[int(rec["image_index"])].append(pos)
+        self.available_image_indices: list[int] = sorted(
+            self.image_to_positions
+        )
+
+    def get_full_image(self, image_index: int) -> np.ndarray:
+        """Reassemble a full ``(C, H, W)`` image once and cache it."""
+        image_index = int(image_index)
+        if image_index not in self._cache:
+            full_image, _ = reassemble_image(self.patch_root, image_index)
+            self._cache[image_index] = full_image
+        return self._cache[image_index]
+
+    def get_patch(self, pos: int) -> np.ndarray:
+        """Slice one ``(C, ps, ps)`` patch out of its cached full image."""
+        rec = self.patch_records[pos]
+        full = self.get_full_image(int(rec["image_index"]))
+        ps = int(rec["patch_size"])
+        y0 = int(rec["grid_row"]) * ps
+        x0 = int(rec["grid_col"]) * ps
+        return full[:, y0 : y0 + ps, x0 : x0 + ps]
+
+    def clear(self) -> None:
+        """Drop all cached images."""
+        self._cache.clear()
