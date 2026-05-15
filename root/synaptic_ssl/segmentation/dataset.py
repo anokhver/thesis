@@ -18,7 +18,7 @@ _ROOT = _THIS.parents[1]  # root/
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from utils_data.patch_dataset import PatchDataset  # noqa: E402
+from ..utils_data.patch_dataset import PatchDataset  # noqa: E402
 
 
 class PseudoLabelSegDataset(Dataset):
@@ -76,7 +76,7 @@ class PseudoLabelSegDataset(Dataset):
             return np.load(cp)
 
         # 3. generate per-patch (fallback)
-        from pseudolabels.blobs import generate_blob_pseudolabel
+        from ..pseudolabels.blobs import generate_blob_pseudolabel
 
         mask, _intermediates, _stats = generate_blob_pseudolabel(
             patch_np, self.pseudo_cfg

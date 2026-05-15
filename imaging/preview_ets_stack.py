@@ -15,7 +15,7 @@ from matplotlib.gridspec import GridSpec
 _REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO / "root"))
 
-from utils_data.preprocess_pseudolabels import (  # noqa: E402
+from synaptic_ssl.utils_data.preprocess_training import (  # noqa: E402
     load_image,
     maximum_intensity_projection,
     normalize_percentile,

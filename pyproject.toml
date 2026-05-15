@@ -44,24 +44,16 @@ dev = [
 # ---------------------------------------------------------------------------
 # Package layout
 # ---------------------------------------------------------------------------
-# The Python source lives in ``root/`` (kept at this name to minimize churn).
-# Each top-level subfolder of ``root/`` is its own package.
-# ``imaging/`` lives at the repo root and is NOT shipped — it is a utility
-# folder for image generation/browsing, not part of the installable package.
-# ``notebooks/``, ``tests/``, ``configs/``, ``scripts/`` are also outside
-# the package.
+# The Python source lives in ``root/synaptic_ssl/``.  ``root/`` is just the
+# source-root parent; setuptools maps it so that the umbrella package
+# ``synaptic_ssl`` becomes importable directly:
+#     from synaptic_ssl.training import ModelCfg
+# Everything outside ``root/`` (imaging/, notebooks/, tests/, configs/,
+# scripts/) is intentionally not part of the installable package.
 [tool.setuptools]
 package-dir = {"" = "root"}
 
 [tool.setuptools.packages.find]
 where = ["root"]
-include = [
-    "clustering*",
-    "models*",
-    "pseudolabels*",
-    "segmentation*",
-    "ssl_training*",
-    "training*",
-    "utils_data*",
-]
+include = ["synaptic_ssl*"]
 exclude = ["__pycache__*"]

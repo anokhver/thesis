@@ -9,15 +9,15 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 
-from training.checkpoints import load_checkpoint
-from training.masking import apply_mask, random_block_mask
-from training.sanity_batch import (
+from ..training.checkpoints import load_checkpoint
+from ..training.masking import apply_mask, random_block_mask
+from ..training.sanity_batch import (
     SANITY_TRAIN_INDICES,
     SANITY_VAL_INDICES,
     fixed_single_view_batch,
     fixed_two_view_batch,
 )
-from training.viz import (
+from ..training.viz import (
     plot_loss_curves,
     plot_recon_panel,
 )

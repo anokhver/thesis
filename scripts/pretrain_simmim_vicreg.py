@@ -37,23 +37,23 @@ for _p in (_ROOT, _REPO):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from training.config import BaseCfg, DataCfg, ModelCfg, TrainCfg, SSLCfg, dump_config
-from training.seeding import seed_everything
-from training.logging import setup_logger, CSVMetricLogger
-from training.data import TransformedSubset, compute_channel_stats
-from training.augment import MicroscopyTwoViewTransform, ValSingleViewTransform
-from training.masking import random_block_mask
-from training.losses import compute_simmim_vicreg_loss
-from training.lr_schedule import param_groups_layer_decay, make_warmup_cosine
-from training.checkpoints import save_checkpoint, load_checkpoint, find_latest_checkpoint
-from training.sanity_batch import SANITY_TRAIN_INDICES, fixed_two_view_batch, overfit_on_batch
-from training.viz import (
+from synaptic_ssl.training.config import BaseCfg, DataCfg, ModelCfg, TrainCfg, SSLCfg, dump_config
+from synaptic_ssl.training.seeding import seed_everything
+from synaptic_ssl.training.logging import setup_logger, CSVMetricLogger
+from synaptic_ssl.training.data import TransformedSubset, compute_channel_stats
+from synaptic_ssl.training.augment import MicroscopyTwoViewTransform, ValSingleViewTransform
+from synaptic_ssl.training.masking import random_block_mask
+from synaptic_ssl.training.losses import compute_simmim_vicreg_loss
+from synaptic_ssl.training.lr_schedule import param_groups_layer_decay, make_warmup_cosine
+from synaptic_ssl.training.checkpoints import save_checkpoint, load_checkpoint, find_latest_checkpoint
+from synaptic_ssl.training.sanity_batch import SANITY_TRAIN_INDICES, fixed_two_view_batch, overfit_on_batch
+from synaptic_ssl.training.viz import (
     plot_two_views, plot_channel_histograms, plot_recon_panel,
     plot_overfit_curves,
 )
-from models.swin import build_swin_encoder, build_simmim_vicreg_heads, count_params
-from models.weight_loading import load_pretrained_into_encoder
-from ssl_training import (
+from synaptic_ssl.models.swin import build_swin_encoder, build_simmim_vicreg_heads, count_params
+from synaptic_ssl.models.weight_loading import load_pretrained_into_encoder
+from synaptic_ssl.ssl_training import (
     apply_unfreeze_schedule,
     build_run_label,
     eval_recon_batch,
@@ -67,7 +67,7 @@ from ssl_training import (
     train_one_epoch,
     validate_one_epoch,
 )
-from utils_data.patch_dataset import PatchDataset
+from synaptic_ssl.utils_data.patch_dataset import PatchDataset
 
 
 # ---------------------------------------------------------------------------
