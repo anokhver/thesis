@@ -23,7 +23,7 @@ def random_block_mask(
         raise ValueError(f"block_size={block_size} must divide H={H} and W={W}.")
     gh, gw = H // block_size, W // block_size
     n_blocks = gh * gw
-    n_mask = max(1, int(round(n_blocks * mask_ratio)))
+    n_mask = int(round(n_blocks * mask_ratio))
     noise = torch.rand(B, n_blocks, device=img.device)
     rank = noise.argsort(dim=1)
     flat = (rank < n_mask).to(img.dtype)
