@@ -14,6 +14,8 @@ data/
 notebooks/**/runs/
 notebooks/**/outputs/
 /logs/
+outputs/
+runs/
 
 
 # Personall notes
