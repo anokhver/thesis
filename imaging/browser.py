@@ -137,7 +137,7 @@ class VSIBrowser:
 
     def visualize(self, idx: int) -> None:
         """Load VSI by file-list index, z-interpolate, and open in napari."""
-        from imaging.volume import load_full_volume, interpolate_z_axis
+        from .volume import load_full_volume, interpolate_z_axis
 
         if not self._validate_index(idx):
             return

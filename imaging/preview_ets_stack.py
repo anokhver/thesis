@@ -11,7 +11,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from utils_data.preprocess import (
+# Add thesis/root/ to sys.path so utils_data imports work without installation.
+_REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO / "root"))
+
+from utils_data.preprocess_pseudolabels import (  # noqa: E402
     load_image,
     maximum_intensity_projection,
     normalize_percentile,
@@ -19,7 +23,7 @@ from utils_data.preprocess import (
 
 
 def auto_find_image(data_dir: Path) -> Path:
-    """Return the first ``.vsi`` (or ``.ets``) file found under *data_dir*."""
+    """Return the first ``.vsi`` or ``.ets`` found under ``data_dir``."""
     for ext in ("*.vsi", "*.ets"):
         for p in sorted(data_dir.rglob(ext)):
             return p
@@ -31,7 +35,7 @@ CHANNEL_CMAPS = ["Greens", "RdPu", "Blues", "YlOrBr", "Reds", "PuBu"]
 
 
 def _rescale_for_display(arr: np.ndarray) -> np.ndarray:
-    """Rescale array to [0, 1] for ``imshow``. Return zeros if constant."""
+    """Rescale ``arr`` to ``[0, 1]`` for imshow. Return zeros if constant."""
     lo, hi = float(arr.min()), float(arr.max())
     if hi - lo < 1e-8:
         return np.zeros_like(arr, dtype=np.float32)
@@ -44,10 +48,10 @@ def make_preview(
     phigh: float = 99.8,
     source_name: str = "",
 ) -> plt.Figure:
-    """Build a raw-vs-preprocessed figure from a (C, Z, Y, X) volume.
+    """Build a raw-vs-preprocessed figure from a ``(C, Z, Y, X)`` volume.
 
-    Top row: raw z-slices at 25/50/75 % + raw MIP per channel.
-    Bottom row: percentile-normalised MIP per channel.
+    Top row per channel: raw z-slices at 25/50/75 % and raw MIP.
+    Bottom row per channel: ``[plow, phigh]``-percentile-normalised MIP.
     """
     C, Z, H, W = volume.shape
 
