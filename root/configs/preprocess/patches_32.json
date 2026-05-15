@@ -1,0 +1,11 @@
+{
+  "_comment": "Preprocessing config for 32x32 patches. No KONTROLA or foreground exclusion.",
+  "input_dir":  "../data/Microscopy/Microscopy/20251030",
+  "output_dir": "../data/patches_32",
+  "patch_size": 32,
+  "plow": 1.0,
+  "phigh": 99.8,
+  "file_extensions": [".czi", ".tif", ".tiff", ".ets", ".vsi"],
+  "skip_patterns": [],
+  "workers": 2
+}
