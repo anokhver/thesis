@@ -18,8 +18,8 @@
       "KONTROLA"
     ],
     "val_split": 0.1,
-    "batch_size": 32,
-    "num_workers": 2,
+    "batch_size": 128,
+    "num_workers": 1,
     "pin_memory": true,
     "channel_names": [
       "pre_synaptic",
@@ -73,7 +73,8 @@
     "w_vicreg": 0.0,
     "projector_hidden": 2048,
     "projector_dim": 2048,
-    "w_fourier": 0.01
+    "w_fourier": 0.01,
+    "head_stage_index": -1
   },
   "unfreeze_schedule": [
     [

@@ -2,9 +2,9 @@
 """SimMIM + VICReg pretraining script (headless equivalent of the notebook).
 
 Usage:
-    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby.json
-    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby.json --dry-run
-    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby.json --resume outputs/my_run/last.pt
+    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json
+    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json --dry-run
+    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json --resume outputs/my_run/last.pt
 
 Relative paths in the config are resolved against ``root/``. An existing
 run's ``config.json`` can be reused as a starting point; missing keys
@@ -162,6 +162,11 @@ def main():
         exclude_patterns=data_cfg.exclude_patterns,
     )
     logger.info(f"raw patches = {len(raw_dataset)}")
+    if len(raw_dataset) == 0:
+        raise RuntimeError(
+            f"No patches found under {data_cfg.data_root!r}. "
+            "Check data_root/exclude_patterns in the config."
+        )
     sample = raw_dataset[0]
     logger.info(f"sample shape = {tuple(sample.shape)}  dtype = {sample.dtype}")
     assert sample.ndim == 3 and sample.shape[0] == model_cfg.in_channels
@@ -169,6 +174,15 @@ def main():
 
     n_val   = int(len(raw_dataset) * data_cfg.val_split)
     n_train = len(raw_dataset) - n_val
+    if n_val == 0:
+        raise RuntimeError(
+            "Validation split produced zero samples. Increase data.val_split "
+            "or use a larger dataset."
+        )
+    if n_train == 0:
+        raise RuntimeError(
+            "Training split produced zero samples. Decrease data.val_split."
+        )
     train_subset, val_subset = random_split(
         raw_dataset, [n_train, n_val], generator=generator,
     )
@@ -364,10 +378,7 @@ def main():
         )
         plt.close("all")
 
-        rec, v_masked = eval_recon_batch(
-            encoder, heads, x1_fixed, mask_fixed,
-            stage_index=ssl_cfg.head_stage_index,
-        )
+        rec, v_masked = eval_recon_batch(encoder, heads, x1_fixed, mask_fixed, ssl_cfg.head_stage_index)
         _ = plot_recon_panel(
             x1_fixed, v_masked, rec, mask_fixed, sanity_idx,
             ch_mean=ch_mean, ch_std=ch_std,

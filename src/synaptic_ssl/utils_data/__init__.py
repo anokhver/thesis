@@ -6,7 +6,6 @@ from .reassemble import (
     load_patch_records, ImageCache,
 )
 from .split import SplitPatchDataset
-
 from .preprocess_training import (
     load_image, maximum_intensity_projection, normalize_percentile,
     extract_patches, best_z_slice,
