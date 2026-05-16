@@ -63,13 +63,10 @@ def eval_recon_batch(
     mask: torch.Tensor,
     head_stage_index: int = -1,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Run masked encoder + decoder once. Returns (recon, masked_view).
+    """Run masked encoder + decoder once. Returns ``(recon, masked_view)``.
 
-    ``stage_index`` selects which encoder feature map feeds the decoder; it
-    must match ``ssl_cfg.head_stage_index`` used to build ``heads['decoder']``,
-    otherwise the decoder's input channel count will mismatch the encoder
-    output (e.g. Swin-T at ``head_stage_index=-2`` produces 768 channels at
-    stage 3, while ``[-1]`` would give 1536 at stage 4).
+    ``head_stage_index`` must match the value used to build
+    ``heads['decoder']``; mismatch breaks the decoder input channel count.
     """
     encoder.eval()
     for h in heads.values():

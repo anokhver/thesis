@@ -1,23 +1,11 @@
-"""Patch clustering pipeline for fluorescence-microscopy SSL features.
+"""Patch-level SSL feature clustering with image-aware statistics.
 
-Recipe (Quiros et al., *Nat Commun* 15:4596, 2024 — Histomorphological
-Phenotype Learning, "HPL"):
-
-    1. patch embeddings from a frozen SSL encoder
-    2. L2 + PCA whiten
-    3. kNN graph + Leiden community detection on PCA (or UMAP) space
-    4. per-image cluster-frequency vector  (HPL §WSI vector representations,
-       Eq. 7) — each image becomes a length-K vector summing to 1
-    5. image-level statistical tests on the cluster-frequency vectors
-
-HPL's step 5 (Cox PH / multinomial logistic regression) is replaced here
-with **PERMANOVA + MMD** on per-image frequency vectors because the
-downstream task in this thesis is a multi-group treatment comparison
-rather than survival / subtype classification (Serrano et al.,
-"Progress and New Challenges in Image-Based Profiling", arXiv 2508.05800,
-2025). Every inferential test uses the source image as the unit of
-analysis to avoid pseudoreplication from spatially correlated patches
-(Caicedo et al., *Nat Methods* 14:849–863, 2017).
+HPL recipe (Quiros et al., Nat Commun 15:4596, 2024): patch embeddings
+→ L2 + PCA whiten → kNN+Leiden in PCA/UMAP space → per-image cluster
+frequency vectors. HPL's Cox PH / multinomial-logistic step is replaced
+by PERMANOVA + MMD (multi-group treatment comparison rather than
+survival). Every test uses the source image as the unit of analysis to
+avoid pseudoreplication (Caicedo et al., Nat Methods 14:849-863, 2017).
 """
 from __future__ import annotations
 
@@ -116,13 +104,11 @@ class ClusterCfg:
 # ---------------------------------------------------------------------------
 
 def adaptive_leiden_k(N: int, default_k: int = 30) -> int:
-    """Scale Leiden k to maintain meaningful graph sparsity.
+    """Scale Leiden k to maintain ~1.5% kNN-graph connectivity.
 
-    PhenoGraph (Levine et al. 2015) used k=30 at N≈15 000, giving ~0.2%
-    connectivity.  At small N the same k produces an over-connected graph
-    that washes out local density.  We target ~1.5% connectivity, which
-    reproduces the PhenoGraph operating regime for N≈2 000 and gracefully
-    scales for larger datasets.
+    Reproduces the PhenoGraph (Levine et al., 2015) operating regime
+    (k=30 at N≈15000) for small N. Lower-bounded at 5, capped at
+    ``default_k``.
     """
     k = int(round(0.015 * N))
     return max(5, min(default_k, k))
@@ -131,13 +117,11 @@ def adaptive_leiden_k(N: int, default_k: int = 30) -> int:
 def adaptive_gmm_params(
     N: int, D: int, *, cfg: ClusterCfg,
 ) -> tuple[int, str, int]:
-    """Auto-select (k_max, covariance_type, pca_dim) for GMM-BIC.
+    """Auto-select ``(k_max, covariance_type, pca_dim)`` for GMM-BIC.
 
-    Full covariance in D dims needs D(D+1)/2 + D free parameters per
-    component.  We require ≥10 data points per parameter so that BIC
-    remains a reliable model-selection criterion (McLachlan & Peel 2000).
-    Falls back to diagonal (2D params/component) or spherical (D+1) when
-    N is too small for full covariance.
+    Targets ≥10 data points per free parameter so BIC stays reliable
+    (McLachlan & Peel, 2000). Falls back full → diag → spherical when N
+    is too small for the previous tier.
     """
     def _k_max(n_params_per_comp: int) -> int:
         return max(cfg.gmm_k_min, N // (10 * max(1, n_params_per_comp)))
@@ -172,11 +156,9 @@ def adaptive_gmm_params(
 def adaptive_hdbscan_params(
     N: int, default_min_cluster: int = 30,
 ) -> tuple[int, int]:
-    """Auto-scale HDBSCAN (min_cluster_size, min_samples) for dataset size.
+    """Auto-scale HDBSCAN ``(min_cluster_size, min_samples)`` for N.
 
-    Targets ~1% of N as minimum cluster size (lower-bounded at 10),
-    so that the algorithm can discover fine-grained phenotypes without
-    classifying too much as noise.
+    Targets ~1% of N as min cluster size (floor 10).
     """
     min_cluster = max(10, min(default_min_cluster, int(0.01 * N)))
     min_samples = min(5, max(2, min_cluster // 3))
@@ -393,16 +375,11 @@ def bootstrap_stability(
     """Bootstrap stability of Leiden partitions.
 
     Subsample → re-cluster → 1-NN propagate → ARI vs full partition.
-    Hennig (2007); Lange et al. (2004).
-
-    When ``source_images`` is provided (recommended for microscopy data),
-    the bootstrap is at the **image-block** level: a fraction of images is
-    sampled with replacement and *all* their patches form the resample.
-    This is the correct unit of resampling when patches from the same
-    image are not independent (Caicedo et al. *Nat Methods* 2017). When
-    omitted, the legacy patch-level bootstrap is used.
-
-    Returns ``({res: (mean_ari, std_ari)}, {res: labels})``.
+    Hennig (2007); Lange et al. (2004). When ``source_images`` is given,
+    resampling is at the image-block level (correct unit when patches
+    are not independent; Caicedo et al., Nat Methods 2017); otherwise
+    legacy patch-level bootstrap. Returns ``({res: (mean_ari, std_ari)},
+    {res: labels})``.
     """
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.metrics import adjusted_rand_score
@@ -524,25 +501,11 @@ def permutation_null_ari(
 ):
     """Permutation-null ARI for clustering quality.
 
-    When ``source_images`` is provided (recommended for microscopy data),
-    an **image-mean-swap** null is used:
-
-    1. Decompose every patch into ``image_mean + residual``.
-    2. Randomly permute the image-mean assignment across images.
-    3. Reconstruct embeddings, re-cluster.
-    4. Compute ARI vs the real partition.
-
-    This null preserves multivariate covariance and within-image patch
-    structure but breaks image-level batch effects. A **low** null ARI
-    means the real partition is driven mostly by image identity (batch
-    confound); a **high** null ARI means the partition captures
-    consistent within-image patch types that survive image-mean-swap.
-
-    When ``source_images`` is omitted, the legacy per-PC shuffle null of
-    Witten & Tibshirani (2010) is used, which tests against an
-    independent-features null but does not control for image-block
-    structure and is known to be a weak baseline.
-
+    With ``source_images``: image-mean-swap null. Decompose patches into
+    ``image_mean + residual``, permute image-means across images,
+    reconstruct, re-cluster, ARI vs real. Preserves multivariate
+    covariance and within-image structure but breaks image-level batch
+    effects. Without: per-PC shuffle null (Witten & Tibshirani, 2010).
     Returns ``(mean_ari, std_ari, max_ari)``.
     """
     from sklearn.metrics import adjusted_rand_score
@@ -589,21 +552,13 @@ def image_level_cv(
     cfg: ClusterCfg,
     group_map: "GroupMap | None" = None,
 ):
-    """Repeated grouped half-split cross-validation for label transfer.
+    """Repeated grouped half-split CV for label transfer.
 
-    Tests whether cluster labels are transferable across held-out images
-    via kNN in PCA space — i.e. whether the embedding captures biological
-    structure that generalises beyond the training images.  Unlike the
-    legacy approach this does **not** re-run UMAP+Leiden on tiny folds
-    (which is unreliable at small N).
-
-    When ``group_map`` is provided, the half-split is **stratified by
-    treatment group**: each group contributes half of its images to the
-    train fold, guaranteeing that every group is represented on both
-    sides. This avoids degenerate folds that lose entire groups at small N
-    (Caicedo et al. *Nat Methods* 2017).
-
-    Returns ``(median_ari, q25, q75, per_split_aris)``.
+    kNN in PCA space transfers labels across held-out images; tests
+    whether the embedding generalises beyond training images. With
+    ``group_map``, half-split is stratified by treatment group so every
+    group is represented on both sides (Caicedo et al., Nat Methods
+    2017). Returns ``(median_ari, q25, q75, per_split_aris)``.
     """
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.metrics import adjusted_rand_score
