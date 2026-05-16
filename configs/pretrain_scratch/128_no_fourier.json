@@ -3,7 +3,7 @@
   "run_overfit": true,
   "base": {
     "seed": 42,
-    "output_root": "outputs",
+    "output_root": "../data/training_outputs",
     "experiment_name": "simmim_vicreg_pretrain",
     "tag": "scratch_128_no_fourier",
     "method_name": "simmim_vicreg",

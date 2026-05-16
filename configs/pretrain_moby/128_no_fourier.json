@@ -3,7 +3,7 @@
   "run_overfit": true,
   "base": {
     "seed": 42,
-    "output_root": "outputs",
+    "output_root": "../data/training_outputs",
     "experiment_name": "simmim_vicreg_pretrain",
     "tag": "moby_128_no_fourier_vicreg_05",
     "method_name": "simmim_vicreg",
