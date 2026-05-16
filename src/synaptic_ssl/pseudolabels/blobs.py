@@ -23,6 +23,7 @@ from typing import Iterable, List, Sequence, Tuple
 
 import numpy as np
 from scipy.ndimage import median_filter
+from scipy.signal import convolve2d
 from skimage.draw import disk as draw_disk
 from skimage.feature import blob_log
 from skimage.filters import gaussian, meijering, threshold_otsu
@@ -33,6 +34,7 @@ from skimage.morphology import (
     disk as morph_disk,
     remove_small_holes,
     remove_small_objects,
+    skeletonize,
     white_tophat,
 )
 
@@ -128,6 +130,52 @@ class BlobPseudoCfg:
     zscore_inner_radius: int = 3
     zscore_outer_radius: int = 8
     zscore_threshold: float = 2.0
+
+    # "meijering" = Hessian ridge filter; "density" = puncta-density
+    # pipeline (see section 3b) for structural channels where the
+    # neurite signal is a chain of bright spots, not a continuous ridge.
+    dendrite_method: str = "meijering"
+
+    # density-method parameters (only read when dendrite_method=="density")
+    density_input: str = "tophat"  # "raw" | "tophat" | "puncta"; see density_response
+    density_tophat_radius: int = 15
+    # At 107 nm/px, dense puncta spacing is ~3-5 px; sigma~6 bridges them
+    # into a continuous density blob.
+    density_sigma: float = 6.0
+    # None -> per-image Otsu on the smoothed response. Override with a
+    # float, e.g. compute_global_density_threshold(...).
+    density_global_threshold: float | None = None
+    density_percentile: float = 88.0  # only used by compute_global_density_threshold
+    density_min_cc_area: int = 80
+    density_use_skeleton: bool = True
+    # Drop large round CCs before skeletonising so the skeleton step does
+    # not produce pseudo-lines inside somas; soma_mask is unioned later.
+    density_skeleton_soma_min_area: int = 2500
+    density_skeleton_soma_max_eccentricity: float = 0.5
+    # Attached leaf branches shorter than this are pruned by graph walk.
+    # Isolated short components are dropped by density_min_cc_area.
+    density_skeleton_prune: int = 10
+    # Re-dilation radius for the pruned skeleton. structural_dilation is
+    # applied on top by make_structural_mask -> near_structural; the
+    # final acceptance radius is the sum of the two.
+    density_skeleton_dilate: int = 2
+
+    # Otsu separability guard: refuse the per-image Otsu threshold if
+    # the response distribution does not actually separate (low eta) or
+    # if "foreground" covers an implausible fraction of the image. With
+    # smoothing alone, Otsu always returns *some* threshold, so without
+    # this guard pure-noise/uniform-background patches produce a
+    # plausible-looking false dendrite mask.
+    #   eta = sigma_between / sigma_total of Otsu's split.
+    # Set eta_min<=0 and fg_frac_max>=1 to disable.
+    density_min_otsu_separability: float = 0.7
+    density_max_fg_fraction: float = 0.35
+
+    # Minimum number of calibration images that must pass the guard before
+    # compute_global_density_threshold is willing to return a median.
+    # Below this, the median is statistically meaningless. Set to 1 to
+    # disable.
+    density_min_calibration_images: int = 5
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +306,8 @@ def compute_global_meijering_threshold(
     patches.  When ``cfg`` is provided, each patch is smoothed before
     computing the Meijering response so the threshold matches the smoothed
     pipeline.
+
+    Raises ``ValueError`` if no patch produces a non-zero response.
     """
     pooled = []
     sigmas = list(sigmas)
@@ -270,13 +320,376 @@ def compute_global_meijering_threshold(
         if nz.size:
             pooled.append(nz)
     if not pooled:
-        return 0.0
+        raise ValueError(
+            "compute_global_meijering_threshold: no calibration patch "
+            "produced a non-zero Meijering response. Returning 0.0 would "
+            "flood every patch with false dendrite pixels."
+        )
     pooled = np.concatenate(pooled)
     if method == "otsu":
         return float(threshold_otsu(pooled))
     if method == "percentile":
         return float(np.percentile(pooled, percentile))
     raise ValueError(f"unknown method: {method!r}")
+
+
+# ---------------------------------------------------------------------------
+# 3b. Density-based dendrite detection
+# ---------------------------------------------------------------------------
+# For structural channels whose "dendrite" is a chain of dense bright
+# puncta. Hessian ridge filters look for `lambda1 ~ 0, lambda2 << 0`
+# (ridge), but a punctum has `lambda1 ~ lambda2 << 0` (blob), so they
+# match the wrong signal. This pipeline aggregates puncta into a density
+# field and reads the neurite shape off the resulting blob.
+
+
+def _otsu_with_separability(
+    smoothed: np.ndarray,
+    eta_min: float,
+    fg_frac_max: float,
+) -> float:
+    """Per-image Otsu on the smoothed density response, guarded.
+
+    Returns ``inf`` if the response is degenerate, if Otsu's split has
+    eta = sigma_between/sigma_total below ``eta_min`` (weak bimodality
+    → unimodal noise), or if the foreground fraction exceeds
+    ``fg_frac_max`` ("everything passes" → uniform background). The
+    inf sentinel makes any downstream ``response > thr`` mask empty.
+    """
+    nz = smoothed[smoothed > 0]
+    if nz.size <= 1 or float(nz.max() - nz.min()) <= 0:
+        return float("inf")
+    t = float(threshold_otsu(nz))
+    fg = nz[nz > t]
+    bg = nz[nz <= t]
+    if fg.size == 0 or bg.size == 0:
+        return float("inf")
+    var_total = float(nz.var())
+    if var_total <= 0:
+        return float("inf")
+    w_fg = fg.size / nz.size
+    mean_all = float(nz.mean())
+    var_between = (
+        w_fg * (float(fg.mean()) - mean_all) ** 2
+        + (1.0 - w_fg) * (float(bg.mean()) - mean_all) ** 2
+    )
+    eta = var_between / var_total
+    if eta_min > 0.0 and eta < eta_min:
+        return float("inf")
+    if fg_frac_max < 1.0:
+        fg_frac = float((smoothed > t).mean())
+        if fg_frac > fg_frac_max:
+            return float("inf")
+    return t
+
+
+def density_response(
+    structural_image: np.ndarray,
+    cfg: BlobPseudoCfg,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Build a smoothed density field from the structural channel.
+
+    Returns ``(input_field, smoothed_response)``. ``input_field`` is the
+    per-``cfg.density_input`` intermediate (raw / white top-hat / LoG-
+    puncta disk map); ``smoothed_response`` is its Gaussian.
+    """
+    if structural_image.ndim != 2:
+        raise ValueError(
+            f"density_response expects 2D, got {structural_image.shape}"
+        )
+    method = cfg.density_input
+    img = structural_image.astype(np.float32, copy=False)
+    if method == "raw":
+        field = img
+    elif method == "tophat":
+        radius = max(1, int(cfg.density_tophat_radius))
+        field = white_tophat(img, morph_disk(radius)).astype(np.float32)
+    elif method == "puncta":
+        # LoG-detect spots, render as disks of LoG radius (sqrt(2)*sigma).
+        blobs = blob_log(
+            img,
+            min_sigma=cfg.log_min_sigma,
+            max_sigma=cfg.log_max_sigma,
+            num_sigma=cfg.log_num_sigma,
+            threshold=cfg.log_threshold,
+            overlap=cfg.log_overlap,
+            exclude_border=cfg.log_exclude_border,
+        )
+        spot_map = np.zeros_like(img, dtype=np.float32)
+        for row, col, sigma in blobs:
+            radius = max(1, int(round(np.sqrt(2.0) * sigma)))
+            rr, cc = draw_disk((int(row), int(col)), radius, shape=img.shape)
+            spot_map[rr, cc] = 1.0
+        field = spot_map
+    else:
+        raise ValueError(
+            f"unknown density_input: {method!r}; "
+            f"expected 'raw', 'tophat', or 'puncta'"
+        )
+
+    sigma = max(1e-3, float(cfg.density_sigma))
+    smoothed = gaussian(field, sigma=sigma, preserve_range=True).astype(
+        np.float32
+    )
+    return field, smoothed
+
+
+def compute_global_density_threshold(
+    structural_patches: Sequence[np.ndarray],
+    cfg: BlobPseudoCfg,
+    method: str = "median_otsu",
+) -> float:
+    """Calibrate a global threshold for the density response.
+
+    ``method``:
+        * ``"median_otsu"`` -- guarded per-image Otsu (rejects degenerate
+          and weakly-separable splits via the cfg's
+          ``density_min_otsu_separability`` and ``density_max_fg_fraction``),
+          then median across images.
+        * ``"percentile"`` -- pool the smoothed responses and take
+          ``cfg.density_percentile``. Biased by background fraction
+          across images.
+
+    Raises ``ValueError`` if no calibration image contributes a usable
+    value; returning a default would silently flood patches with false
+    dendrite pixels.
+    """
+    per_image_otsus: list[float] = []
+    pooled: list[np.ndarray] = []
+    n_seen = 0
+    n_skipped = 0
+    for ch_img in structural_patches:
+        if ch_img.ndim != 2:
+            raise ValueError(f"expected 2D patch, got {ch_img.shape}")
+        n_seen += 1
+        _, smoothed = density_response(ch_img, cfg)
+        if method == "median_otsu":
+            t = _otsu_with_separability(
+                smoothed,
+                eta_min=float(cfg.density_min_otsu_separability),
+                fg_frac_max=float(cfg.density_max_fg_fraction),
+            )
+            if np.isfinite(t):
+                per_image_otsus.append(t)
+            else:
+                n_skipped += 1
+        elif method == "percentile":
+            nz = smoothed[smoothed > 0]
+            if nz.size <= 1 or float(nz.max() - nz.min()) <= 0:
+                n_skipped += 1
+                continue
+            pooled.append(nz)
+        else:
+            raise ValueError(
+                f"unknown method: {method!r}; "
+                f"expected 'median_otsu' or 'percentile'"
+            )
+    if method == "median_otsu":
+        min_valid = max(1, int(cfg.density_min_calibration_images))
+        if len(per_image_otsus) < min_valid:
+            raise ValueError(
+                f"compute_global_density_threshold: only "
+                f"{len(per_image_otsus)}/{n_seen} calibration images "
+                f"produced a usable Otsu split "
+                f"(n_skipped={n_skipped}); need at least {min_valid}. "
+                f"Either supply more calibration images or relax "
+                f"density_min_otsu_separability / density_max_fg_fraction."
+            )
+        return float(np.median(per_image_otsus))
+    if len(pooled) < max(1, int(cfg.density_min_calibration_images)):
+        raise ValueError(
+            f"compute_global_density_threshold(method='percentile'): only "
+            f"{len(pooled)}/{n_seen} calibration images had a usable "
+            f"response (n_skipped={n_skipped}); need at least "
+            f"{cfg.density_min_calibration_images}."
+        )
+    flat = np.concatenate(pooled)
+    return float(np.percentile(flat, cfg.density_percentile))
+
+
+def _drop_soma_like_ccs(
+    mask: np.ndarray,
+    min_area: int,
+    max_eccentricity: float,
+) -> np.ndarray:
+    """Drop CCs that are both large and round.
+
+    Used before skeletonisation so the skeleton step does not produce
+    pseudo-lines inside somas; the real soma_mask is unioned later.
+    """
+    if not mask.any():
+        return mask.astype(bool, copy=True)
+    lbl = cc_label(mask, connectivity=2)
+    out = np.asarray(mask, dtype=bool).copy()
+    for prop in regionprops(lbl):
+        if prop.area >= min_area and prop.eccentricity <= max_eccentricity:
+            out[lbl == prop.label] = False
+    return out
+
+
+# 3x3 neighbour-count kernel (centre excluded).
+_NEIGHBOUR_KERNEL = np.array(
+    [[1, 1, 1], [1, 0, 1], [1, 1, 1]], dtype=np.uint8
+)
+
+
+def _skel_neighbour_count(skel: np.ndarray) -> np.ndarray:
+    """Per-pixel skeleton-neighbour count (0 outside the skeleton)."""
+    counts = convolve2d(
+        skel.astype(np.uint8), _NEIGHBOUR_KERNEL, mode="same", boundary="fill"
+    )
+    out = np.zeros_like(counts, dtype=np.int8)
+    out[skel] = counts[skel]
+    return out
+
+
+def _walk_branch(
+    skel: np.ndarray,
+    nbr: np.ndarray,
+    start: Tuple[int, int],
+    max_len: int,
+) -> List[Tuple[int, int]]:
+    """Walk a skeleton branch from an endpoint until junction / max_len.
+
+    Returns the branch pixels (endpoint first, excludes the junction).
+    Stops at ``max_len`` pixels: any longer doesn't change the prune
+    decision.
+    """
+    H, W = skel.shape
+    path: List[Tuple[int, int]] = [start]
+    prev: Tuple[int, int] | None = None
+    current = start
+    while len(path) < max_len:
+        r, c = current
+        next_pixel: Tuple[int, int] | None = None
+        n_neighbours = 0
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                if dr == 0 and dc == 0:
+                    continue
+                nr, nc = r + dr, c + dc
+                if not (0 <= nr < H and 0 <= nc < W):
+                    continue
+                if not skel[nr, nc]:
+                    continue
+                if prev is not None and (nr, nc) == prev:
+                    continue
+                n_neighbours += 1
+                next_pixel = (nr, nc)
+        if next_pixel is None or n_neighbours != 1:
+            # End of chain, or junction reached (>=2 forward neighbours).
+            break
+        if nbr[next_pixel] >= 3:
+            break  # next pixel is itself a junction
+        prev = current
+        current = next_pixel
+        path.append(current)
+    return path
+
+
+def _prune_skeleton_branches(
+    skel: np.ndarray,
+    max_len: int,
+) -> np.ndarray:
+    """Iteratively remove leaf branches shorter than ``max_len`` px.
+
+    For each endpoint (skeleton pixel with exactly one skeleton
+    neighbour), walk to the first junction and drop the branch if its
+    length is < ``max_len``. Iterates because removing one leaf can
+    expose a new endpoint on the same tree.
+    """
+    if max_len <= 0 or not skel.any():
+        return skel.astype(bool, copy=True)
+    work = np.asarray(skel, dtype=bool).copy()
+    while True:
+        nbr = _skel_neighbour_count(work)
+        endpoints = np.argwhere((nbr == 1))
+        if endpoints.size == 0:
+            break
+        removed_any = False
+        for r, c in endpoints:
+            if not work[r, c]:
+                continue  # already removed via another endpoint this pass
+            path = _walk_branch(work, nbr, (int(r), int(c)), max_len)
+            if len(path) < max_len:
+                for pr, pc in path:
+                    work[pr, pc] = False
+                removed_any = True
+            # else: branch is long enough, keep it
+        if not removed_any:
+            break
+    return work
+
+
+def make_density_dendrite_mask(
+    structural_image: np.ndarray,
+    cfg: BlobPseudoCfg,
+) -> dict:
+    """Density-based dendrite mask for punctate structural channels.
+
+    Threshold is ``cfg.density_global_threshold`` if set, else a guarded
+    per-image Otsu (see ``_otsu_with_separability``). Returns a dict with
+    keys ``density_input_field``, ``density_response``,
+    ``dendrite_threshold``, ``raw_density_mask`` (post-threshold +
+    small-CC filter, pre-skeleton), ``line_candidates`` (post-soma-drop),
+    ``skeleton``, ``pruned_skeleton``, and ``dendrite_mask`` (final). All
+    intermediate masks are present even when empty so callers can log
+    where a collapse happens.
+    """
+    input_field, response = density_response(structural_image, cfg)
+
+    if cfg.density_global_threshold is not None:
+        threshold = float(cfg.density_global_threshold)
+    else:
+        threshold = _otsu_with_separability(
+            response,
+            eta_min=float(cfg.density_min_otsu_separability),
+            fg_frac_max=float(cfg.density_max_fg_fraction),
+        )
+
+    raw_mask = response > threshold
+    if raw_mask.any():
+        raw_mask = remove_small_objects(
+            raw_mask, min_size=max(1, int(cfg.density_min_cc_area))
+        )
+
+    line_candidates: np.ndarray | None = None
+    skel: np.ndarray | None = None
+    pruned: np.ndarray | None = None
+    if not cfg.density_use_skeleton:
+        dendrite_mask = raw_mask
+    elif not raw_mask.any():
+        dendrite_mask = raw_mask
+    else:
+        line_candidates = _drop_soma_like_ccs(
+            raw_mask,
+            min_area=int(cfg.density_skeleton_soma_min_area),
+            max_eccentricity=float(cfg.density_skeleton_soma_max_eccentricity),
+        )
+        if line_candidates.any():
+            skel = skeletonize(line_candidates)
+            pruned = _prune_skeleton_branches(
+                skel, max_len=int(cfg.density_skeleton_prune)
+            )
+            dilate_r = max(0, int(cfg.density_skeleton_dilate))
+            if dilate_r > 0 and pruned.any():
+                dendrite_mask = dilation(pruned, morph_disk(dilate_r))
+            else:
+                dendrite_mask = pruned
+        else:
+            dendrite_mask = np.zeros_like(raw_mask, dtype=bool)
+
+    zero = np.zeros_like(raw_mask, dtype=bool)
+    return {
+        "density_input_field": input_field,
+        "density_response": response,
+        "dendrite_threshold": threshold,
+        "raw_density_mask": raw_mask.astype(bool, copy=False),
+        "line_candidates": (line_candidates if line_candidates is not None else zero).astype(bool, copy=False),
+        "skeleton": (skel if skel is not None else zero).astype(bool, copy=False),
+        "pruned_skeleton": (pruned if pruned is not None else zero).astype(bool, copy=False),
+        "dendrite_mask": dendrite_mask.astype(bool, copy=False),
+    }
 
 
 def make_soma_mask(
@@ -311,27 +724,56 @@ def make_structural_mask(
 ) -> dict:
     """Build dendrite ∪ soma mask plus dilated near-neuron zone from ``(C, H, W)``.
 
-    Smoothing runs on the structural channel before Meijering, NOT before
-    soma detection (percentile thresholds shift under blur). The dendrite
-    threshold is ``cfg.dendrite_threshold`` if set, else per-image Otsu on
-    the non-zero Meijering response (Otsu, IEEE Trans SMC 1979). The
-    actual threshold used is returned under ``dendrite_threshold``.
+    Dispatches on ``cfg.dendrite_method`` (``"meijering"`` or
+    ``"density"``). Soma detection runs on the raw structural channel
+    in both branches (percentile thresholds shift under blur).
+
+    The returned dict always contains ``dendrite_response``,
+    ``dendrite_threshold``, ``dendrite_mask``, ``soma_mask``,
+    ``structural_mask`` and ``near_structural``. The Meijering branch
+    also aliases ``meijering_response`` / ``smoothed_structural``; the
+    density branch also exposes ``density_input_field`` and
+    ``raw_density_mask``.
     """
     struct_raw = image[cfg.structural_channel]
-    struct_smooth = smooth_structural_channel(struct_raw, cfg)
-    response = meijering_response(struct_smooth, cfg.dendrite_sigmas)
-    if cfg.dendrite_threshold is None:
-        nz = response[response > 0]
-        # Empty / degenerate response -> Otsu undefined; refuse to flag
-        # any pixel as dendrite (np.inf > nothing).
-        if nz.size > 1 and float(nz.max() - nz.min()) > 0:
-            threshold = float(threshold_otsu(nz))
+    method = cfg.dendrite_method
+
+    if method == "meijering":
+        struct_smooth = smooth_structural_channel(struct_raw, cfg)
+        response = meijering_response(struct_smooth, cfg.dendrite_sigmas)
+        if cfg.dendrite_threshold is None:
+            nz = response[response > 0]
+            # Empty / degenerate response -> Otsu undefined; refuse to
+            # flag any pixel as dendrite (np.inf > nothing).
+            if nz.size > 1 and float(nz.max() - nz.min()) > 0:
+                threshold = float(threshold_otsu(nz))
+            else:
+                threshold = float("inf")
         else:
-            threshold = float("inf")
+            threshold = float(cfg.dendrite_threshold)
+        dendrite = response > threshold
+        method_extras = {
+            # back-compat aliases for notebook viz cells
+            "meijering_response": response,
+            "smoothed_structural": struct_smooth,
+            "dendrite_response": response,
+        }
+    elif method == "density":
+        dens = make_density_dendrite_mask(struct_raw, cfg)
+        dendrite = dens["dendrite_mask"]
+        threshold = dens["dendrite_threshold"]
+        method_extras = {
+            "density_input_field": dens["density_input_field"],
+            "density_response": dens["density_response"],
+            "raw_density_mask": dens["raw_density_mask"],
+            "dendrite_response": dens["density_response"],
+        }
     else:
-        threshold = float(cfg.dendrite_threshold)
-    dendrite = response > threshold
-    # soma uses the RAW channel -- percentile thresholds shift under blur
+        raise ValueError(
+            f"unknown dendrite_method: {method!r}; "
+            f"expected 'meijering' or 'density'"
+        )
+
     soma = make_soma_mask(
         struct_raw,
         intensity_percentile=cfg.soma_intensity_percentile,
@@ -342,13 +784,12 @@ def make_structural_mask(
     structural = dendrite | soma
     near = dilation(structural, morph_disk(cfg.structural_dilation))
     return {
-        "meijering_response": response,
         "dendrite_threshold": threshold,
         "dendrite_mask": dendrite,
         "soma_mask": soma,
         "structural_mask": structural,
         "near_structural": near,
-        "smoothed_structural": struct_smooth,
+        **method_extras,
     }
 
 
@@ -587,7 +1028,7 @@ def compute_fullimage_structural_mask(
     full_image: np.ndarray,
     cfg: BlobPseudoCfg,
 ) -> dict:
-    """Run Meijering + soma detection on a full ``(C, H, W)`` image.
+    """Run the structural pipeline (cfg.dendrite_method) on a full ``(C, H, W)`` image.
 
     Avoids per-patch border artifacts and fragmented cross-boundary somas.
     """
