@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thesis-synapse-segmentation"
+version = "0.1.0"
+description = "Self-supervised segmentation of synaptic structures in fluorescence microscopy"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Veronika Anokhina" },
+]
+license = { text = "Proprietary" }
+
+# Core runtime dependencies. See requirements.txt for the full pinned list
+# used in development (CUDA-specific torch builds belong there, not here).
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "scikit-image>=0.21",
+    "matplotlib>=3.7",
+    "tqdm>=4.65",
+    "monai>=1.3",
+    "einops>=0.7",
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+
+[project.optional-dependencies]
+# Heavy or environment-specific extras — install only when needed.
+imaging = [
+    "aicsimageio~=4.14.0",
+    "napari>=0.6",
+]
+notebooks = [
+    "jupyterlab",
+    "ipywidgets",
+    "papermill",
+]
+dev = [
+    "pytest>=7",
+]
+
+# ---------------------------------------------------------------------------
+# Package layout
+# ---------------------------------------------------------------------------
+# The Python source lives in ``root/synaptic_ssl/``.  ``root/`` is just the
+# source-root parent; setuptools maps it so that the umbrella package
+# ``synaptic_ssl`` becomes importable directly:
+#     from synaptic_ssl.training import ModelCfg
+# Everything outside ``root/`` (imaging/, notebooks/, tests/, configs/,
+# scripts/) is intentionally not part of the installable package.
+[tool.setuptools]
+package-dir = {"" = "root"}
+
+[tool.setuptools.packages.find]
+where = ["root"]
+include = ["synaptic_ssl*"]
+exclude = ["__pycache__*"]

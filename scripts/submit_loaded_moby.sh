@@ -1,18 +1,18 @@
 #!/bin/bash
-#PBS -N from_scratch
-#PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=40gb:scratch_local=50gb:cluster=zia
-#PBS -l walltime=12:00:00
+#PBS -N loaded_weights
+#PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=40gb:scratch_local=50gb
+#PBS -l walltime=6:00:00
 #PBS -j oe
 #PBS -o /storage/brno2/home/anokhver/thesis/logs/
 #PBS -m abe
 #PBS -M veronika.i.anokhina@gmail.com
 
-# From-scratch pretrain (random init) with SimMIM + VICReg.
-# Longer walltime than loaded_weights because epoch budget is 2x.
+# Loaded-weights pretrain (starting from pre-trained weights) with SimMIM + VICReg.
+# Shorter walltime than from_scratch because epoch budget is 1x.
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-NOTEBOOK_DIR="${PROJECT_DIR}/notebooks/from-scratch"
-NOTEBOOK="pretrain_simmim_vicreg.ipynb"
+NOTEBOOK_DIR="${PROJECT_DIR}/notebooks/loaded-weights"
+NOTEBOOK="pretrain_simmim_vicreg_moby.ipynb"
 RUN_DIR="${NOTEBOOK_DIR}/runs"
 CONDA_ENV="microscopy"
 
@@ -35,7 +35,7 @@ echo "Notebook:  ${NOTEBOOK_DIR}/${NOTEBOOK}"
 echo "Start:     $(date)"
 echo "================"
 
-OUTPUT_NOTEBOOK="${RUN_DIR}/from_scratch_RUN_$(date +%Y%m%d_%H%M%S).ipynb"
+OUTPUT_NOTEBOOK="${RUN_DIR}/loaded_weights_RUN_$(date +%Y%m%d_%H%M%S).ipynb"
 
 python -m papermill \
     "${NOTEBOOK}" \
