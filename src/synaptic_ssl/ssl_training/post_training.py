@@ -61,13 +61,21 @@ def eval_recon_batch(
     heads: dict[str, nn.Module],
     view: torch.Tensor,
     mask: torch.Tensor,
+    stage_index: int = -1,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Run masked encoder + decoder once. Returns (recon, masked_view)."""
+    """Run masked encoder + decoder once. Returns (recon, masked_view).
+
+    ``stage_index`` selects which encoder feature map feeds the decoder; it
+    must match ``ssl_cfg.head_stage_index`` used to build ``heads['decoder']``,
+    otherwise the decoder's input channel count will mismatch the encoder
+    output (e.g. Swin-T at ``head_stage_index=-2`` produces 768 channels at
+    stage 3, while ``[-1]`` would give 1536 at stage 4).
+    """
     encoder.eval()
     for h in heads.values():
         h.eval()
     v_masked = apply_mask(view, mask, heads["mask_token"])
-    z = encoder(v_masked.contiguous())[-1]
+    z = encoder(v_masked.contiguous())[stage_index]
     recon = heads["decoder"](z).float()
     return recon, v_masked.float()
 
@@ -157,7 +165,9 @@ def post_training_reconstruction(
         raise ValueError(f"view must be 'train' or 'val', got {view!r}")
 
     mask = random_block_mask(x, ssl_cfg.mask_block_size, ssl_cfg.mask_ratio).clone()
-    recon, v_masked = eval_recon_batch(encoder, heads, x, mask)
+    recon, v_masked = eval_recon_batch(
+        encoder, heads, x, mask, stage_index=ssl_cfg.head_stage_index,
+    )
 
     fig = plot_recon_panel(
         x, v_masked, recon, mask, used_idx,
