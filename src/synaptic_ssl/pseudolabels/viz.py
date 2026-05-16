@@ -112,8 +112,20 @@ def show_pipeline_stages(
     axes[0, 0].imshow(composite, cmap="gray", vmin=0, vmax=vmax)
     axes[0, 0].set_title("composite (max over channels)")
 
-    axes[0, 1].imshow(intermediates["meijering_response"], cmap="hot")
-    axes[0, 1].set_title("Meijering response (structural)")
+    # Generic 'dendrite_response' is set by both meijering and density
+    # branches of make_structural_mask. Title hints at the branch via
+    # the keys we know are alias-only.
+    resp = intermediates.get("dendrite_response")
+    if resp is None:
+        resp = intermediates.get("meijering_response")
+    if "meijering_response" in intermediates and "density_response" not in intermediates:
+        resp_title = "Meijering response (structural)"
+    elif "density_response" in intermediates:
+        resp_title = "density response (structural)"
+    else:
+        resp_title = "dendrite response (structural)"
+    axes[0, 1].imshow(resp, cmap="hot")
+    axes[0, 1].set_title(resp_title)
 
     axes[0, 2].imshow(intermediates["near_structural"], cmap="gray")
     axes[0, 2].set_title(
