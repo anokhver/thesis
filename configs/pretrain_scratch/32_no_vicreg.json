@@ -14,18 +14,12 @@
   },
   "data": {
     "data_root": "../data/patches_32",
-    "exclude_patterns": [
-      "KONTROLA"
-    ],
+    "exclude_patterns": ["KONTROLA"],
     "val_split": 0.1,
     "batch_size": 32,
     "num_workers": 2,
     "pin_memory": true,
-    "channel_names": [
-      "pre_synaptic",
-      "post_synaptic",
-      "structural"
-    ],
+    "channel_names": ["pre_synaptic", "post_synaptic", "structural"],
     "channel_stats_max_samples": 4096
   },
   "model": {
@@ -34,18 +28,8 @@
     "feature_size": 96,
     "patch_size": 2,
     "window_size": 7,
-    "depths": [
-      2,
-      2,
-      6,
-      2
-    ],
-    "num_heads": [
-      3,
-      6,
-      12,
-      24
-    ],
+    "depths": [2, 2, 6, 2],
+    "num_heads": [3, 6, 12, 24],
     "dropout_path_rate": 0.0
   },
   "train": {
