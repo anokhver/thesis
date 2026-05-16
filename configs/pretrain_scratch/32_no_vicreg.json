@@ -16,8 +16,8 @@
     "data_root": "../data/patches_32",
     "exclude_patterns": ["KONTROLA"],
     "val_split": 0.1,
-    "batch_size": 32,
-    "num_workers": 2,
+    "batch_size": 64,
+    "num_workers": 4,
     "pin_memory": true,
     "channel_names": ["pre_synaptic", "post_synaptic", "structural"],
     "channel_stats_max_samples": 4096
@@ -64,6 +64,6 @@
     "enabled": false,
     "image_index": null,
     "overlap": 0.5,
-    "batch_size": 16
+    "batch_size": 64
   }
 }
