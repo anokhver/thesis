@@ -11,13 +11,13 @@ artifacts:
 
 Usage:
     python scripts/recover_post_training_viz.py \
-        --output-root /auto/brno2/home/anokhver/thesis/root/outputs
+        --output-root /auto/brno2/home/anokhver/thesis/data/training_outputs
 
     python scripts/recover_post_training_viz.py \
-        --run-dirs /auto/.../outputs/run_a /auto/.../outputs/run_b
+        --run-dirs /auto/.../training_outputs/run_a /auto/.../training_outputs/run_b
 
     python scripts/recover_post_training_viz.py \
-        --output-root /auto/.../outputs --run-full-image
+        --output-root /auto/.../training_outputs --run-full-image
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--output-root",
         type=str,
-        default="/auto/brno2/home/anokhver/thesis/root/outputs",
+        default="/auto/brno2/home/anokhver/thesis/data/training_outputs",
         help="Root folder containing experiment output subfolders.",
     )
     p.add_argument(
