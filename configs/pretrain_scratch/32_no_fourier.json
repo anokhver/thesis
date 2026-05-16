@@ -73,8 +73,7 @@
     "w_vicreg": 0.02,
     "projector_hidden": 2048,
     "projector_dim": 2048,
-    "w_fourier": 0.0,
-    "head_stage_index": -2
+    "w_fourier": 0.0
   },
   "full_image": {
     "enabled": false,
