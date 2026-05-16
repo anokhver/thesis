@@ -133,8 +133,8 @@ def show_pipeline_stages(
     )
     axes[1, 1].set_title(f"post LoG kept ({len(intermediates['post_blobs_kept'])})")
 
-    axes[1, 2].imshow(intermediates["coloc_mask"], cmap="gray")
-    axes[1, 2].set_title(f"co-localised (px={int(intermediates['coloc_mask'].sum())})")
+    axes[1, 2].imshow(intermediates["puncta_mask"], cmap="gray")
+    axes[1, 2].set_title(f"pre ∪ post puncta (px={int(intermediates['puncta_mask'].sum())})")
 
     axes[2, 0].imshow(intermediates["shaped_mask"], cmap="gray")
     axes[2, 0].set_title(f"after shape filter (px={int(intermediates['shaped_mask'].sum())})")
