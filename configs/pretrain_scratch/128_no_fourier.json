@@ -18,8 +18,8 @@
       "KONTROLA"
     ],
     "val_split": 0.1,
-    "batch_size": 32,
-    "num_workers": 2,
+    "batch_size": 128,
+    "num_workers": 1,
     "pin_memory": true,
     "channel_names": [
       "pre_synaptic",
@@ -70,11 +70,11 @@
     "lambda_std": 25.0,
     "lambda_cov": 1.0,
     "w_recon": 1.0,
-    "w_vicreg": 0.02,
+    "w_vicreg": 0.5,
     "projector_hidden": 2048,
     "projector_dim": 2048,
     "w_fourier": 0.0,
-    "head_stage_index": -2
+    "head_stage_index": -1
   },
   "full_image": {
     "enabled": false,

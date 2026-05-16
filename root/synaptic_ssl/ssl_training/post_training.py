@@ -61,13 +61,14 @@ def eval_recon_batch(
     heads: dict[str, nn.Module],
     view: torch.Tensor,
     mask: torch.Tensor,
+    head_stage_index: int = -1,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Run masked encoder + decoder once. Returns (recon, masked_view)."""
     encoder.eval()
     for h in heads.values():
         h.eval()
     v_masked = apply_mask(view, mask, heads["mask_token"])
-    z = encoder(v_masked.contiguous())[-1]
+    z = encoder(v_masked.contiguous())[head_stage_index]
     recon = heads["decoder"](z).float()
     return recon, v_masked.float()
 
@@ -157,7 +158,7 @@ def post_training_reconstruction(
         raise ValueError(f"view must be 'train' or 'val', got {view!r}")
 
     mask = random_block_mask(x, ssl_cfg.mask_block_size, ssl_cfg.mask_ratio).clone()
-    recon, v_masked = eval_recon_batch(encoder, heads, x, mask)
+    recon, v_masked = eval_recon_batch(encoder, heads, x, mask, ssl_cfg.head_stage_index)
 
     fig = plot_recon_panel(
         x, v_masked, recon, mask, used_idx,

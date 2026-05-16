@@ -123,8 +123,7 @@ class SSLCfg:
     # ICLR 2022, Table 12: top-1 accuracy improves from 55.9% (dim=256) to
     # 68.6% (dim=8192). Width must be >= encoder dim or BN inside the
     # projector trivially satisfies the variance hinge while the encoder
-    # collapses. 2048 matches the encoder dim at head_stage_index=-2 (768)
-    # comfortably while staying tractable on a single GPU.
+    # collapses. 2048 is safely above typical Swin-T stage widths used here.
     projector_hidden: int = 2048
     projector_dim: int = 2048
     # Foreground-weighted reconstruction. Each masked pixel's error is
@@ -142,12 +141,10 @@ class SSLCfg:
     fg_weight_tau: float = 0.0
     fg_weight_temp: float = 1.0
     # Which encoder feature level feeds the SSL heads (decoder + projector).
-    # MONAI's SwinTransformer returns ``len(depths) + 1`` levels; -1 is the
-    # deepest. With Swin-T weights (e.g. MoBY), the trailing level is the
-    # only one without a pretrained source -- timm Swin-T has no
-    # ``layers.3.downsample``, so ``layers4.0.downsample.*`` random-inits.
-    # Use -2 to attach heads at the last fully-pretrained level (768-ch
-    # at stride 32 for default Swin-T config).
+    # MONAI's SwinTransformer returns ``len(depths) + 1`` levels; negative
+    # indices follow Python semantics (``-1`` = deepest). Keep this explicit
+    # in JSON configs to avoid accidental drift between code defaults and
+    # experiment settings.
     head_stage_index: int = -1
     # Per-patch target normalisation (MAE-style; He et al., CVPR 2022 §4.2).
     # When ``per_patch_target_norm=True``, the reconstruction target is
