@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=pretrain_scratch_script
-#SBATCH --partition=visu_gpu
+#SBATCH --partition=ESO_gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
