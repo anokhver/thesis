@@ -2,22 +2,15 @@
 
 2D adaptation of Xiao et al., "DDeep3M+: adaptive enhancement powered
 weakly supervised learning for neuron segmentation", Neurophotonics
-10(3), 035003, 2023 (PMC10289179). This module covers steps 3 (region
-growing) and 4 (image-probability fusion). Step 1 (blob detection)
-lives in ``pseudolabels.blobs``; step 2 is the SwinUNETR training loop.
+10(3), 035003, 2023 (PMC10289179). Covers steps 3 (region growing) and
+4 (image-probability fusion); step 1 is in ``pseudolabels.blobs``,
+step 2 is the SwinUNETR training loop.
 
-Deviations from upstream:
-* 2D, not 3D. 5x5 ring (24 px) replaces the paper's 5x5x5 - centre
-  124-voxel ring; 8-connected dilation replaces 26-neighbour growth.
-* Channel-selective fusion. Only the synaptic pre/post channels are
-  fused; the structural channel is left raw to avoid feedback into
-  the anatomical prior.
-* Fusion formula reading. We implement the paper's intent
-  ``F = w_raw * 1[P>d] * I + w_prob * I_M * P`` with two named weights
-  (the published Eq. 7 squares ``I`` due to an apparent typo in the
-  ``Theta`` definition).
-* Stopping criterion. Without ground truth, mean per-patch IoU between
-  consecutive rounds replaces the paper's held-out F1 plateau.
+Deviations: 2D 5x5 ring + 8-connected dilation (paper: 3D 5x5x5 + 26-nb);
+fusion only on pre/post channels (structural left raw); IoU-plateau
+stopping (paper: held-out F1); fusion follows Eq. 7 intent
+``F = w_raw * 1[P>d] * I + w_prob * I_M * P`` (paper Eq. 7 squares ``I``
+via an apparent ``Theta`` typo).
 
 Ref: https://github.com/cakuba/DDeep3m
 """
@@ -138,23 +131,9 @@ def region_grow_from_prob(
     around the current grown region; new pixels in the
     ``growth_connectivity`` neighbourhood with ``prob > rho`` are added.
     Iterate until no new pixels, ``max_grow_iters``, or
-    ``max_growth_ratio * seed_area`` is reached.
-
-    Pass ``structural_mask`` (dilated dendrite + soma) when
-    ``cfg.gate_growth_by_structural=True`` to constrain growth to
-    anatomically plausible regions.
-
-    Parameters
-    ----------
-    seed_mask : (H, W) bool or 0/1 uint8.
-    prob_map : (H, W) in ``[0, 1]``.
-    cfg : RefineCfg
-    structural_mask : (H, W) array, optional. Required when
-        ``cfg.gate_growth_by_structural=True``.
-
-    Returns
-    -------
-    (H, W) uint8.
+    ``max_growth_ratio * seed_area``. ``structural_mask`` required when
+    ``cfg.gate_growth_by_structural=True``. All inputs 2D, same shape.
+    Returns ``(H, W)`` uint8.
     """
     if seed_mask.shape != prob_map.shape:
         raise ValueError(
@@ -230,18 +209,10 @@ def fuse_image_with_prob(
         F(x) = weight_raw * 1[P(x) > prob_threshold] * I(x)
              + weight_prob * I_M * P(x)
 
-    Other channels pass through unchanged. Output is clipped to
-    ``[0, max(image.max(), I_M)]``. ``image`` is not modified.
-
-    Parameters
-    ----------
-    image : (C, H, W) float32, expected ``[0, 1]``.
-    prob_map : (H, W) in ``[0, 1]``.
-    cfg : RefineCfg
-
-    Returns
-    -------
-    (C, H, W) float32.
+    Other channels pass through unchanged. Output clipped to
+    ``[0, max(image.max(), I_M)]``. ``image`` not modified. ``image``
+    is ``(C, H, W)`` float32 in ``[0, 1]``; ``prob_map`` is ``(H, W)``
+    in ``[0, 1]``. Returns ``(C, H, W)`` float32.
     """
     if image.ndim != 3:
         raise ValueError(f"image must be (C, H, W); got {image.shape}")

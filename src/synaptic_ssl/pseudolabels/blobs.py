@@ -1,29 +1,20 @@
-"""Blob pseudo-label generation for fluorescence-microscopy patches.
+"""Blob pseudo-labels for fluorescence-microscopy patches.
 
-Channel convention: 0=presynaptic, 1=postsynaptic, 2=structural/neurite.
+Channels: 0=pre, 1=post, 2=structural. Pipeline: LoG blobs on pre+post
+→ optional annular z-score → render disks → union → restrict to
+dendrite (Meijering+Otsu) ∪ soma (intensity) mask → shape filter.
+Does NOT enforce pre/post co-localisation; output represents synaptic
+*marker* puncta, not synapses.
 
-Pipeline: scikit-image LoG blobs on pre+post → optional per-blob annular
-z-score (SynQuant-inspired local-SNR test) → render as disks → union of
-the two channels → restrict to dendrite ∪ soma structural mask
-(Meijering ridge + intensity threshold) → shape filter.
+Annular z-score is a parametric Gaussian approximation of SynQuant's
+Wilcoxon SNR test (Wang et al., Bioinformatics 2020). Other building
+blocks: Meijering ridge (Meijering et al., Cytometry A 2004), Otsu
+threshold (IEEE Trans SMC 1979), scale-normalised LoG (Lindeberg, IJCV
+1998), neurite-mask gating (Fantuzzo et al., eNeuro 2017), white
+top-hat (Pathak et al., Front Cell Dev Biol 2025, §2.5.2).
 
-NOTE: this pipeline does NOT enforce pre/post co-localisation. The label
-therefore represents synaptic-MARKER puncta, not synapses (which by
-definition require both pre and post markers).
-
-References:
-* Meijering et al. (Cytometry A 2004) — neurite ridge filter.
-* Otsu (IEEE Trans SMC 1979) — per-image threshold on the Meijering response.
-* Lindeberg (IJCV 1998) — scale-normalised LoG.
-* Wang et al. (Bioinformatics 2020) — SynQuant: shape priors and the
-  local foreground-vs-background SNR principle. NOTE: ``score_blob_zscore``
-  uses a parametric Gaussian z-score against an annular background; SynQuant
-  itself uses a Wilcoxon rank-sum statistic against tabulated null moments.
-* Fantuzzo et al. (eNeuro 2017) — Intellicount: dilated-neurite-mask
-  restriction of puncta detections.
-* Pathak et al. (Front. Cell Dev. Biol. 2025, DOI 10.3389/fcell.2025.1631520,
-  §2.5.2) — white top-hat with disk SE for neuronal mask preprocessing.
-
+Ref: https://github.com/yu-lab-vt/SynQuant
+Ref: https://github.com/scikit-image/scikit-image
 """
 from __future__ import annotations
 
@@ -55,7 +46,7 @@ class BlobPseudoCfg:
     """Pseudo-label pipeline configuration.
 
     Defaults calibrated for 107 nm/px confocal: puncta 2-5 px,
-    dendrites 4-18 px.
+    dendrites ~2-10 px (thin to thick).
     """
 
     # channel roles
@@ -71,9 +62,12 @@ class BlobPseudoCfg:
     log_overlap: float = 0.5
     log_exclude_border: int = 5  # ~ 3 * log_max_sigma
 
-    # Meijering-based dendrite mask
-    dendrite_sigmas: Sequence[int] = field(
-        default_factory=lambda: list(range(2, 10))
+    # Meijering-based dendrite mask. At 107 nm/px these scales cover
+    # dendrite half-widths ~ 1-5 px (full width ~ 2-10 px). 5 scales is
+    # enough; range(2, 10) attenuates the thinnest dendrites and pays
+    # for 3 extra convolutions.
+    dendrite_sigmas: Sequence[float] = field(
+        default_factory=lambda: [1.0, 1.5, 2.0, 3.0, 5.0]
     )
     # Meijering ridge threshold. None = per-image Otsu on the response
     # of the *full* image being processed (Otsu, IEEE Trans SMC 1979).
@@ -101,28 +95,35 @@ class BlobPseudoCfg:
     # structural-mask post-processing (dendrites U somas, then dilate)
     structural_dilation: int = 4  # ~ 0.43 um -- "near-neurite" zone
 
-    # Shape priors on the co-localised mask (intersection of two
-    # LoG-disk masks). Same form as SynQuant (paraP3D.java: minfill,
-    # maxWHratio, area bounds). Default area bounds match the
-    # LoG-disk intersection geometry at 107 nm/px, not the physical
-    # synapse area; widen + bump log_max_sigma to target the latter.
+    # Shape priors on the puncta-union mask (pre OR post LoG disks).
+    # Same shape-prior form as SynQuant (paraP3D.java: minfill,
+    # maxWHratio, area bounds), but with our own values. Default area
+    # bounds match the LoG-disk geometry at 107 nm/px (a single LoG
+    # disk of max-sigma radius ~ 2.5 px has area ~ 20 px^2), not the
+    # physical synapse area; widen + bump log_max_sigma to target the
+    # latter.
     min_size: int = 3
     max_size: int = 40
     min_fill: float = 0.5
     max_wh_ratio: float = 4.0
 
     # structural-channel smoothing (applied before Meijering, NOT before soma)
+    # Default "median" removes single-pixel aliasing / hot pixels before
+    # the Hessian-based ridge filter, which otherwise treats pixel grid
+    # noise as faint ridges on pixelated data.
     # "none" = disabled, "gaussian" = Gaussian blur, "median" = median filter,
-    # "tophat" = white top-hat (removes grid background, keeps bright features)
-    structural_smooth_method: str = "none"
+    # "tophat" = white top-hat (removes background, keeps bright features)
+    structural_smooth_method: str = "median"
     structural_smooth_sigma: float = 1.0   # sigma for gaussian
     structural_median_size: int = 3        # kernel size for median (must be odd)
     structural_tophat_radius: int = 15     # disk radius for white top-hat
 
     # per-blob z-score on an annular background (set use_zscore=False to skip).
-    # Same local-SNR principle as SynQuant (Wang et al. 2020) but parametric:
-    # z = (mu_in - mu_bg) / sigma_bg. Threshold ~ 2 picks puncta clearly above
-    # local background; tighten to 3+ for stricter, loosen to 1.5 for friendlier.
+    # Local-SNR test inspired by SynQuant (Wang et al. 2020): SynQuant uses a
+    # Wilcoxon rank-sum statistic against tabulated null moments; this is a
+    # parametric Gaussian approximation z = (mu_in - mu_bg) / sigma_bg.
+    # Threshold ~ 2 picks puncta clearly above local background; tighten to
+    # 3+ for stricter, loosen to 1.5 for friendlier.
     use_zscore: bool = True
     zscore_inner_radius: int = 3
     zscore_outer_radius: int = 8
@@ -139,20 +140,20 @@ def smooth_structural_channel(
 ) -> np.ndarray:
     """Pre-process a 2D structural channel before ridge detection.
 
-    Reduces pixelation / grid artifacts so Meijering captures dendrite
-    ridges more cleanly. Applied to the structural channel before ridge
-    detection but NOT before soma detection (percentile thresholds shift
-    under blur).
+    Applied to the structural channel before Meijering but NOT before soma
+    detection (percentile thresholds shift under blur). Available methods
+    address different artefact types: choose empirically per dataset.
 
     Methods:
         * ``"none"``     — passthrough.
         * ``"gaussian"`` — isotropic Gaussian blur (``structural_smooth_sigma``).
-        * ``"median"``   — median filter (``structural_median_size``).
+        * ``"median"``   — median filter (``structural_median_size``);
+          removes isolated pixel noise (salt-and-pepper / hot pixels).
         * ``"tophat"``   — morphological white top-hat with a disk of
-          ``structural_tophat_radius``.  Extracts bright features (dendrites)
-          while removing slowly-varying background and periodic grid
-          artifacts.  Best when the structural channel has a visible
-          checkerboard/grid pattern from the acquisition.
+          ``structural_tophat_radius``. Removes structures larger than
+          the disk while keeping smaller bright features; useful when
+          the channel has a slowly-varying background or a periodic
+          grid pattern from the acquisition.
 
     Returns the processed image (same shape/dtype).
     """
@@ -352,9 +353,7 @@ def make_structural_mask(
 
 
 # ---------------------------------------------------------------------------
-# 4. Co-localization
-# ---------------------------------------------------------------------------
-# 5. Per-blob z-score (SynQuant-lite, local-window implementation)
+# 4. Per-blob z-score (annular-background local-SNR test)
 # ---------------------------------------------------------------------------
 
 def _local_window(image: np.ndarray, row: int, col: int, half: int):
@@ -441,10 +440,12 @@ def filter_by_size_shape(
 ) -> np.ndarray:
     """Keep CCs passing area, bbox aspect ratio, and bbox fill bounds.
 
-    Same form as SynQuant's shape priors (Wang et al. 2020,
-    ``paraP3D.java``: ``minfill``, ``maxWHratio``, min/max area). Default
-    area range targets the LoG-disk intersection geometry at 107 nm/px,
-    not physical synapse area -- widen the bounds to match the latter.
+    Same shape-prior form as SynQuant (Wang et al. 2020, ``paraP3D.java``:
+    ``minfill``, ``maxWHratio``, min/max area), but with our own values.
+    Default area range targets the LoG-disk geometry at 107 nm/px (a
+    single LoG disk of max-sigma radius ~ 2.5 px has area ~ 20 px^2),
+    not physical synapse area -- widen the bounds + bump log_max_sigma
+    to target the latter.
     """
     lbl = cc_label(mask, connectivity=2)
     out = np.zeros_like(mask)
@@ -598,34 +599,73 @@ def generate_pseudolabels_fullimage(
     records: list[dict],
     cfg: BlobPseudoCfg,
     patch_size: int | None = None,
-) -> dict[str, np.ndarray]:
-    """Per-patch pipeline gated by a full-image structural mask.
+) -> Tuple[dict[str, np.ndarray], dict[str, dict]]:
+    """Full-image pipeline: LoG + z-score + render + shape + gate at full
+    scale, then slice per patch.
 
-    Computes the structural mask once on the full image, then delegates
-    per-patch work to ``generate_blob_pseudolabel`` with the appropriate
-    structural slice. Returns a dict mapping filename to ``(H, W)``
-    ``uint8`` mask.
+    Per-patch LoG with ``exclude_border > 0`` would create a dead zone
+    at every tile seam (~15 % of a 128² patch at ``exclude_border=5``);
+    the z-score annular window would also get truncated at patch
+    borders. Running everything at full image scale and slicing the
+    final mask kills both biases.
+
+    Returns ``(labels, stats)`` where:
+      * ``labels`` maps filename -> ``(H, W) uint8`` patch mask.
+      * ``stats`` maps filename -> per-patch metrics dict (counts of
+        kept blobs whose centre falls inside the patch, label coverage,
+        and structural fractions sliced from the full-image mask).
     """
+    if not records:
+        return {}, {}
     if patch_size is None:
         patch_size = int(records[0]["patch_size"])
 
-    # Single full-image structural mask (Meijering + soma + dilation).
+    C, H_full, W_full = full_image.shape
+    if C <= max(cfg.pre_channel, cfg.post_channel, cfg.structural_channel):
+        raise ValueError(
+            f"full_image has {C} channels but cfg references "
+            f"pre={cfg.pre_channel}, post={cfg.post_channel}, "
+            f"structural={cfg.structural_channel}"
+        )
+
+    # 1. full-image structural mask (Meijering + soma + dilation)
     struct = compute_fullimage_structural_mask(full_image, cfg)
-    H_full, W_full = full_image.shape[1:]
 
-    # Slice every 2D ndarray of full-image shape; skip scalars (e.g.
-    # ``dendrite_threshold``) and any unexpected entries.
-    def _slice_struct(y0: int, x0: int) -> dict:
-        sl = (slice(y0, y0 + patch_size), slice(x0, x0 + patch_size))
-        return {
-            key: arr[sl]
-            for key, arr in struct.items()
-            if isinstance(arr, np.ndarray)
-            and arr.ndim == 2
-            and arr.shape == (H_full, W_full)
-        }
+    # 2. full-image LoG on pre/post; exclude_border now applies only
+    #    at real image edges, not at every tile seam.
+    pre_blobs = detect_blobs_log(full_image[cfg.pre_channel], cfg)
+    post_blobs = detect_blobs_log(full_image[cfg.post_channel], cfg)
 
-    result: dict[str, np.ndarray] = {}
+    # 3. full-image z-score: annular window is local to each blob and
+    #    is correctly cropped by ``_local_window`` at image edges.
+    if cfg.use_zscore:
+        pre_scored = score_blobs_zscore(full_image[cfg.pre_channel], pre_blobs, cfg)
+        post_scored = score_blobs_zscore(full_image[cfg.post_channel], post_blobs, cfg)
+        pre_kept = np.array(
+            [[s["row"], s["col"], s["sigma"]] for s in pre_scored if s["kept"]]
+        ).reshape(-1, 3)
+        post_kept = np.array(
+            [[s["row"], s["col"], s["sigma"]] for s in post_scored if s["kept"]]
+        ).reshape(-1, 3)
+    else:
+        pre_kept, post_kept = pre_blobs, post_blobs
+
+    # 4. render, union, shape-filter, structural gate -- all full scale
+    pre_mask_full = blobs_to_mask(pre_kept, (H_full, W_full))
+    post_mask_full = blobs_to_mask(post_kept, (H_full, W_full))
+    puncta_full = (pre_mask_full.astype(bool) | post_mask_full.astype(bool)).astype(np.uint8)
+    shaped_full = filter_by_size_shape(puncta_full, cfg)
+    label_full = (shaped_full.astype(bool) & struct["near_structural"]).astype(np.uint8)
+
+    # 5. slice per patch + per-patch stats
+    def _blobs_in_patch(arr: np.ndarray, y0: int, x0: int, ps: int) -> int:
+        if arr.shape[0] == 0:
+            return 0
+        r = arr[:, 0]; c = arr[:, 1]
+        return int(((r >= y0) & (r < y0 + ps) & (c >= x0) & (c < x0 + ps)).sum())
+
+    labels: dict[str, np.ndarray] = {}
+    stats: dict[str, dict] = {}
     for rec in records:
         ps = int(rec.get("patch_size", patch_size))
         if ps != patch_size:
@@ -641,10 +681,19 @@ def generate_pseudolabels_fullimage(
                 f"({y0}, {x0}) + {patch_size} exceeds image "
                 f"({H_full}, {W_full})"
             )
-        patch = full_image[:, y0 : y0 + patch_size, x0 : x0 + patch_size]
-        label, _, _ = generate_blob_pseudolabel(
-            patch, cfg, precomputed_struct=_slice_struct(y0, x0),
-        )
-        result[rec["filename"]] = label
+        sl = (slice(y0, y0 + patch_size), slice(x0, x0 + patch_size))
+        lbl = label_full[sl].copy()
+        labels[rec["filename"]] = lbl
+        stats[rec["filename"]] = {
+            "n_pre_kept": _blobs_in_patch(pre_kept, y0, x0, patch_size),
+            "n_post_kept": _blobs_in_patch(post_kept, y0, x0, patch_size),
+            "px_puncta": int(puncta_full[sl].sum()),
+            "px_shaped": int(shaped_full[sl].sum()),
+            "px_label": int(lbl.sum()),
+            "frac_label": float(lbl.mean()),
+            "frac_dendrite": float(struct["dendrite_mask"][sl].mean()),
+            "frac_soma": float(struct["soma_mask"][sl].mean()),
+            "frac_near_structural": float(struct["near_structural"][sl].mean()),
+        }
 
-    return result
+    return labels, stats

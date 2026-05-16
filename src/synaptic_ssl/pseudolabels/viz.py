@@ -174,6 +174,6 @@ def plot_zscore_histogram(scored_pre, scored_post, threshold, ax=None, bins=50):
     ax.set_xlabel("per-blob z-score")
     ax.set_ylabel("count")
     ax.set_yscale("log")
-    ax.set_title("SynQuant-lite z-score distribution")
+    ax.set_title("Per-blob z-score distribution")
     ax.legend(); ax.grid(True, alpha=0.3)
     return ax
