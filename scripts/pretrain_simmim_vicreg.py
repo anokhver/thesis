@@ -28,7 +28,7 @@ import torch
 from torch.utils.data import DataLoader, random_split
 
 _REPO = Path(__file__).resolve().parents[1]
-_ROOT = _REPO / "root"
+_ROOT = _REPO / "src"
 for _p in (_ROOT, _REPO):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
@@ -364,7 +364,10 @@ def main():
         )
         plt.close("all")
 
-        rec, v_masked = eval_recon_batch(encoder, heads, x1_fixed, mask_fixed)
+        rec, v_masked = eval_recon_batch(
+            encoder, heads, x1_fixed, mask_fixed,
+            stage_index=ssl_cfg.head_stage_index,
+        )
         _ = plot_recon_panel(
             x1_fixed, v_masked, rec, mask_fixed, sanity_idx,
             ch_mean=ch_mean, ch_std=ch_std,
