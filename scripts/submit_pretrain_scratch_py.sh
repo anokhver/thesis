@@ -8,7 +8,7 @@
 #PBS -M your@email.com
 
 # SimMIM+VICReg pretrain from scratch (script version).
-# Outputs go to outputs/ at the repo root.
+# Outputs go to data/training_outputs/.
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
 CONFIG="${PROJECT_DIR}/configs/pretrain_scratch/default.json"

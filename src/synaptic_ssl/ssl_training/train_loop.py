@@ -59,7 +59,7 @@ def train_one_epoch(
     running, grads = 0.0, []
     comp_accum: dict[str, float] = {}
     t0 = time.time()
-    pbar = tqdm(train_loader, desc=f"ep {epoch}/{total_epochs} [{phase}]", leave=False)
+    pbar = tqdm(train_loader, desc=f"ep {epoch}/{total_epochs} [{phase}]", leave=False, disable=True)
     for v1_b, v2_b in pbar:
         v1_b = v1_b.to(device, non_blocking=True)
         v2_b = v2_b.to(device, non_blocking=True)
@@ -78,7 +78,6 @@ def train_one_epoch(
         running += loss.item()
         for _k, _v in _m.items():
             comp_accum[_k] = comp_accum.get(_k, 0.0) + float(_v)
-        pbar.set_postfix(loss=f"{loss.item():.4f}")
     n_tb = max(1, len(train_loader))
     train_loss = running / n_tb
     train_components = {k: v / n_tb for k, v in comp_accum.items()}

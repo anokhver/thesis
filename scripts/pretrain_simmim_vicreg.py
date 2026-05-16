@@ -4,7 +4,7 @@
 Usage:
     python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json
     python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json --dry-run
-    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json --resume outputs/my_run/last.pt
+    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json --resume ../data/training_outputs/my_run/last.pt
 
 Relative paths in the config are resolved against ``root/``. An existing
 run's ``config.json`` can be reused as a starting point; missing keys
