@@ -1,0 +1,85 @@
+{
+  "run_sanity": true,
+  "run_overfit": true,
+  "base": {
+    "seed": 42,
+    "output_root": "outputs",
+    "experiment_name": "simmim_vicreg_pretrain",
+    "tag": "scratch_128_no_vicreg",
+    "method_name": "simmim_vicreg",
+    "init_source": "scratch",
+    "pretrained_ckpt_path": null,
+    "resume_path": null,
+    "dry_run": false
+  },
+  "data": {
+    "data_root": "../data/patches_128",
+    "exclude_patterns": [
+      "KONTROLA"
+    ],
+    "val_split": 0.1,
+    "batch_size": 32,
+    "num_workers": 2,
+    "pin_memory": true,
+    "channel_names": [
+      "pre_synaptic",
+      "post_synaptic",
+      "structural"
+    ],
+    "channel_stats_max_samples": 4096
+  },
+  "model": {
+    "in_channels": 3,
+    "img_size": 128,
+    "feature_size": 96,
+    "patch_size": 2,
+    "window_size": 7,
+    "depths": [
+      2,
+      2,
+      6,
+      2
+    ],
+    "num_heads": [
+      3,
+      6,
+      12,
+      24
+    ],
+    "dropout_path_rate": 0.0
+  },
+  "train": {
+    "epochs": 400,
+    "warmup_epochs": 20,
+    "base_lr": 0.0002,
+    "head_lr": 0.0002,
+    "weight_decay": 0.05,
+    "layer_decay": 1.0,
+    "grad_clip_norm": 5.0,
+    "freeze_encoder_epochs": 0,
+    "save_every_n_epochs": 25,
+    "val_metric_key": "recon_fg",
+    "val_metric_direction": "min",
+    "encoder_save_name": "pretrained_encoder_simmim_vicreg_scratch_128_no_vicreg.pt"
+  },
+  "ssl": {
+    "mask_ratio": 0.6,
+    "mask_block_size": 16,
+    "loss_kind": "l1",
+    "lambda_sim": 25.0,
+    "lambda_std": 25.0,
+    "lambda_cov": 1.0,
+    "w_recon": 1.0,
+    "w_vicreg": 0.0,
+    "projector_hidden": 2048,
+    "projector_dim": 2048,
+    "w_fourier": 0.01,
+    "head_stage_index": -2
+  },
+  "full_image": {
+    "enabled": false,
+    "image_index": null,
+    "overlap": 0.5,
+    "batch_size": 16
+  }
+}

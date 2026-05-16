@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -N preprocess_patches
+#PBS -N preprocess_pseudolabels
 #PBS -l select=1:ncpus=8:mem=128gb:scratch_local=50gb
 #PBS -l walltime=4:00:00
 #PBS -j oe
@@ -7,7 +7,8 @@
 #PBS -m abe
 #PBS -M your@email.com
 
-# Preprocess raw VSI microscopy files into normalized 128x128 patches.
+# Preprocess raw VSI microscopy files into normalized 128x128 patches
+# with rolling-ball background subtraction (for pseudolabel generation).
 # CPU-only, no GPU needed. Java/aicsimageio loads each VSI file.
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
@@ -30,7 +31,7 @@ echo "Conda env: ${CONDA_ENV}"
 echo "Start:     $(date)"
 echo "================"
 
-python "${PROJECT_DIR}/root/utils_data/preprocess.py" \
+python "${PROJECT_DIR}/root/synaptic_ssl/utils_data/preprocess_training.py" \
     --file_extensions .vsi \
     2>&1
 

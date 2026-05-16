@@ -1,17 +1,18 @@
 #!/bin/bash
-#PBS -N pseudolabels
-#PBS -l select=1:ncpus=8:mem=64gb:scratch_local=50gb
-#PBS -l walltime=4:00:00
+#PBS -N loaded_weights
+#PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=40gb:scratch_local=50gb
+#PBS -l walltime=6:00:00
 #PBS -j oe
 #PBS -o /storage/brno2/home/anokhver/thesis/logs/
 #PBS -m abe
 #PBS -M your@email.com
 
-# Generate blob pseudo-labels for synaptic puncta (CPU-only, no GPU needed).
+# Loaded-weights pretrain (starting from pre-trained weights) with SimMIM + VICReg.
+# Shorter walltime than from_scratch because epoch budget is 1x.
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-NOTEBOOK_DIR="${PROJECT_DIR}/notebooks/pseudolabels"
-NOTEBOOK="blob_pseudolabels.ipynb"
+NOTEBOOK_DIR="${PROJECT_DIR}/notebooks/loaded-weights"
+NOTEBOOK="pretrain_simmim_vicreg_moby.ipynb"
 RUN_DIR="${NOTEBOOK_DIR}/runs"
 CONDA_ENV="microscopy"
 
@@ -28,12 +29,13 @@ cd "${NOTEBOOK_DIR}"
 echo "=== Job Info ==="
 echo "Job ID:    ${PBS_JOBID}"
 echo "Node:      $(hostname)"
+echo "GPU:       $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo 'N/A')"
 echo "Conda env: ${CONDA_ENV}"
 echo "Notebook:  ${NOTEBOOK_DIR}/${NOTEBOOK}"
 echo "Start:     $(date)"
 echo "================"
 
-OUTPUT_NOTEBOOK="${RUN_DIR}/pseudolabels_RUN_$(date +%Y%m%d_%H%M%S).ipynb"
+OUTPUT_NOTEBOOK="${RUN_DIR}/loaded_weights_RUN_$(date +%Y%m%d_%H%M%S).ipynb"
 
 python -m papermill \
     "${NOTEBOOK}" \

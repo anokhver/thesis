@@ -11,7 +11,7 @@
 # Longer walltime than loaded_weights because epoch budget is 2x.
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-NOTEBOOK_DIR="${PROJECT_DIR}/root/notebooks/from-scratch"
+NOTEBOOK_DIR="${PROJECT_DIR}/notebooks/from-scratch"
 NOTEBOOK="pretrain_simmim_vicreg.ipynb"
 RUN_DIR="${NOTEBOOK_DIR}/runs"
 CONDA_ENV="microscopy"
