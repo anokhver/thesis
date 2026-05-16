@@ -15,9 +15,9 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
 # ---------------------------------------------------------------------------
-# Add thesis/root/ to sys.path so synaptic_ssl imports work without `pip install -e .`.
+# Add thesis/src/ to sys.path so synaptic_ssl imports work without `pip install -e .`.
 _REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO / "root"))
+sys.path.insert(0, str(_REPO / "src"))
 
 from synaptic_ssl.utils_data.reassemble import reassemble_image  # noqa: E402
 

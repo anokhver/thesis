@@ -28,7 +28,7 @@ import torch
 from tqdm.auto import tqdm
 
 _REPO = Path(__file__).resolve().parents[1]
-_ROOT = _REPO / "root"
+_ROOT = _REPO / "src"
 for p in (_ROOT, _REPO):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
