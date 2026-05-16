@@ -45,16 +45,15 @@ dev = [
 # ---------------------------------------------------------------------------
 # Package layout
 # ---------------------------------------------------------------------------
-# The Python source lives in ``root/synaptic_ssl/``.  ``root/`` is just the
-# source-root parent; setuptools maps it so that the umbrella package
-# ``synaptic_ssl`` becomes importable directly:
+# Standard PyPA "src layout".  The umbrella package ``synaptic_ssl`` lives
+# under ``src/`` and becomes importable after ``pip install -e .``:
 #     from synaptic_ssl.training import ModelCfg
-# Everything outside ``root/`` (imaging/, notebooks/, tests/, configs/,
+# Everything outside ``src/`` (imaging/, notebooks/, tests/, configs/,
 # scripts/) is intentionally not part of the installable package.
 [tool.setuptools]
-package-dir = {"" = "root"}
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["root"]
+where = ["src"]
 include = ["synaptic_ssl*"]
 exclude = ["__pycache__*"]

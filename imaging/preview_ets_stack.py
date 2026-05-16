@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-# Add thesis/root/ to sys.path so synaptic_ssl imports work without `pip install -e .`.
+# Add thesis/src/ to sys.path so synaptic_ssl imports work without `pip install -e .`.
 _REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_REPO / "root"))
+sys.path.insert(0, str(_REPO / "src"))
 
 from synaptic_ssl.utils_data.preprocess_training import (  # noqa: E402
     load_image,
