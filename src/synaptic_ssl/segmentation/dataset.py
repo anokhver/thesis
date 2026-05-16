@@ -18,8 +18,18 @@ from ..utils_data.patch_dataset import PatchDataset
 class PseudoLabelSegDataset(Dataset):
     """Blob pseudo-label dataset with optional disk cache.
 
-    ``precomputed_masks`` (``filename -> (H, W) uint8``) skips per-patch
-    generation. ``cache_dir`` enables ``.npy`` disk caching.
+    Mask lookup order (first hit wins):
+        1. ``precomputed_masks`` dict (in-memory, ``filename -> (H, W) mask``).
+        2. ``cache_dir`` disk cache (filled lazily from per-patch fallback).
+        3. Per-patch ``generate_blob_pseudolabel`` (fallback).
+
+    To consume pseudo-labels saved by the ``blob_pseudolabels`` notebook,
+    eager-load them into a dict and pass as ``precomputed_masks``::
+
+        precomputed = {
+            rec["filename"]: np.load(OUTPUT_ROOT / rec["filename"])
+            for rec in patch_ds.records
+        }
     """
 
     def __init__(
@@ -56,18 +66,28 @@ class PseudoLabelSegDataset(Dataset):
             patch = patch[self.patch_ds.channels]
         return patch.astype(np.float32)
 
+    @staticmethod
+    def _validate_mask(mask: np.ndarray, name: str) -> np.ndarray:
+        if mask.ndim != 2:
+            raise ValueError(
+                f"pseudo-label mask for {name!r} must have shape (H, W); "
+                f"got {mask.shape}"
+            )
+        return mask
+
     def _get_mask(self, idx: int, patch_np: np.ndarray) -> np.ndarray:
-        """Return ``(H, W)`` uint8 pseudo-label mask, using cache if present."""
+        """Return ``(H, W)`` pseudo-label mask, using cache if present."""
         rec = self.patch_ds.records[idx]
+        name = rec["filename"]
 
         # 1. precomputed from full-image mode
-        if self.precomputed is not None and rec["filename"] in self.precomputed:
-            return self.precomputed[rec["filename"]]
+        if self.precomputed is not None and name in self.precomputed:
+            return self._validate_mask(self.precomputed[name], name)
 
         # 2. disk cache
         cp = self._cache_path(idx)
         if cp is not None and cp.exists():
-            return np.load(cp)
+            return self._validate_mask(np.load(cp), name)
 
         # 3. generate per-patch (fallback)
         from ..pseudolabels.blobs import generate_blob_pseudolabel

@@ -1,7 +1,23 @@
 """Patch clustering pipeline for fluorescence-microscopy SSL features.
 
-Pipeline: features → L2 + PCA whiten → UMAP-15 → Leiden → bootstrap
-stability → per-image frequency vectors → chi-square test.
+Recipe (Quiros et al., *Nat Commun* 15:4596, 2024 — Histomorphological
+Phenotype Learning, "HPL"):
+
+    1. patch embeddings from a frozen SSL encoder
+    2. L2 + PCA whiten
+    3. kNN graph + Leiden community detection on PCA (or UMAP) space
+    4. per-image cluster-frequency vector  (HPL §WSI vector representations,
+       Eq. 7) — each image becomes a length-K vector summing to 1
+    5. image-level statistical tests on the cluster-frequency vectors
+
+HPL's step 5 (Cox PH / multinomial logistic regression) is replaced here
+with **PERMANOVA + MMD** on per-image frequency vectors because the
+downstream task in this thesis is a multi-group treatment comparison
+rather than survival / subtype classification (Serrano et al.,
+"Progress and New Challenges in Image-Based Profiling", arXiv 2508.05800,
+2025). Every inferential test uses the source image as the unit of
+analysis to avoid pseudoreplication from spatially correlated patches
+(Caicedo et al., *Nat Methods* 14:849–863, 2017).
 """
 from __future__ import annotations
 
@@ -372,11 +388,20 @@ def leiden_sweep(U: np.ndarray, resolutions: Sequence[float], k: int,
 def bootstrap_stability(
     U: np.ndarray, resolutions: Sequence[float], k: int,
     B: int, frac: float, seed: int = 0,
+    *, source_images: np.ndarray | None = None,
 ):
     """Bootstrap stability of Leiden partitions.
 
-    70% subsample → re-cluster → 1-NN propagate → ARI vs full partition.
+    Subsample → re-cluster → 1-NN propagate → ARI vs full partition.
     Hennig (2007); Lange et al. (2004).
+
+    When ``source_images`` is provided (recommended for microscopy data),
+    the bootstrap is at the **image-block** level: a fraction of images is
+    sampled with replacement and *all* their patches form the resample.
+    This is the correct unit of resampling when patches from the same
+    image are not independent (Caicedo et al. *Nat Methods* 2017). When
+    omitted, the legacy patch-level bootstrap is used.
+
     Returns ``({res: (mean_ari, std_ari)}, {res: labels})``.
     """
     from sklearn.neighbors import KNeighborsClassifier
@@ -387,16 +412,33 @@ def bootstrap_stability(
     g_full = knn_igraph(U, k)
     full = {float(r): leiden_partition(g_full, r, seed=seed) for r in resolutions}
     aris = {float(r): [] for r in resolutions}
+
+    image_block = source_images is not None
+    if image_block:
+        unique_images = np.array(sorted(set(source_images)))
+        img_to_idx = {img: np.where(source_images == img)[0]
+                      for img in unique_images}
+        n_img = len(unique_images)
+        n_img_sample = max(2, int(frac * n_img))
+
     for b in range(B):
-        idx = rng.choice(n, size=int(frac * n), replace=True)
+        if image_block:
+            sampled = rng.choice(unique_images, size=n_img_sample, replace=True)
+            idx = np.concatenate([img_to_idx[img] for img in sampled])
+        else:
+            idx = rng.choice(n, size=int(frac * n), replace=True)
         U_sub = U[idx]
+        if len(U_sub) <= k:
+            continue
         g_sub = knn_igraph(U_sub, k)
         for r in resolutions:
             lab_sub = leiden_partition(g_sub, r, seed=seed + b)
             knn = KNeighborsClassifier(n_neighbors=1).fit(U_sub, lab_sub)
             propagated = knn.predict(U)
             aris[float(r)].append(adjusted_rand_score(full[float(r)], propagated))
-    summary = {r: (float(np.mean(aris[r])), float(np.std(aris[r]))) for r in aris}
+    summary = {r: (float(np.mean(aris[r])) if aris[r] else float("nan"),
+                   float(np.std(aris[r])) if aris[r] else float("nan"))
+               for r in aris}
     return summary, full
 
 
@@ -478,23 +520,60 @@ def permutation_null_ari(
     P: np.ndarray, labels_real: np.ndarray, *,
     cfg: ClusterCfg, resolution: float,
     k: int | None = None,
+    source_images: np.ndarray | None = None,
 ):
-    """Permutation-null ARI by shuffling PCs and re-clustering.
+    """Permutation-null ARI for clustering quality.
 
-    When ``cluster_space="pca"`` the kNN graph is built directly on the
-    permuted PCA features (no UMAP).  When ``cluster_space="umap"`` the
-    legacy path through UMAP is used.
+    When ``source_images`` is provided (recommended for microscopy data),
+    an **image-mean-swap** null is used:
 
-    Witten & Tibshirani (2010). Real ARI should exceed this distribution.
+    1. Decompose every patch into ``image_mean + residual``.
+    2. Randomly permute the image-mean assignment across images.
+    3. Reconstruct embeddings, re-cluster.
+    4. Compute ARI vs the real partition.
+
+    This null preserves multivariate covariance and within-image patch
+    structure but breaks image-level batch effects. A **low** null ARI
+    means the real partition is driven mostly by image identity (batch
+    confound); a **high** null ARI means the partition captures
+    consistent within-image patch types that survive image-mean-swap.
+
+    When ``source_images`` is omitted, the legacy per-PC shuffle null of
+    Witten & Tibshirani (2010) is used, which tests against an
+    independent-features null but does not control for image-block
+    structure and is known to be a weak baseline.
+
+    Returns ``(mean_ari, std_ari, max_ari)``.
     """
     from sklearn.metrics import adjusted_rand_score
     rng = np.random.default_rng(cfg.seed)
     effective_k = k if k is not None else cfg.leiden_k
+
+    image_swap = source_images is not None
+    if image_swap:
+        unique_images = np.array(sorted(set(source_images)))
+        img_to_idx = {img: np.where(source_images == img)[0]
+                      for img in unique_images}
+        image_means = np.stack(
+            [P[img_to_idx[img]].mean(axis=0) for img in unique_images]
+        )
+        residuals = P.copy()
+        for j, img in enumerate(unique_images):
+            residuals[img_to_idx[img]] -= image_means[j]
+
     aris = []
     for it in range(cfg.permutation_p):
-        P_perm = P.copy()
-        for d in range(P_perm.shape[1]):
-            rng.shuffle(P_perm[:, d])
+        if image_swap:
+            perm = rng.permutation(len(unique_images))
+            P_perm = np.empty_like(P)
+            for j, img in enumerate(unique_images):
+                P_perm[img_to_idx[img]] = (
+                    image_means[perm[j]] + residuals[img_to_idx[img]]
+                )
+        else:
+            P_perm = P.copy()
+            for d in range(P_perm.shape[1]):
+                rng.shuffle(P_perm[:, d])
         if cfg.cluster_space == "pca":
             X_clust = P_perm
         else:
@@ -508,6 +587,7 @@ def permutation_null_ari(
 def image_level_cv(
     P: np.ndarray, source_images: np.ndarray, labels: np.ndarray, *,
     cfg: ClusterCfg,
+    group_map: "GroupMap | None" = None,
 ):
     """Repeated grouped half-split cross-validation for label transfer.
 
@@ -517,8 +597,13 @@ def image_level_cv(
     legacy approach this does **not** re-run UMAP+Leiden on tiny folds
     (which is unreliable at small N).
 
+    When ``group_map`` is provided, the half-split is **stratified by
+    treatment group**: each group contributes half of its images to the
+    train fold, guaranteeing that every group is represented on both
+    sides. This avoids degenerate folds that lose entire groups at small N
+    (Caicedo et al. *Nat Methods* 2017).
+
     Returns ``(median_ari, q25, q75, per_split_aris)``.
-    Caicedo et al. (Nat Methods 2017), adapted for small N.
     """
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.metrics import adjusted_rand_score
@@ -530,10 +615,29 @@ def image_level_cv(
     if n_img < 4:
         return float("nan"), float("nan"), float("nan"), []
 
+    if group_map is not None:
+        groups_per_img = np.array(
+            [group_map.get(str(img), "__none__") for img in unique_images]
+        )
+        group_buckets = {
+            g: unique_images[groups_per_img == g]
+            for g in sorted(set(groups_per_img)) if g != "__none__"
+        }
+
     aris: list[float] = []
     for rep in range(cfg.cv_n_repeats):
-        perm = rng.permutation(n_img)
-        half = unique_images[perm[: n_img // 2]]
+        if group_map is not None:
+            train_imgs: list = []
+            for g, imgs in group_buckets.items():
+                if len(imgs) < 2:
+                    train_imgs.extend(imgs.tolist())
+                    continue
+                perm_g = rng.permutation(len(imgs))
+                train_imgs.extend(imgs[perm_g[: len(imgs) // 2]].tolist())
+            half = np.array(train_imgs)
+        else:
+            perm = rng.permutation(n_img)
+            half = unique_images[perm[: n_img // 2]]
         mask_train = np.isin(source_images, half)
 
         if mask_train.sum() < cfg.cv_k_neighbors + 1 or (~mask_train).sum() < 2:
