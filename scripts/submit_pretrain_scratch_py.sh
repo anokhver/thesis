@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -N pretrain_moby_script
+#PBS -N pretrain_scratch_script
 #PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=95000mb:scratch_local=50gb
 #PBS -l walltime=6:00:00
 #PBS -j oe
@@ -7,11 +7,11 @@
 #PBS -m abe
 #PBS -M veronika.i.anokhina@gmail.com
 
-# SimMIM+VICReg pretrain from MoBY weights (script version).
+# SimMIM+VICReg pretrain from scratch (script version).
 # Outputs go to outputs/ at the repo root.
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-CONFIG="${PROJECT_DIR}/configs/pretrain_moby/default.json"
+CONFIG="${PROJECT_DIR}/configs/pretrain_scratch/default.json"
 CONDA_ENV="microscopy"
 
 set -euo pipefail
