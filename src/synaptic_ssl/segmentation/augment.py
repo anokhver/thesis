@@ -42,11 +42,11 @@ class SegTrainTransform:
             x = torch.rot90(x, k=k, dims=(-2, -1))
         return x
 
-    def _translate(self, x: torch.Tensor, tx: int, ty: int):
+    def _translate(self, x: torch.Tensor, tx: int, ty: int, pad_mode: str = "reflect"):
         if tx == 0 and ty == 0:
             return x
         pad = self.translate_max
-        x = F.pad(x.unsqueeze(0), (pad, pad, pad, pad), mode="reflect").squeeze(0)
+        x = F.pad(x.unsqueeze(0), (pad, pad, pad, pad), mode=pad_mode).squeeze(0)
         H, W = x.shape[-2:]
         return x[..., pad - ty : H - pad - ty, pad - tx : W - pad - tx]
 
@@ -69,8 +69,13 @@ class SegTrainTransform:
         # apply identical geometry to both
         image = self._flips_rot90(image, hflip, vflip, k)
         mask = self._flips_rot90(mask, hflip, vflip, k)
-        image = self._translate(image, tx, ty)
-        mask = self._translate(mask, tx, ty)
+        # IMPORTANT: pad images with reflect (preserves intensity statistics)
+        # but masks with constant 0. Reflect padding mirrors any sparse
+        # punctum near a border to its phantom counterpart on the opposite
+        # side, which would manifest as artificial positives after the
+        # post-translate re-binarisation. See `.planning/pseudolabels-thesis-notes.md`.
+        image = self._translate(image, tx, ty, pad_mode="reflect")
+        mask = self._translate(mask, tx, ty, pad_mode="constant")
 
         # image-only augmentation
         image = self._noise(image)

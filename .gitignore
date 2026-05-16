@@ -14,7 +14,7 @@ __pycache__/
 notebooks/**/runs/
 notebooks/**/outputs/
 /logs/
-
+.outs/*
 
 # Personall notes
 .my/
