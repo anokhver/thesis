@@ -14,6 +14,7 @@ Usage::
 
     python preprocess_training.py --input_dir <raw> --output_dir <patches>
         [--patch_size 128] [--plow 1.0] [--phigh 99.8]
+        [--max_files 1]
         [--file_extensions .czi .tif .tiff .ets .vsi]
 
 Ref: https://github.com/stardist/stardist
@@ -88,10 +89,16 @@ def load_image(path: Path) -> np.ndarray:
         img = AICSImage(path)
         try:
             _select_largest_scene(img)
-            # AICSImage returns (T, C, Z, Y, X); squeeze T
-            data = img.data  # shape: (T, C, Z, Y, X)
-            if data.ndim == 5:
-                data = data[0]  # drop T → (C, Z, Y, X)
+
+            # Ask AICSImage for a canonical C,Z,Y,X tensor. This avoids
+            # reader-dependent layouts such as (T, C, Z, Y, X, S).
+            data = img.get_image_data("CZYX", T=0)
+
+            if data.ndim != 4:
+                raise ValueError(
+                    f"Unexpected AICSImage shape after CZYX conversion: {data.shape}"
+                )
+
             # Detach from any Java-backed buffer so closing the reader
             # cannot invalidate the returned array.
             data = np.ascontiguousarray(data)
@@ -362,6 +369,10 @@ def _parse_args() -> argparse.Namespace:
              "Each worker spawns its own JVM, so memory usage scales "
              "linearly. 2-4 is a good starting point on Metacentrum.",
     )
+    parser.add_argument(
+        "--max_files", type=int, default=0,
+        help="Process at most this many files from input_dir (default: 0 = all).",
+    )
 
     # Two-pass parse: config supplies defaults, then CLI overrides them.
     # `provided_args` records which flags the user actually typed so we
@@ -405,6 +416,10 @@ def main():
         )
         sys.exit(1)
 
+    if args.max_files and args.max_files > 0:
+        files = files[:args.max_files]
+        logger.info(f"Limiting run to first {len(files)} file(s) due to --max_files")
+
     logger.info(f"Found {len(files)} image files in {args.input_dir}")
     logger.info(
         f"Settings: patch_size={args.patch_size}, "
@@ -445,6 +460,11 @@ def main():
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(all_records)
+    else:
+        logger.error(
+            "No patches were produced. Failing run so callers can detect the issue."
+        )
+        sys.exit(2)
 
     logger.info(
         f"Done. {len(all_records)} patches saved to {args.output_dir}. "
