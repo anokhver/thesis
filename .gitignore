@@ -32,3 +32,5 @@ staticfiles/
 # Secrets & logs
 .env
 *.log
+# Agent rules (local-only, not for upstream)
+AGENTS.md
