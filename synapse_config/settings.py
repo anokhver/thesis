@@ -61,6 +61,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db" / "db.sqlite3",
+        "OPTIONS": {"timeout": 20},
     }
 }
 
@@ -90,4 +91,15 @@ DATA_UPLOAD_MAX_NUMBER_FILES = 10000  # folder uploads can contain many .ets til
 THESIS_PDF_URL = os.environ.get(
     "THESIS_PDF_URL",
     "https://example.com/anokhina-bachelor-thesis.pdf",
+)
+
+ANALYSIS_WORK_FN = os.environ.get(
+    "ANALYSIS_WORK_FN",
+    "synapse_web.services.work_stub.do_work",
+)
+
+ANALYSIS_JOBS_SYNC = os.environ.get("ANALYSIS_JOBS_SYNC", "0") == "1"
+
+ANALYSIS_STALE_AFTER_MINUTES = int(
+    os.environ.get("ANALYSIS_STALE_AFTER_MINUTES", "60")
 )

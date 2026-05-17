@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Results — SynAPSeg{% endblock %}
 
@@ -6,63 +7,96 @@
 <h1>Analysis Results</h1>
 
 {% if group_stats %}
-<div class="card">
-    <h2>Summary Statistics</h2>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Treatment Group</th>
-                <th>N</th>
-                <th>Mean Density</th>
-                <th>Std Dev</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for g in group_stats %}
-            <tr>
-                <td>{{ g.treatment_group }}</td>
-                <td>{{ g.n }}</td>
-                <td>{{ g.mean_density }}</td>
-                <td>{{ g.std_density }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <!-- TODO: add chart here (matplotlib or chart.js) -->
-    <div class="plot-container">
-        <p style="color: var(--text-secondary);">Chart placeholder — visualization will be added here.</p>
-    </div>
-</div>
+{% card title="Summary Statistics" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Treatment Group</th>
+            <th>N</th>
+            <th>Mean Density</th>
+            <th>Std Dev</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for g in group_stats %}
+        <tr>
+            <td>{{ g.treatment_group }}</td>
+            <td>{{ g.n }}</td>
+            <td>{{ g.mean_density }}</td>
+            <td>{{ g.std_density }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endcard %}
+
+{% graph_box title="Density by group" caption="One bar per treatment group, error bars are sample standard deviation." %}{% endgraph_box %}
 {% else %}
-<div class="empty-state">
-    <p>No completed analysis runs yet.
-       <a href="{% url 'synapse_web:upload' %}">Upload images</a> and run an analysis first.</p>
-</div>
+{% empty_state %}
+<p>No completed analysis runs yet.
+   <a href="{% url 'synapse_web:upload' %}">Upload images</a> and run an analysis first.</p>
+{% endempty_state %}
+{% endif %}
+
+{% if image_results %}
+{% card title="Per-Image Results (latest run)" margin="1.5rem" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Filename</th>
+            <th>Group</th>
+            <th>Puncta</th>
+            <th>Density</th>
+            <th>MIP</th>
+            <th>Mask</th>
+            <th>Overlay</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in image_results %}
+        <tr>
+            <td>{{ r.image.original_filename }}</td>
+            <td>{{ r.image.treatment_group|default:"—" }}</td>
+            <td>{{ r.puncta_count|default:"—" }}</td>
+            <td>{{ r.puncta_density|default:"—" }}</td>
+            <td>{% file_thumb r.mip_image label="MIP" %}</td>
+            <td>{% file_thumb r.segmentation_mask label="Mask" %}</td>
+            <td>{% file_thumb r.overlay_image label="Overlay" %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endcard %}
 {% endif %}
 
 {% if run_summaries %}
-<div class="card" style="margin-top: 1.5rem;">
-    <h2>Run History</h2>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Run ID</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Images</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for run in run_summaries %}
-            <tr>
-                <td><code>{{ run.id_short }}</code></td>
-                <td>{{ run.created_at|date:"Y-m-d H:i" }}</td>
-                <td><span class="badge badge-{{ run.status }}">{{ run.status }}</span></td>
-                <td>{{ run.image_count }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+{% card title="Run History" margin="1.5rem" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Run ID</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Images</th>
+            <th>Checkpoint</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for run in run_summaries %}
+        <tr>
+            <td><code>{{ run.id_short }}</code></td>
+            <td>{{ run.created_at|date:"Y-m-d H:i" }}</td>
+            <td>{% status_badge run.status %}</td>
+            <td>{{ run.image_count }} / {{ run.expected_count }}</td>
+            <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                {{ run.checkpoint_path }}
+            </td>
+            <td><a href="{% url 'synapse_web:run_detail' run.id %}">Open</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endcard %}
 {% endif %}
 {% endblock %}

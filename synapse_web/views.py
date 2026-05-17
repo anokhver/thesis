@@ -4,10 +4,13 @@ import uuid
 from django.conf import settings
 from django.contrib import messages
 from django.core.files.storage import default_storage
-from django.shortcuts import redirect, render
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from .models import AnalysisRun, ImageResult, MicroscopyImage
+from .services import jobs
 from .services.naming import GROUP_TREATMENTS, KNOWN_GROUPS, derive_treatment_group
 from .services.training_config import (
     PREPROCESSING_DEFAULTS,
@@ -26,6 +29,30 @@ def _parse_relative_paths(raw: str, files: list) -> list[str]:
     if len(candidates) == len(files):
         return [p.replace("\\", "/") for p in candidates]
     return [f.name for f in files]
+
+
+def _group_stats_from_results(result_rows) -> list[dict]:
+    groups: dict[str, list[float]] = {}
+    for r in result_rows:
+        key = r.image.treatment_group or "(none)"
+        groups.setdefault(key, []).append(r.puncta_density or 0.0)
+
+    stats = []
+    for group_name, densities in sorted(groups.items()):
+        n = len(densities)
+        mean = sum(densities) / n if n else 0.0
+        variance = (
+            sum((d - mean) ** 2 for d in densities) / (n - 1) if n > 1 else 0.0
+        )
+        stats.append(
+            {
+                "treatment_group": group_name,
+                "n": n,
+                "mean_density": round(mean, 4),
+                "std_density": round(math.sqrt(variance), 4),
+            }
+        )
+    return stats
 
 
 def upload(request):
@@ -105,73 +132,104 @@ def run_inference(request):
         messages.warning(request, "No images selected.")
         return redirect("synapse_web:upload")
 
-    images = MicroscopyImage.objects.filter(id__in=image_ids)
-    if not images.exists():
-        messages.error(request, "Selected images not found.")
+    images = list(MicroscopyImage.objects.filter(id__in=image_ids))
+    found_ids = {str(img.id) for img in images}
+    missing = [i for i in image_ids if i not in found_ids]
+    if missing:
+        messages.error(
+            request,
+            f"{len(missing)} selected image(s) no longer exist; refresh and try again.",
+        )
         return redirect("synapse_web:upload")
 
-    # TODO: replace with actual pipeline call
-    run = AnalysisRun.objects.create(status="completed")
-    for img in images:
-        ImageResult.objects.create(
-            analysis_run=run,
-            image=img,
-            puncta_count=0,
-            puncta_density=0.0,
-        )
+    checkpoint_path = request.POST.get("checkpoint_path", "").strip()
 
-    messages.success(request, f"Analysis complete for {images.count()} image(s).")
-    return redirect("synapse_web:results")
+    manifest = [
+        {
+            "image_id": str(img.id),
+            "original_filename": img.original_filename,
+            "treatment_group": img.treatment_group,
+            "path": img.file.name,
+        }
+        for img in images
+    ]
+    config_snapshot = {
+        "checkpoint_path": checkpoint_path,
+        "image_count": len(manifest),
+        "work_fn": settings.ANALYSIS_WORK_FN,
+    }
+
+    run = AnalysisRun.objects.create(
+        status="pending",
+        checkpoint_path=checkpoint_path,
+        config_snapshot=config_snapshot,
+        image_manifest=manifest,
+        commit_sha=jobs.current_commit_sha(),
+    )
+
+    jobs.submit_run(str(run.id))
+    messages.success(
+        request,
+        f"Analysis queued for {len(manifest)} image(s). "
+        "This page polls for progress.",
+    )
+    return redirect("synapse_web:run_detail", run_id=run.id)
+
+
+def run_detail(request, run_id):
+    run = get_object_or_404(AnalysisRun, id=run_id)
+    results = list(run.results.select_related("image").all())
+    return render(
+        request,
+        "synapse_web/run_detail.html",
+        {
+            "run": run,
+            "results": results,
+            "group_stats": _group_stats_from_results(results),
+            "expected_count": run.expected_image_count,
+            "thesis_pdf_url": settings.THESIS_PDF_URL,
+        },
+    )
+
+
+@never_cache
+def run_status(request, run_id):
+    run = get_object_or_404(AnalysisRun, id=run_id)
+    return JsonResponse(
+        {
+            "status": run.status,
+            "progress": run.progress,
+            "progress_message": run.progress_message,
+            "result_count": run.results.count(),
+            "expected_count": run.expected_image_count,
+            "finished": run.status in ("completed", "failed"),
+            "error_message": run.error_message,
+        }
+    )
 
 
 def results(request):
-    latest_run = (
-        AnalysisRun.objects.filter(status="completed")
-        .order_by("-created_at")
-        .first()
-    )
+    latest_run = AnalysisRun.objects.filter(status="completed").first()
 
     group_stats = []
+    image_results = []
     if latest_run:
-        result_rows = latest_run.results.select_related("image").all()
-        groups = {}
-        for r in result_rows:
-            key = r.image.treatment_group or "(none)"
-            groups.setdefault(key, []).append(r.puncta_density or 0.0)
+        image_results = list(latest_run.results.select_related("image").all())
+        group_stats = _group_stats_from_results(image_results)
 
-        for group_name, densities in sorted(groups.items()):
-            n = len(densities)
-            mean = sum(densities) / n if n else 0.0
-            variance = (
-                sum((d - mean) ** 2 for d in densities) / (n - 1) if n > 1 else 0.0
-            )
-            std = math.sqrt(variance)
-            group_stats.append(
-                {
-                    "treatment_group": group_name,
-                    "n": n,
-                    "mean_density": round(mean, 4),
-                    "std_density": round(std, 4),
-                }
-            )
-
-    all_runs = AnalysisRun.objects.order_by("-created_at")[:20]
     run_summaries = []
-    for run in all_runs:
+    for run in AnalysisRun.objects.all()[:20]:
         run_summaries.append(
             {
+                "id": run.id,
                 "id_short": str(run.id)[:8],
                 "created_at": run.created_at,
                 "status": run.status,
                 "image_count": run.results.count(),
+                "expected_count": run.expected_image_count,
                 "checkpoint_path": run.checkpoint_path or "—",
             }
         )
-
-    image_results = []
-    if latest_run:
-        for r in latest_run.results.select_related("image").all():
-            image_results.append(r)
 
     return render(
         request,
@@ -203,3 +261,4 @@ def overview(request):
             "thesis_pdf_url": settings.THESIS_PDF_URL,
         },
     )
+
