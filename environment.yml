@@ -8,6 +8,7 @@ dependencies:
   - _openmp_mutex=4.5
   - aom=3.9.1
   - asttokens=3.0.1
+  - bioformats_jar
   - bzip2=1.0.8
   - ca-certificates=2026.2.25
   - comm=0.2.3

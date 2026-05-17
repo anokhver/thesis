@@ -1,0 +1,11 @@
+name: microscopy
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - bioformats_jar
+  - pip
+  - setuptools
+  - wheel
+  - pip:
+      - -r requirements.txt
