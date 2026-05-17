@@ -12,10 +12,6 @@
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
-# Migrated from submit_loaded_moby.sh (MetaCentrum PBS Pro -> NUDZ Slurm)
-# Changes: partition gpu -> ESO_gpu (single H100), env activation via ~/.bashrc,
-# project dir under /home/veronika.anokhina, conda env microscopy_anokhver.
-
 # Loaded-weights pretrain (starting from pre-trained weights) with SimMIM + VICReg.
 # Shorter walltime than from_scratch because epoch budget is 1x.
 

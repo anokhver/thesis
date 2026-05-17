@@ -12,10 +12,6 @@
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
-# Migrated from submit_pretrain_moby_py.sh (MetaCentrum PBS Pro -> NUDZ Slurm)
-# Changes: partition gpu -> ESO_gpu (single H100), env activation via ~/.bashrc,
-# project dir under /home/veronika.anokhina, conda env microscopy_anokhver.
-
 # SimMIM+VICReg pretrain from scratch (script version).
 # Outputs go to outputs/ at the repo root.
 

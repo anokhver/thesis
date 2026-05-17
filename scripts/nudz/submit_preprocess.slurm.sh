@@ -11,9 +11,6 @@
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
-# Migrated from submit_preprocess.sh (MetaCentrum PBS Pro -> NUDZ Slurm)
-# Changes: CPU-only -> default1 partition, env activation via ~/.bashrc,
-# project dir under /home/veronika.anokhina, conda env microscopy_anokhver.
 
 # Preprocess raw VSI microscopy files into normalized 128x128 patches
 # with rolling-ball background subtraction (for pseudolabel generation).

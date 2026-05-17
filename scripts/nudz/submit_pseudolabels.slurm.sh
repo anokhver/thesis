@@ -11,10 +11,6 @@
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
-# Migrated from submit_pseudolabels.sh (MetaCentrum PBS Pro -> NUDZ Slurm)
-# Changes: CPU-only -> default1 partition, env activation via ~/.bashrc,
-# project dir under /home/veronika.anokhina, conda env microscopy_anokhver.
-
 # Generate blob pseudo-labels for synaptic puncta (CPU-only, no GPU needed).
 
 PROJECT_DIR="/home/veronika.anokhina/thesis/thesis"

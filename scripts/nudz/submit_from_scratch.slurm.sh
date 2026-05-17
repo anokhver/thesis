@@ -12,10 +12,6 @@
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
-# Migrated from submit_from_scratch.sh (MetaCentrum PBS Pro -> NUDZ Slurm)
-# Changes: partition gpu -> ESO_gpu (single H100), env activation via ~/.bashrc,
-# project dir under /home/veronika.anokhina, conda env microscopy_anokhver.
-
 # From-scratch pretrain (random init) with SimMIM + VICReg.
 # Longer walltime than loaded_weights because epoch budget is 2x.
 

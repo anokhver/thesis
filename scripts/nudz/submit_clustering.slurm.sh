@@ -12,10 +12,6 @@
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
-# Migrated from submit_clustering.sh (MetaCentrum PBS Pro -> NUDZ Slurm)
-# Changes: partition gpu -> ESO_gpu, env activation via ~/.bashrc,
-# project dir under /home/veronika.anokhina, conda env microscopy_anokhver.
-
 # Clustering / representation-quality check on a trained encoder.
 # Inference only -- modest GPU is enough; no training, short walltime.
 
