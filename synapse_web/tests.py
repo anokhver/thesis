@@ -246,3 +246,73 @@ class TrainingConfigLoaderTests(TestCase):
             for key, _ in rows:
                 self.assertNotIn(key, seen, f"duplicated key {key!r}")
                 seen.add(key)
+
+
+class TrainingConfigSchemaTests(TestCase):
+    def _load_via_path(self, tmp_path, payload):
+        import json
+        from synapse_web.services import training_config as tc
+
+        cfg = tmp_path / "pretrain.json"
+        cfg.write_text(json.dumps(payload), encoding="utf-8")
+        old = tc.PRETRAIN_CONFIG_PATH
+        tc.PRETRAIN_CONFIG_PATH = cfg
+        try:
+            return tc.grouped_pretrain_config()
+        finally:
+            tc.PRETRAIN_CONFIG_PATH = old
+
+    def test_flat_schema_groups_by_keyset(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            sections = self._load_via_path(
+                Path(d),
+                {"in_channels": 3, "epochs": 10, "seed": 42, "mystery": "x"},
+            )
+        titles = [t for t, _ in sections]
+        self.assertEqual(
+            titles, ["Architecture", "Training", "Reproducibility", "Other"]
+        )
+        other = dict(sections[-1][1])
+        self.assertEqual(other["mystery"], "x")
+
+    def test_nested_schema_uses_top_level_dicts_as_sections(self):
+        import tempfile
+        from pathlib import Path
+        payload = {
+            "run_sanity": True,
+            "base": {"seed": 42, "tag": "moby"},
+            "model": {"in_channels": 3, "img_size": 128},
+            "train": {"epochs": 200, "warmup_epochs": 15},
+            "ssl": {"mask_ratio": 0.6, "loss_kind": "l1"},
+            "unfreeze_schedule": [[1, ["layers4"]], [3, ["layers3"]]],
+        }
+        with tempfile.TemporaryDirectory() as d:
+            sections = self._load_via_path(Path(d), payload)
+        titles = [t for t, _ in sections]
+        self.assertIn("Overview", titles)
+        self.assertIn("Base", titles)
+        self.assertIn("Architecture", titles)
+        self.assertIn("Training", titles)
+        self.assertIn("SSL Objective", titles)
+
+        overview_rows = dict(dict(sections)["Overview"])
+        self.assertIn("run_sanity", overview_rows)
+        self.assertIn("unfreeze_schedule", overview_rows)
+
+        model_rows = dict(dict(sections)["Architecture"])
+        self.assertEqual(model_rows["in_channels"], 3)
+
+    def test_missing_config_returns_empty_list(self):
+        import tempfile
+        from pathlib import Path
+        from synapse_web.services import training_config as tc
+
+        with tempfile.TemporaryDirectory() as d:
+            old = tc.PRETRAIN_CONFIG_PATH
+            tc.PRETRAIN_CONFIG_PATH = Path(d) / "nope.json"
+            try:
+                self.assertEqual(tc.grouped_pretrain_config(), [])
+            finally:
+                tc.PRETRAIN_CONFIG_PATH = old
