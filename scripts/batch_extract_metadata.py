@@ -337,12 +337,13 @@ def _flatten_oex(raw: dict) -> dict[str, Any]:
             name = attr.get("@attrs", {}).get("name", "")
             if not name:
                 continue
-            # Try all common value types
-            for vtype in ("unsigned", "integer", "float", "string",
-                          "unsigned_short", "bool"):
-                v = attr.get(vtype)
-                if v is not None:
-                    val = v.get("@attrs", {}).get("val") if isinstance(v, dict) else str(v)
+            # Try any child key that carries a "val" — handles all XML value types
+            # (unsigned, integer, float, double, string, int64, unsigned_long, bool, …)
+            for vtype, v in attr.items():
+                if vtype.startswith("@") or vtype == "attribute":
+                    continue
+                val = v.get("@attrs", {}).get("val") if isinstance(v, dict) else str(v)
+                if val is not None:
                     collected.setdefault(name, []).append(val)
                     break
         for key, val in node.items():
