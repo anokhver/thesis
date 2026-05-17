@@ -1,0 +1,5 @@
+{% if file_field %}
+<a href="{{ file_field.url }}" target="_blank" rel="noopener" class="thumb-link" title="{{ label }}">
+    <img src="{{ file_field.url }}" alt="{{ label }}" class="thumb">
+</a>
+{% else %}&mdash;{% endif %}

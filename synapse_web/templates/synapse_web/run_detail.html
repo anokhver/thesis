@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block title %}Run {{ run.id|slice:":8" }} — SynAPSeg{% endblock %}
+
+{% block content %}
+<h1>Analysis Run <code>{{ run.id|slice:":8" }}</code></h1>
+
+{% card title="Status" %}
+<p>
+    <strong id="status-text">{{ run.get_status_display }}</strong>
+    {% if run.started_at %} — started {{ run.started_at|date:"Y-m-d H:i:s" }}{% endif %}
+    {% if run.finished_at %} — finished {{ run.finished_at|date:"Y-m-d H:i:s" }}{% endif %}
+</p>
+<div class="progress-bar" aria-label="Progress">
+    <div class="progress-bar-fill" id="progress-bar-fill" style="width: {{ run.progress }}%;"></div>
+</div>
+<p style="color: var(--text-secondary); font-size: 0.9rem;">
+    <span id="progress-text">{{ run.progress }}%</span>
+    <span id="progress-message">{% if run.progress_message %} — {{ run.progress_message }}{% endif %}</span>
+    <br>
+    <span id="result-counts">{{ results|length }} / {{ expected_count }} image(s) processed</span>
+</p>
+{% if run.error_message %}
+<div class="alert alert-error" style="margin-top: 1rem;">
+    {{ run.error_message }}
+</div>
+{% endif %}
+{% endcard %}
+
+{% card title="Configuration" margin="1.5rem" %}
+<table class="data-table">
+    <tbody>
+        <tr><th style="width: 30%;">Checkpoint</th><td><code>{{ run.checkpoint_path|default:"—" }}</code></td></tr>
+        <tr><th>Work function</th><td><code>{{ run.config_snapshot.work_fn|default:"—" }}</code></td></tr>
+        <tr><th>Git commit</th><td><code>{{ run.commit_sha|default:"—" }}</code></td></tr>
+        <tr><th>Images in manifest</th><td>{{ expected_count }}</td></tr>
+    </tbody>
+</table>
+{% endcard %}
+
+{% if group_stats %}
+{% card title="Summary by treatment group" margin="1.5rem" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Treatment Group</th>
+            <th>N</th>
+            <th>Mean Density</th>
+            <th>Std Dev</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for g in group_stats %}
+        <tr>
+            <td>{{ g.treatment_group }}</td>
+            <td>{{ g.n }}</td>
+            <td>{{ g.mean_density }}</td>
+            <td>{{ g.std_density }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endcard %}
+
+{% graph_box title="Density by group" caption="One bar per treatment group; error bars are sample standard deviation." %}{% endgraph_box %}
+{% endif %}
+
+{% if results %}
+{% card title="Per-image results" margin="1.5rem" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Filename</th>
+            <th>Group</th>
+            <th>Puncta</th>
+            <th>Density</th>
+            <th>MIP</th>
+            <th>Mask</th>
+            <th>Overlay</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in results %}
+        <tr>
+            <td>{{ r.image.original_filename }}</td>
+            <td>{{ r.image.treatment_group|default:"—" }}</td>
+            <td>{{ r.puncta_count|default:"—" }}</td>
+            <td>{{ r.puncta_density|default:"—" }}</td>
+            <td>{% file_thumb r.mip_image label="MIP" %}</td>
+            <td>{% file_thumb r.segmentation_mask label="Mask" %}</td>
+            <td>{% file_thumb r.overlay_image label="Overlay" %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endcard %}
+{% endif %}
+
+<p style="margin-top: 1.5rem;">
+    <a href="{% url 'synapse_web:results' %}">&larr; Back to all results</a>
+</p>
+
+<script>
+(function () {
+    var statusUrl = "{% url 'synapse_web:run_status' run.id %}";
+    var fill = document.getElementById("progress-bar-fill");
+    var text = document.getElementById("progress-text");
+    var msg = document.getElementById("progress-message");
+    var statusText = document.getElementById("status-text");
+    var resultCounts = document.getElementById("result-counts");
+
+    function poll() {
+        fetch(statusUrl, {cache: "no-store"})
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                fill.style.width = data.progress + "%";
+                text.textContent = data.progress + "%";
+                msg.textContent = data.progress_message
+                    ? " — " + data.progress_message : "";
+                statusText.textContent = data.status.charAt(0).toUpperCase() +
+                    data.status.slice(1);
+                resultCounts.textContent =
+                    data.result_count + " / " + data.expected_count +
+                    " image(s) processed";
+                if (data.finished) {
+                    setTimeout(function () { window.location.reload(); }, 500);
+                } else {
+                    setTimeout(poll, 2000);
+                }
+            })
+            .catch(function () { setTimeout(poll, 4000); });
+    }
+
+    {% if run.status == "pending" or run.status == "running" %}
+    poll();
+    {% endif %}
+})();
+</script>
+{% endblock %}

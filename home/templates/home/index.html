@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block title %}SynAPSeg — Home{% endblock %}
+
+{% block content %}
+{% card max_width="700px" centered=True margin="2rem" %}
+<div style="text-align: center;">
+    <h1>SynAPSeg</h1>
+    <h2>Synaptic Puncta Detection &amp; Segmentation</h2>
+    <p style="margin-top: 1rem; color: var(--text-secondary);">
+        Bachelor's Thesis by <strong>Veronika Anokhina</strong>
+        <br>
+        Supervisor: <strong>Ing. Vojtěch Brejtr</strong>
+    </p>
+    <p style="color: var(--text-secondary);">
+        Czech Technical University in Prague (CTU)
+        <br>
+        in collaboration with the
+        <strong>National Institute of Mental Health (NUDZ)</strong>
+    </p>
+    <p style="margin-top: 1.5rem;">
+        Automated analysis of synaptic puncta in 3D confocal fluorescence
+        microscopy images using self-supervised deep learning.
+    </p>
+    <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
+        <a href="{% url 'synapse_web:upload' %}" class="btn">Upload Images</a>
+        <a href="{% url 'synapse_web:results' %}" class="btn" style="background: var(--secondary);">
+            View Results
+        </a>
+    </div>
+</div>
+{% endcard %}
+{% endblock %}

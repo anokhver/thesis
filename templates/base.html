@@ -1,0 +1,41 @@
+{% load static %}
+{% load ui %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SynAPSeg{% endblock %}</title>
+    <link rel="stylesheet" href="{% versioned_static 'style.css' %}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container" style="display:flex; align-items:center; justify-content:space-between;">
+            <a href="{% url 'home:index' %}" class="navbar-brand">SynAPSeg</a>
+            <div class="navbar-links">
+                <a href="{% url 'synapse_web:upload' %}">Upload</a>
+                <a href="{% url 'synapse_web:results' %}">Results</a>
+                <a href="{% url 'synapse_web:overview' %}">Overview</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            Bachelor's Thesis &mdash; CTU Prague / NUDZ &bull; Veronika Anokhina, 2026
+        </div>
+    </footer>
+</body>
+</html>
