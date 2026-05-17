@@ -8,7 +8,12 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import AnalysisRun, ImageResult, MicroscopyImage
-from .services.naming import KNOWN_GROUPS, derive_treatment_group
+from .services.naming import GROUP_TREATMENTS, KNOWN_GROUPS, derive_treatment_group
+from .services.training_config import (
+    PREPROCESSING_DEFAULTS,
+    PRETRAIN_CONFIG_PATH,
+    grouped_pretrain_config,
+)
 
 
 def _parse_relative_paths(raw: str, files: list) -> list[str]:
@@ -176,5 +181,25 @@ def results(request):
             "run_summaries": run_summaries,
             "latest_run": latest_run,
             "image_results": image_results,
+        },
+    )
+
+
+def overview(request):
+    config_sections = grouped_pretrain_config()
+    treatments = [
+        {"token": tok, "treatment": GROUP_TREATMENTS[tok]}
+        for tok in KNOWN_GROUPS
+    ]
+    return render(
+        request,
+        "synapse_web/overview.html",
+        {
+            "config_sections": config_sections,
+            "config_available": bool(config_sections),
+            "config_filename": PRETRAIN_CONFIG_PATH.name,
+            "preprocessing": PREPROCESSING_DEFAULTS,
+            "treatments": treatments,
+            "thesis_pdf_url": settings.THESIS_PDF_URL,
         },
     )

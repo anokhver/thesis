@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block title %}Overview — SynAPSeg{% endblock %}
+
+{% block content %}
+<h1>Overview</h1>
+
+{% card title="Pipeline" %}
+<p>
+    SynAPSeg ingests 3D confocal fluorescence Z-stacks, projects them to
+    2D via Maximum Intensity Projection, normalizes per channel, and
+    tiles the result into 128 × 128 patches. A self-supervised
+    Swin-based autoencoder is pretrained on those patches; the encoder
+    is then used to detect and segment synaptic puncta.
+</p>
+{% thesis_link chapter="Methods" %}
+{% endcard %}
+
+{% card title="Preprocessing defaults" margin="1.5rem" %}
+{% kv_table preprocessing %}
+{% endcard %}
+
+{% card title="Pretraining configuration" margin="1.5rem" %}
+{% if config_available %}
+    <p style="color: var(--text-secondary); font-size: 0.85rem;">
+        Loaded from <code>{{ config_filename }}</code>.
+    </p>
+    {% for section_title, rows in config_sections %}
+        <h3 style="margin-top: 1rem; font-size: 1rem;">{{ section_title }}</h3>
+        {% kv_table rows %}
+    {% endfor %}
+{% else %}
+    {% empty_state %}
+    <p>
+        No pretraining config found yet. Run the pretraining notebook to
+        generate <code>{{ config_filename }}</code>.
+    </p>
+    {% endempty_state %}
+{% endif %}
+{% endcard %}
+
+{% card title="Treatment groups" margin="1.5rem" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Token in filename</th>
+            <th>Treatment</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in treatments %}
+        <tr>
+            <td><code>{{ row.token }}</code></td>
+            <td>{{ row.treatment }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% thesis_link chapter="Data" %}
+{% endcard %}
+{% endblock %}
