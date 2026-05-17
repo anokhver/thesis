@@ -85,3 +85,9 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
+DATA_UPLOAD_MAX_NUMBER_FILES = 10000  # folder uploads can contain many .ets tiles
+
+THESIS_PDF_URL = os.environ.get(
+    "THESIS_PDF_URL",
+    "https://example.com/anokhina-bachelor-thesis.pdf",
+)

@@ -1,10 +1,26 @@
 import math
+import uuid
 
+from django.conf import settings
 from django.contrib import messages
+from django.core.files.storage import default_storage
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import AnalysisRun, ImageResult, MicroscopyImage
+from .services.naming import KNOWN_GROUPS, derive_treatment_group
+
+
+def _parse_relative_paths(raw: str, files: list) -> list[str]:
+    """Return a relative path for each uploaded file, preferring the
+    browser-supplied webkitRelativePath (one per line) and falling back to
+    the file's own name when JS didn't run or the browser doesn't support it.
+    """
+    candidates = [p.strip() for p in raw.splitlines()]
+    candidates = [p for p in candidates if p]
+    if len(candidates) == len(files):
+        return [p.replace("\\", "/") for p in candidates]
+    return [f.name for f in files]
 
 
 def upload(request):
@@ -13,14 +29,45 @@ def upload(request):
 
         if action == "upload":
             files = request.FILES.getlist("files")
-            treatment_group = request.POST.get("treatment_group", "")
-            for f in files:
-                MicroscopyImage.objects.create(
-                    original_filename=f.name,
-                    file=f,
-                    treatment_group=treatment_group,
+            rel_paths = _parse_relative_paths(
+                request.POST.get("relative_paths", ""), files
+            )
+            fallback_group = request.POST.get("treatment_group", "").strip()
+            batch_id = uuid.uuid4().hex[:8]
+            base_dir = f"uploads/microscopy/{batch_id}"
+
+            vsi_count = 0
+            derived_count = 0
+            for f, rel_path in zip(files, rel_paths):
+                target = f"{base_dir}/{rel_path}"
+                saved_path = default_storage.save(target, f)
+                if not rel_path.lower().endswith(".vsi"):
+                    continue
+                basename = rel_path.rsplit("/", 1)[-1]
+                derived = derive_treatment_group(basename)
+                if derived:
+                    derived_count += 1
+                img = MicroscopyImage(
+                    original_filename=basename,
+                    treatment_group=derived or fallback_group,
                 )
-            messages.success(request, f"Uploaded {len(files)} image(s).")
+                img.file.name = saved_path
+                img.save()
+                vsi_count += 1
+
+            if vsi_count == 0:
+                messages.warning(
+                    request,
+                    "No .vsi files found in the upload. "
+                    "Pick a folder that contains the .vsi acquisitions.",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Registered {vsi_count} acquisition(s) "
+                    f"from {len(files)} uploaded file(s); "
+                    f"{derived_count} group(s) auto-derived from filename.",
+                )
             return redirect("synapse_web:upload")
 
         if action == "delete":
@@ -35,7 +82,15 @@ def upload(request):
             return redirect("synapse_web:upload")
 
     images = MicroscopyImage.objects.all().order_by("-uploaded_at")
-    return render(request, "synapse_web/upload.html", {"images": images})
+    return render(
+        request,
+        "synapse_web/upload.html",
+        {
+            "images": images,
+            "known_groups": ", ".join(KNOWN_GROUPS),
+            "thesis_pdf_url": settings.THESIS_PDF_URL,
+        },
+    )
 
 
 @require_POST
@@ -74,7 +129,6 @@ def results(request):
     group_stats = []
     if latest_run:
         result_rows = latest_run.results.select_related("image").all()
-        # Group by treatment_group using plain Python
         groups = {}
         for r in result_rows:
             key = r.image.treatment_group or "(none)"
@@ -84,7 +138,7 @@ def results(request):
             n = len(densities)
             mean = sum(densities) / n if n else 0.0
             variance = (
-                sum((d - mean) ** 2 for d in densities) / n if n > 1 else 0.0
+                sum((d - mean) ** 2 for d in densities) / (n - 1) if n > 1 else 0.0
             )
             std = math.sqrt(variance)
             group_stats.append(
@@ -105,8 +159,14 @@ def results(request):
                 "created_at": run.created_at,
                 "status": run.status,
                 "image_count": run.results.count(),
+                "checkpoint_path": run.checkpoint_path or "—",
             }
         )
+
+    image_results = []
+    if latest_run:
+        for r in latest_run.results.select_related("image").all():
+            image_results.append(r)
 
     return render(
         request,
@@ -115,5 +175,6 @@ def results(request):
             "group_stats": group_stats,
             "run_summaries": run_summaries,
             "latest_run": latest_run,
+            "image_results": image_results,
         },
     )
