@@ -1,13 +1,17 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}SynAPSeg — Home{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width: 700px; margin: 2rem auto; text-align: center;">
+{% card max_width="700px" centered=True margin="2rem" %}
+<div style="text-align: center;">
     <h1>SynAPSeg</h1>
     <h2>Synaptic Puncta Detection &amp; Segmentation</h2>
     <p style="margin-top: 1rem; color: var(--text-secondary);">
         Bachelor's Thesis by <strong>Veronika Anokhina</strong>
+        <br>
+        Supervisor: <strong>Ing. Vojtěch Brejtr</strong>
     </p>
     <p style="color: var(--text-secondary);">
         Czech Technical University in Prague (CTU)
@@ -26,4 +30,5 @@
         </a>
     </div>
 </div>
+{% endcard %}
 {% endblock %}

@@ -1,11 +1,12 @@
 {% load static %}
+{% load ui %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SynAPSeg{% endblock %}</title>
-    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <link rel="stylesheet" href="{% versioned_static 'style.css' %}">
 </head>
 <body>
     <nav class="navbar">
@@ -14,6 +15,7 @@
             <div class="navbar-links">
                 <a href="{% url 'synapse_web:upload' %}">Upload</a>
                 <a href="{% url 'synapse_web:results' %}">Results</a>
+                <a href="{% url 'synapse_web:overview' %}">Overview</a>
             </div>
         </div>
     </nav>
