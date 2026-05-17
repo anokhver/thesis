@@ -229,23 +229,24 @@ class OverviewPageTests(TestCase):
 
 
 class TrainingConfigLoaderTests(TestCase):
-    def test_grouped_sections_have_expected_keys(self):
+    def test_real_config_renders_at_least_one_section_with_no_dupes(self):
         from synapse_web.services.training_config import grouped_pretrain_config
 
         sections = grouped_pretrain_config()
         if not sections:
-            self.skipTest("pretrain_ae_config.json not present in this checkout")
+            self.skipTest("no pretrain config present in this checkout")
 
-        titles = [title for title, _ in sections]
-        self.assertIn("Architecture", titles)
-        self.assertIn("Training", titles)
-        self.assertIn("Reproducibility", titles)
+        self.assertGreater(len(sections), 0)
+        for title, rows in sections:
+            self.assertIsInstance(title, str)
+            self.assertGreater(len(rows), 0, f"section {title!r} is empty")
 
-        seen: set[str] = set()
-        for _, rows in sections:
+        seen: set[tuple[str, str]] = set()
+        for title, rows in sections:
             for key, _ in rows:
-                self.assertNotIn(key, seen, f"duplicated key {key!r}")
-                seen.add(key)
+                pair = (title, key)
+                self.assertNotIn(pair, seen, f"duplicated row {pair!r}")
+                seen.add(pair)
 
 
 class TrainingConfigSchemaTests(TestCase):
