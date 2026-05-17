@@ -2,10 +2,9 @@
 
 from .blobs import (
     BlobPseudoCfg,
-    smooth_structural_channel,
     detect_blobs_log, blobs_to_mask,
     meijering_response, compute_global_meijering_threshold,
-    density_response, compute_global_density_threshold,
+    density_response,
     make_density_dendrite_mask,
     make_soma_mask, make_structural_mask,
     score_blobs_zscore,
@@ -28,10 +27,9 @@ from .viz import (
 __all__ = [
     # blobs
     "BlobPseudoCfg",
-    "smooth_structural_channel",
     "detect_blobs_log", "blobs_to_mask",
     "meijering_response", "compute_global_meijering_threshold",
-    "density_response", "compute_global_density_threshold",
+    "density_response",
     "make_density_dendrite_mask",
     "make_soma_mask", "make_structural_mask",
     "score_blobs_zscore",
