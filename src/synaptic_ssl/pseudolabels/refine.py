@@ -61,9 +61,8 @@ class RefineCfg:
     max_growth_ratio: float = 5.0
 
     # ANDing the grown mask with ``near_structural`` (i.e. the dilated
-    # dendrite + soma mask) before returning. Strongly recommended for
-    # biological data where synapses live near neurites; prevents
-    # multi-iteration drift of the mask outside anatomical priors.
+    # dendrite + soma mask) before returning. Prevents multi-iteration
+    # drift of the mask outside the anatomical prior.
     gate_growth_by_structural: bool = True
 
     # Image-probability fusion (DDeep3M+ step 4) -----------------------
