@@ -146,15 +146,6 @@ class SSLCfg:
     # in JSON configs to avoid accidental drift between code defaults and
     # experiment settings.
     head_stage_index: int = -1
-    # Per-patch target normalisation (MAE-style; He et al., CVPR 2022 §4.2).
-    # When ``per_patch_target_norm=True``, the reconstruction target is
-    # split into ``target_norm_patch_size``-sized tiles and each tile is
-    # rescaled to mean 0 / std 1 per (sample, channel) before the L1/L2
-    # loss is computed. Removes the "predict the channel mean" shortcut on
-    # mostly-black inputs (the predicted constant has tile-std 0 while the
-    # target has tile-std 1, so the loss never collapses to background).
-    per_patch_target_norm: bool = False
-    target_norm_patch_size: int = 8
     # Threshold (in z-scored target space) above which a pixel counts as
     # foreground for the diagnostic recon_fg metric. tau=1 means "one
     # channel std above the channel mean" — a punctum in z-scored inputs.

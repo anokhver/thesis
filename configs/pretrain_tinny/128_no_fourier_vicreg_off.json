@@ -4,16 +4,16 @@
   "base": {
     "seed": 42,
     "output_root": "../data/training_outputs",
-    "experiment_name": "simmim_pretrain",
-    "tag": "moby_32_no_vicreg",
+    "experiment_name": "simmim_vicreg_pretrain",
+    "tag": "tinny22k_no_fourier_vicreg_off",
     "method_name": "simmim_vicreg",
-    "init_source": "moby",
-    "pretrained_ckpt_path": "../data/checkpoints/moby_swin_t_300ep_pretrained.pth",
+    "init_source": "timm_imagenet",
+    "pretrained_ckpt_path": "../data/checkpoints/swin_tiny_patch4_window7_224_22k.pth",
     "resume_path": null,
     "dry_run": false
   },
   "data": {
-    "data_root": "../data/patches_32",
+    "data_root": "../data/patches_128_from_zip",
     "exclude_patterns": [
       "KONTROLA"
     ],
@@ -30,7 +30,7 @@
   },
   "model": {
     "in_channels": 3,
-    "img_size": 32,
+    "img_size": 128,
     "feature_size": 96,
     "patch_size": 2,
     "window_size": 7,
@@ -49,22 +49,22 @@
     "dropout_path_rate": 0.05
   },
   "train": {
-    "epochs": 200,
-    "warmup_epochs": 15,
+    "epochs": 30,
+    "warmup_epochs": 3,
     "base_lr": 0.0001,
     "head_lr": 0.0001,
     "weight_decay": 0.05,
     "layer_decay": 1.0,
     "grad_clip_norm": 5.0,
-    "freeze_encoder_epochs": 5,
-    "save_every_n_epochs": 25,
+    "freeze_encoder_epochs": 1,
+    "save_every_n_epochs": 5,
     "val_metric_key": "recon_fg",
     "val_metric_direction": "min",
-    "encoder_save_name": "pretrained_encoder_simmim_moby_32_no_vicreg.pt"
+    "encoder_save_name": "pretrained_encoder_tinny22k_no_fourier_vicreg_off.pt"
   },
   "ssl": {
     "mask_ratio": 0.6,
-    "mask_block_size": 4,
+    "mask_block_size": 16,
     "loss_kind": "l1",
     "lambda_sim": 25.0,
     "lambda_std": 25.0,
@@ -73,7 +73,7 @@
     "w_vicreg": 0.0,
     "projector_hidden": 2048,
     "projector_dim": 2048,
-    "w_fourier": 0.01,
+    "w_fourier": 0.0,
     "head_stage_index": -1
   },
   "unfreeze_schedule": [
@@ -85,14 +85,14 @@
       ]
     ],
     [
-      3,
+      2,
       [
         "random",
         "layers4"
       ]
     ],
     [
-      6,
+      4,
       [
         "random",
         "layers4",
@@ -100,7 +100,7 @@
       ]
     ],
     [
-      9,
+      6,
       [
         "random",
         "layers4",
@@ -109,7 +109,7 @@
       ]
     ],
     [
-      12,
+      8,
       [
         "random",
         "layers4",
@@ -119,7 +119,7 @@
       ]
     ],
     [
-      15,
+      10,
       [
         "random",
         "layers4",

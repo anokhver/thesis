@@ -5,15 +5,15 @@
     "seed": 42,
     "output_root": "../data/training_outputs",
     "experiment_name": "simmim_vicreg_pretrain",
-    "tag": "scratch_128",
+    "tag": "moby_default",
     "method_name": "simmim_vicreg",
-    "init_source": "scratch",
-    "pretrained_ckpt_path": null,
+    "init_source": "moby",
+    "pretrained_ckpt_path": "../data/checkpoints/moby_swin_t_300ep_pretrained.pth",
     "resume_path": null,
     "dry_run": false
   },
   "data": {
-    "data_root": "../data/patches_128",
+    "data_root": "../data/patches_128_from_zip",
     "exclude_patterns": [
       "KONTROLA"
     ],
@@ -46,21 +46,21 @@
       12,
       24
     ],
-    "dropout_path_rate": 0.0
+    "dropout_path_rate": 0.05
   },
   "train": {
-    "epochs": 400,
-    "warmup_epochs": 20,
-    "base_lr": 0.0002,
-    "head_lr": 0.0002,
+    "epochs": 30,
+    "warmup_epochs": 3,
+    "base_lr": 0.0001,
+    "head_lr": 0.0001,
     "weight_decay": 0.05,
     "layer_decay": 1.0,
     "grad_clip_norm": 5.0,
-    "freeze_encoder_epochs": 0,
-    "save_every_n_epochs": 25,
+    "freeze_encoder_epochs": 1,
+    "save_every_n_epochs": 5,
     "val_metric_key": "recon_fg",
     "val_metric_direction": "min",
-    "encoder_save_name": "pretrained_encoder_simmim_vicreg_scratch_128.pt"
+    "encoder_save_name": "pretrained_encoder_moby_default.pt"
   },
   "ssl": {
     "mask_ratio": 0.6,
@@ -70,12 +70,66 @@
     "lambda_std": 25.0,
     "lambda_cov": 1.0,
     "w_recon": 1.0,
-    "w_vicreg": 0.02,
+    "w_vicreg": 0.0,
     "projector_hidden": 2048,
     "projector_dim": 2048,
     "w_fourier": 0.01,
     "head_stage_index": -1
   },
+  "unfreeze_schedule": [
+    [
+      1,
+      [
+        "random",
+        "layers4"
+      ]
+    ],
+    [
+      2,
+      [
+        "random",
+        "layers4"
+      ]
+    ],
+    [
+      4,
+      [
+        "random",
+        "layers4",
+        "layers3"
+      ]
+    ],
+    [
+      6,
+      [
+        "random",
+        "layers4",
+        "layers3",
+        "layers2"
+      ]
+    ],
+    [
+      8,
+      [
+        "random",
+        "layers4",
+        "layers3",
+        "layers2",
+        "layers1"
+      ]
+    ],
+    [
+      10,
+      [
+        "random",
+        "layers4",
+        "layers3",
+        "layers2",
+        "layers1",
+        "patch_embed"
+      ]
+    ]
+  ],
   "full_image": {
     "enabled": false,
     "image_index": null,

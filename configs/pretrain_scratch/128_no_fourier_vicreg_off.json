@@ -5,7 +5,7 @@
     "seed": 42,
     "output_root": "../data/training_outputs",
     "experiment_name": "simmim_vicreg_pretrain",
-    "tag": "scratch_128_no_fourier",
+    "tag": "scratch_no_fourier_vicreg_off",
     "method_name": "simmim_vicreg",
     "init_source": "scratch",
     "pretrained_ckpt_path": null,
@@ -13,13 +13,13 @@
     "dry_run": false
   },
   "data": {
-    "data_root": "../data/patches_128",
+    "data_root": "../data/patches_128_from_zip",
     "exclude_patterns": [
       "KONTROLA"
     ],
     "val_split": 0.1,
-    "batch_size": 128,
-    "num_workers": 1,
+    "batch_size": 64,
+    "num_workers": 4,
     "pin_memory": true,
     "channel_names": [
       "pre_synaptic",
@@ -49,18 +49,18 @@
     "dropout_path_rate": 0.0
   },
   "train": {
-    "epochs": 400,
-    "warmup_epochs": 20,
+    "epochs": 60,
+    "warmup_epochs": 6,
     "base_lr": 0.0002,
     "head_lr": 0.0002,
     "weight_decay": 0.05,
     "layer_decay": 1.0,
     "grad_clip_norm": 5.0,
     "freeze_encoder_epochs": 0,
-    "save_every_n_epochs": 25,
+    "save_every_n_epochs": 10,
     "val_metric_key": "recon_fg",
     "val_metric_direction": "min",
-    "encoder_save_name": "pretrained_encoder_simmim_vicreg_scratch_128_no_fourier.pt"
+    "encoder_save_name": "pretrained_encoder_scratch_no_fourier_vicreg_off.pt"
   },
   "ssl": {
     "mask_ratio": 0.6,
@@ -70,7 +70,7 @@
     "lambda_std": 25.0,
     "lambda_cov": 1.0,
     "w_recon": 1.0,
-    "w_vicreg": 0.5,
+    "w_vicreg": 0.0,
     "projector_hidden": 2048,
     "projector_dim": 2048,
     "w_fourier": 0.0,
