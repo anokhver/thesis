@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -N pretrain_moby_script
+#PBS -N pretrain_tinny_script
 #PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=95000mb:scratch_local=20gb
 #PBS -l walltime=10:00:00
 #PBS -j oe
@@ -7,16 +7,16 @@
 #PBS -m abe
 #PBS -M veronika.i.anokhina@gmail.com
 
-# SimMIM+VICReg pretrain from MoBY weights (script version).
+# SimMIM+VICReg pretrain from Swin-Tiny ImageNet-22k weights (script version).
 # Outputs go to data/training_outputs/.
 #
 # Variant selection (default: 128_default.json):
-#   qsub scripts/metacentrum/submit_pretrain_moby_py.sh
-#   qsub -v CONFIG=configs/pretrain_moby/128_no_fourier_vicreg_on.json  scripts/metacentrum/submit_pretrain_moby_py.sh
-#   qsub -v CONFIG=configs/pretrain_moby/128_no_fourier_vicreg_off.json scripts/metacentrum/submit_pretrain_moby_py.sh
+#   qsub scripts/metacentrum/submit_pretrain_tinny_py.sh
+#   qsub -v CONFIG=configs/pretrain_tinny/128_no_fourier_vicreg_on.json  scripts/metacentrum/submit_pretrain_tinny_py.sh
+#   qsub -v CONFIG=configs/pretrain_tinny/128_no_fourier_vicreg_off.json scripts/metacentrum/submit_pretrain_tinny_py.sh
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-CONFIG="${CONFIG:-${PROJECT_DIR}/configs/pretrain_moby/128_default.json}"
+CONFIG="${CONFIG:-${PROJECT_DIR}/configs/pretrain_tinny/128_default.json}"
 CONDA_ENV="microscopy"
 
 set -euo pipefail
