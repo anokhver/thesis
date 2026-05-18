@@ -130,6 +130,35 @@ def _xml_to_dict(elem: ET.Element) -> Any:
     return node
 
 
+def _model_to_dict(obj: Any) -> Any:
+    """Convert an ome_types / pydantic / nested object to plain JSON-safe data.
+
+    Handles pydantic v2 (``model_dump``), pydantic v1 (``dict``), enums,
+    paths, datetimes, and arbitrary objects via ``str()``. Drops keys
+    whose value is None to keep the output compact.
+    """
+    from enum import Enum
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    if hasattr(obj, "model_dump"):
+        try:
+            return _model_to_dict(obj.model_dump(exclude_none=True, mode="json"))
+        except Exception:
+            pass
+    if hasattr(obj, "dict") and callable(obj.dict):
+        try:
+            return _model_to_dict(obj.dict(exclude_none=True))
+        except Exception:
+            pass
+    if isinstance(obj, dict):
+        return {str(k): _model_to_dict(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, (list, tuple, set)):
+        return [_model_to_dict(v) for v in obj]
+    if isinstance(obj, Enum):
+        return obj.value
+    return str(obj)
+
+
 def _safe(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
@@ -204,11 +233,38 @@ def _extract_vsi_via_aicsimageio(path: Path) -> dict[str, Any]:
             },
             "channel_names": list(img.channel_names) if img.channel_names else None,
         }
+
+        # OME metadata: walk the ome_types model into a plain dict so the
+        # Instrument/Objective/Detector/LightSource blocks are preserved.
         md = getattr(img, "metadata", None)
         if isinstance(md, ET.Element):
             out["ome_xml"] = _xml_to_dict(md)
         elif md is not None:
-            out["metadata_repr"] = repr(md)[:2000]
+            out["ome_model"] = _safe(_model_to_dict, md)
+            try:
+                out["ome_model_class"] = f"{type(md).__module__}.{type(md).__name__}"
+            except Exception:
+                pass
+            # Also try to_xml() so we have both forms if downstream code
+            # prefers raw XML for hardware tags Bio-Formats may emit
+            # outside the strict OME schema.
+            if hasattr(md, "to_xml"):
+                try:
+                    xml_str = md.to_xml()
+                    out["ome_xml"] = _xml_to_dict(ET.fromstring(xml_str))
+                except Exception:
+                    pass
+
+        # Bio-Formats OriginalMetadata: vendor-specific key/value pairs
+        # (Olympus VSI exposes ``Objective Name``, ``Objective Working
+        # Distance``, ``Camera Model``, ``Stage Position``, etc. here).
+        reader = getattr(img, "reader", None)
+        for attr in ("metadata", "original_metadata"):
+            val = getattr(reader, attr, None)
+            if isinstance(val, dict) and val:
+                out.setdefault("bf_original_metadata", _model_to_dict(val))
+                break
+
         return out
     finally:
         try:
@@ -260,12 +316,43 @@ def _extract_tif(path: Path) -> dict[str, Any]:
                 "axes": p.axes,
                 "is_ome": tf.is_ome,
                 "byteorder": tf.byteorder,
+                "is_bigtiff": getattr(tf, "is_bigtiff", False),
+                "is_imagej": getattr(tf, "is_imagej", False),
+                "is_lsm": getattr(tf, "is_lsm", False),
+                "is_micromanager": getattr(tf, "is_micromanager", False),
+                "is_scn": getattr(tf, "is_scn", False),
+                "is_svs": getattr(tf, "is_svs", False),
             })
-            if tf.is_ome and tf.ome_metadata:
+
+            # First-page TIFF tags (Make/Model/Software/DateTime/...)
+            tags: dict[str, Any] = {}
+            for tag in p.tags.values():
+                name = tag.name
                 try:
-                    info["ome_xml"] = _xml_to_dict(ET.fromstring(tf.ome_metadata))
+                    val = tag.value
                 except Exception:
-                    pass
+                    continue
+                # Skip tile/strip offsets (huge arrays, no analysis value)
+                if name in ("TileOffsets", "TileByteCounts",
+                            "StripOffsets", "StripByteCounts"):
+                    continue
+                tags[name] = _model_to_dict(val)
+            info["tif_tags"] = tags
+
+            # Vendor-specific metadata blocks emitted by tifffile
+            for attr in ("imagej_metadata", "ome_metadata",
+                         "lsm_metadata", "stk_metadata",
+                         "scanimage_metadata", "micromanager_metadata",
+                         "shaped_metadata", "fluoview_metadata"):
+                val = getattr(tf, attr, None)
+                if val:
+                    if attr == "ome_metadata" and isinstance(val, str):
+                        try:
+                            info["ome_xml"] = _xml_to_dict(ET.fromstring(val))
+                        except Exception:
+                            info["ome_metadata_raw"] = val[:8000]
+                    else:
+                        info[attr] = _model_to_dict(val)
     except Exception as exc:
         info["_error"] = str(exc)
     return info
@@ -292,6 +379,103 @@ def extract_file_metadata(path: Path) -> dict[str, Any]:
 # Flatten raw metadata → one CSV row
 # ---------------------------------------------------------------------------
 
+def _ome_get_first(obj: Any, *keys: str) -> Any:
+    """Walk an ome_model dict by trying each key path in order.
+
+    Each ``key`` is a dot-separated path; integer-looking segments index
+    into lists. Returns the first non-None match or None.
+    """
+    for path in keys:
+        cur = obj
+        ok = True
+        for part in path.split("."):
+            if cur is None:
+                ok = False; break
+            if part.isdigit() and isinstance(cur, list):
+                idx = int(part)
+                cur = cur[idx] if idx < len(cur) else None
+            elif isinstance(cur, dict):
+                cur = cur.get(part)
+            else:
+                ok = False; break
+        if ok and cur is not None:
+            return cur
+    return None
+
+
+def _flatten_ome_hardware(ome: dict) -> dict[str, Any]:
+    """Pull objective / instrument / detector / channel fields from an
+    ome_types model dict into flat ``ome_*`` columns."""
+    out: dict[str, Any] = {}
+    instruments = ome.get("instruments") or []
+    if instruments:
+        inst = instruments[0]
+        mic = inst.get("microscope") or {}
+        out["ome_microscope_model"]        = mic.get("model")
+        out["ome_microscope_manufacturer"] = mic.get("manufacturer")
+        out["ome_microscope_serial"]       = mic.get("serial_number")
+        out["ome_microscope_type"]         = mic.get("type")
+
+        objectives = inst.get("objectives") or []
+        if objectives:
+            obj = objectives[0]
+            out["ome_objective_model"]               = obj.get("model")
+            out["ome_objective_manufacturer"]        = obj.get("manufacturer")
+            out["ome_objective_nominal_magnification"] = obj.get("nominal_magnification")
+            out["ome_objective_calibrated_magnification"] = obj.get("calibrated_magnification")
+            out["ome_objective_lens_na"]             = obj.get("lens_na")
+            out["ome_objective_immersion"]           = obj.get("immersion")
+            out["ome_objective_correction"]          = obj.get("correction")
+            out["ome_objective_working_distance"]    = obj.get("working_distance")
+            out["ome_objective_working_distance_unit"] = obj.get("working_distance_unit")
+            out["ome_n_objectives"] = len(objectives)
+
+        detectors = inst.get("detectors") or []
+        if detectors:
+            det = detectors[0]
+            out["ome_detector_model"]        = det.get("model")
+            out["ome_detector_manufacturer"] = det.get("manufacturer")
+            out["ome_detector_type"]         = det.get("type")
+            out["ome_n_detectors"] = len(detectors)
+
+        light_sources = inst.get("light_source_group") or inst.get("light_sources") or []
+        if light_sources:
+            out["ome_n_light_sources"] = len(light_sources)
+            out["ome_light_source_types"] = json.dumps(
+                [ls.get("kind") or type(ls).__name__ for ls in light_sources]
+            )
+
+    images = ome.get("images") or []
+    if images:
+        im = images[0]
+        out["ome_image_name"]             = im.get("name")
+        out["ome_image_acquisition_date"] = im.get("acquisition_date")
+        out["ome_image_description"]      = im.get("description")
+        pixels = im.get("pixels") or {}
+        out["ome_pixels_type"]            = pixels.get("type")
+        out["ome_pixels_dim_order"]       = pixels.get("dimension_order")
+        out["ome_size_t"]                 = pixels.get("size_t")
+        channels = pixels.get("channels") or []
+        if channels:
+            out["ome_n_channels"] = len(channels)
+            out["ome_channel_names"] = json.dumps(
+                [c.get("name") for c in channels]
+            )
+            out["ome_channel_excitation_nm"] = json.dumps(
+                [c.get("excitation_wavelength") for c in channels]
+            )
+            out["ome_channel_emission_nm"] = json.dumps(
+                [c.get("emission_wavelength") for c in channels]
+            )
+            out["ome_channel_illumination_types"] = json.dumps(
+                [c.get("illumination_type") for c in channels]
+            )
+            out["ome_channel_fluors"] = json.dumps(
+                [c.get("fluor") for c in channels]
+            )
+    return {k: v for k, v in out.items() if v is not None}
+
+
 def _flatten_vsi(raw: dict) -> dict[str, Any]:
     out: dict[str, Any] = {}
     aics = raw.get("aicsimageio", {})
@@ -311,6 +495,18 @@ def _flatten_vsi(raw: dict) -> dict[str, Any]:
     out["pixel_size_y_um"] = pps.get("Y")
     out["pixel_size_z_um"] = pps.get("Z")
     out["channel_names"]   = json.dumps(aics.get("channel_names"))
+
+    ome = aics.get("ome_model")
+    if isinstance(ome, dict):
+        out.update(_flatten_ome_hardware(ome))
+
+    bf = aics.get("bf_original_metadata")
+    if isinstance(bf, dict):
+        # Vendor-specific keys (Olympus VSI uses spaces and slashes):
+        # promote known ones, JSON-encode everything else under bf_*.
+        for k, v in bf.items():
+            col = "bf_" + str(k).strip().replace(" ", "_").replace("/", "_").replace("\\", "_")
+            out[col] = v if isinstance(v, (str, int, float, bool)) or v is None else json.dumps(v)
     return out
 
 
@@ -381,6 +577,23 @@ def _flatten_tif(raw: dict) -> dict[str, Any]:
     out["dtype"] = raw.get("dtype")
     out["axes"] = raw.get("axes")
     out["is_ome"] = raw.get("is_ome")
+    out["is_bigtiff"] = raw.get("is_bigtiff")
+    out["is_imagej"] = raw.get("is_imagej")
+
+    tags = raw.get("tif_tags") or {}
+    for name, val in tags.items():
+        col = "tif_" + name
+        out[col] = val if isinstance(val, (str, int, float, bool)) or val is None \
+            else json.dumps(val)
+
+    # If OME XML was embedded in the TIFF, also surface its hardware
+    # block via the same code path used for VSI.
+    ome_xml = raw.get("ome_xml")
+    if isinstance(ome_xml, dict):
+        # ome_xml is the raw XML-as-dict; ome_types-style hardware
+        # extraction would require a model_dump — skip for now and just
+        # record the description if present.
+        out["tif_ome_xml_present"] = True
     return out
 
 
@@ -498,6 +711,39 @@ _CSV_FIELDS_BASE = [
     "pixel_size_y_um",
     "pixel_size_z_um",
     "channel_names",
+    # from vsi — OME hardware (objective / microscope / detector / channels)
+    "ome_microscope_model",
+    "ome_microscope_manufacturer",
+    "ome_microscope_serial",
+    "ome_microscope_type",
+    "ome_n_objectives",
+    "ome_objective_model",
+    "ome_objective_manufacturer",
+    "ome_objective_nominal_magnification",
+    "ome_objective_calibrated_magnification",
+    "ome_objective_lens_na",
+    "ome_objective_immersion",
+    "ome_objective_correction",
+    "ome_objective_working_distance",
+    "ome_objective_working_distance_unit",
+    "ome_n_detectors",
+    "ome_detector_model",
+    "ome_detector_manufacturer",
+    "ome_detector_type",
+    "ome_n_light_sources",
+    "ome_light_source_types",
+    "ome_image_name",
+    "ome_image_acquisition_date",
+    "ome_image_description",
+    "ome_pixels_type",
+    "ome_pixels_dim_order",
+    "ome_size_t",
+    "ome_n_channels",
+    "ome_channel_names",
+    "ome_channel_excitation_nm",
+    "ome_channel_emission_nm",
+    "ome_channel_illumination_types",
+    "ome_channel_fluors",
     # from ets (fallback)
     "ets_version",
     "ets_ndims",
@@ -507,6 +753,8 @@ _CSV_FIELDS_BASE = [
     "shape",
     "axes",
     "is_ome",
+    "is_bigtiff",
+    "is_imagej",
     # errors
     "metadata_error",
 ]
@@ -588,11 +836,17 @@ def main() -> None:
         succeeded += 1
         logger.info(f"  [OK] {folder.name}")
 
-    # Write CSV — build fieldnames dynamically: base fields first, then all oex_ columns found
+    # Write CSV — fieldnames: base fields first, then any auto-collected
+    # vendor / format-specific columns (oex_*, bf_*, tif_*).
     csv_path = args.output_root / "metadata.csv"
     if csv_rows:
-        oex_cols = sorted({k for row in csv_rows for k in row if k.startswith("oex_")})
-        fieldnames = _CSV_FIELDS_BASE + oex_cols
+        known = set(_CSV_FIELDS_BASE)
+        prefixes = ("oex_", "bf_", "tif_")
+        extra_cols = sorted({
+            k for row in csv_rows for k in row
+            if k not in known and k.startswith(prefixes)
+        })
+        fieldnames = _CSV_FIELDS_BASE + extra_cols
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
