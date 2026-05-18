@@ -17,7 +17,7 @@
     "exclude_patterns": [
       "KONTROLA"
     ],
-    "val_split": 0.1,
+    "val_split": 0.2,
     "batch_size": 64,
     "num_workers": 4,
     "pin_memory": true,
@@ -49,8 +49,8 @@
     "dropout_path_rate": 0.0
   },
   "train": {
-    "epochs": 60,
-    "warmup_epochs": 6,
+    "epochs": 20,
+    "warmup_epochs": 2,
     "base_lr": 0.0002,
     "head_lr": 0.0002,
     "weight_decay": 0.05,
