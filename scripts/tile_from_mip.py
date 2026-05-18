@@ -42,7 +42,9 @@ import argparse
 import csv
 import gc
 import logging
+import os
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -159,10 +161,17 @@ def tile_one(
 # Single-folder processing
 # ---------------------------------------------------------------------------
 
-def process_dir(input_dir: Path, output_dir: Path, patch_size: int) -> list[dict]:
+def _tile_one_worker(args: tuple) -> list[dict]:
+    """Worker function for parallel tiling (must be top-level for pickling)."""
+    npy_path, output_dir, patch_size, source_path = args
+    return tile_one(Path(npy_path), Path(output_dir), patch_size, source_path)
+
+
+def process_dir(
+    input_dir: Path, output_dir: Path, patch_size: int, workers: int = 0
+) -> list[dict]:
     """Tile all full-MIP .npy files in *input_dir*, write patches + index.csv."""
     npy_files = sorted(input_dir.glob("*.npy"))
-    # Skip any stray patch files (named img0001_r00_c00.npy style)
     npy_files = [f for f in npy_files if f.name != "index.csv"]
 
     if not npy_files:
@@ -182,13 +191,30 @@ def process_dir(input_dir: Path, output_dir: Path, patch_size: int) -> list[dict
                 if fname and src:
                     source_map[fname] = src
 
+    # Build work items
+    work_items = [
+        (str(npy_path), str(output_dir), patch_size,
+         source_map.get(npy_path.name, str(npy_path.resolve())))
+        for npy_path in npy_files
+    ]
+
     all_records: list[dict] = []
-    for image_index, npy_path in enumerate(npy_files):
-        source_path = source_map.get(npy_path.name, str(npy_path.resolve()))
-        records = tile_one(
-            npy_path, output_dir, patch_size, source_path, image_index
-        )
-        all_records.extend(records)
+
+    if workers > 1 and len(npy_files) > 1:
+        n_workers = min(workers, len(npy_files))
+        logger.info(f"  Tiling {len(npy_files)} files with {n_workers} workers")
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            futures = {executor.submit(_tile_one_worker, item): item[0] for item in work_items}
+            for future in as_completed(futures):
+                try:
+                    records = future.result()
+                    all_records.extend(records)
+                except Exception as e:
+                    logger.error(f"  Error processing {futures[future]}: {e}")
+    else:
+        for item in work_items:
+            records = _tile_one_worker(item)
+            all_records.extend(records)
 
     all_records.sort(
         key=lambda r: (r["image_index"], r["grid_row"], r["grid_col"])
@@ -245,6 +271,10 @@ def main() -> None:
         help="Process at most this many session folders (0 = all, --input_root only).",
     )
     parser.add_argument(
+        "--workers", type=int, default=0,
+        help="Number of parallel workers (0 = auto based on CPU count, 1 = sequential).",
+    )
+    parser.add_argument(
         "--dry_run", action="store_true",
         help="Print what would be done without tiling.",
     )
@@ -256,6 +286,9 @@ def main() -> None:
     if args.input_root and not args.output_root:
         parser.error("--output_root is required when using --input_root")
 
+    # Resolve worker count
+    workers = args.workers if args.workers > 0 else max(1, os.cpu_count() - 2)
+
     # ---- single folder mode ------------------------------------------------
     if args.input_dir:
         if not args.input_dir.is_dir():
@@ -264,11 +297,12 @@ def main() -> None:
         logger.info(f"Input:      {args.input_dir}")
         logger.info(f"Output:     {args.output_dir}")
         logger.info(f"Patch size: {args.patch_size}")
+        logger.info(f"Workers:    {workers}")
         if args.dry_run:
             n = len(list(args.input_dir.glob("*.npy")))
             logger.info(f"[DRY RUN] Would tile {n} .npy file(s).")
             return
-        process_dir(args.input_dir, args.output_dir, args.patch_size)
+        process_dir(args.input_dir, args.output_dir, args.patch_size, workers)
         return
 
     # ---- batch / root mode -------------------------------------------------
@@ -293,6 +327,7 @@ def main() -> None:
     logger.info(f"Input root:  {args.input_root}")
     logger.info(f"Output root: {args.output_root}")
     logger.info(f"Patch size:  {args.patch_size}")
+    logger.info(f"Workers:     {workers}")
     logger.info(f"Folders:     {len(folders)}")
 
     if args.dry_run:
@@ -307,7 +342,7 @@ def main() -> None:
 
     for i, folder in enumerate(folders, start=1):
         logger.info(f"\n[{i}/{len(folders)}] {folder.name}")
-        records = process_dir(folder, args.output_root / folder.name, args.patch_size)
+        records = process_dir(folder, args.output_root / folder.name, args.patch_size, workers)
         results[folder.name] = len(records)
 
     logger.info(f"\n{'='*70}")
