@@ -20,8 +20,9 @@ Output mirrors the existing patches_128 layout::
         <stem>_r00_c00.npy
         <stem>_r00_c01.npy
         ...
-        index.csv   (filename, source_npy, source_path, grid_row, grid_col,
-                     mean_intensity, channels, patch_size)
+        index.csv   (filename, source_image, source_npy, source_path,
+                     image_index, grid_row, grid_col, mean_intensity,
+                     channels, patch_size)
 
 Usage::
 
@@ -65,6 +66,23 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+
+# Canonical `index.csv` schema shared by every tiler in this repo
+# (preprocess_training.py, scripts/tile_from_mip.py, scripts/tile_from_mip_zip.py).
+# Keep this in sync across all three writers.
+INDEX_FIELDS: tuple[str, ...] = (
+    "filename",
+    "source_image",   # basename of original raw file (e.g. .vsi); '' if unknown
+    "source_npy",     # basename of full-MIP .npy that was tiled
+    "source_path",    # absolute path / UNC / URI of the original file; '' if unknown
+    "image_index",    # stable int per source image, scoped to this index.csv
+    "grid_row",
+    "grid_col",
+    "mean_intensity",
+    "channels",
+    "patch_size",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +176,7 @@ def tile_one(
     output_dir: Path,
     patch_size: int,
     source_path: str,
+    image_index: int,
 ) -> list[dict]:
     """Tile a single in-memory MIP array and write patches to *output_dir*."""
     if mip.ndim == 2:
@@ -189,6 +208,15 @@ def tile_one(
         f"{C}x{H}x{W} -> {n_patches} patches ({n_rows}x{n_cols} grid)"
     )
 
+    # Derive a human-friendly basename for the original raw file. Fall back
+    # to the .npy stem when source_path is empty / a synthetic URI like
+    # ``zip://...``.
+    if source_path and not source_path.startswith("zip://"):
+        source_image = PurePosixPath(source_path.replace("\\", "/")).name
+    else:
+        source_image = stem
+    source_npy = PurePosixPath(member_name).name
+
     records: list[dict] = []
     for idx in range(n_patches):
         patch = patches[idx]
@@ -198,8 +226,10 @@ def tile_one(
         np.save(output_dir / fname, patch)
         records.append({
             "filename": fname,
-            "source_npy": PurePosixPath(member_name).name,
+            "source_image": source_image,
+            "source_npy": source_npy,
             "source_path": source_path,
+            "image_index": image_index,
             "grid_row": row,
             "grid_col": col,
             "mean_intensity": float(patch.mean()),
@@ -222,12 +252,15 @@ def _tile_member_worker(
     output_dir_str: str,
     patch_size: int,
     source_path: str,
+    image_index: int,
 ) -> list[dict]:
     """Open the zip in the worker, load one ``.npy`` member, tile, save."""
     output_dir = Path(output_dir_str)
     with zipfile.ZipFile(zip_path, "r") as zf:
         mip = _load_npy_from_zip(zf, member)
-    return tile_one(mip, member, output_dir, patch_size, source_path)
+    return tile_one(
+        mip, member, output_dir, patch_size, source_path, image_index
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +299,7 @@ def process_zip_dir(
     n_workers = max(1, min(int(workers), len(members)))
 
     if n_workers == 1:
-        for member in members:
+        for image_index, member in enumerate(members):
             member_filename = PurePosixPath(member).name
             source_path = source_map.get(member_filename, f"zip://{member}")
             try:
@@ -275,17 +308,21 @@ def process_zip_dir(
                 logger.error(f"  Failed to load {member}: {e}")
                 continue
             all_records.extend(
-                tile_one(mip, member, output_dir, patch_size, source_path)
+                tile_one(
+                    mip, member, output_dir, patch_size,
+                    source_path, image_index,
+                )
             )
     else:
         logger.info(f"  Using {n_workers} parallel worker(s) for {len(members)} file(s)")
         tasks = []
-        for member in members:
+        for image_index, member in enumerate(members):
             member_filename = PurePosixPath(member).name
             source_path = source_map.get(member_filename, f"zip://{member}")
-            tasks.append(
-                (str(zip_path), member, str(output_dir), patch_size, source_path)
-            )
+            tasks.append((
+                str(zip_path), member, str(output_dir), patch_size,
+                source_path, image_index,
+            ))
         with ProcessPoolExecutor(max_workers=n_workers) as ex:
             future_to_member = {
                 ex.submit(_tile_member_worker, *t): t[1] for t in tasks
@@ -298,13 +335,15 @@ def process_zip_dir(
                     logger.error(f"  Worker failed on {member}: {e}")
 
     all_records.sort(
-        key=lambda r: (r["source_npy"], r["grid_row"], r["grid_col"])
+        key=lambda r: (r["image_index"], r["grid_row"], r["grid_col"])
     )
 
     csv_path = output_dir / "index.csv"
     if all_records:
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=list(all_records[0].keys()))
+            writer = csv.DictWriter(
+                f, fieldnames=list(INDEX_FIELDS), extrasaction="ignore"
+            )
             writer.writeheader()
             writer.writerows(all_records)
         logger.info(

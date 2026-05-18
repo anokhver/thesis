@@ -11,8 +11,9 @@ Output mirrors the standard preprocessing output:
       <stem>_r00_c00.npy
       <stem>_r00_c01.npy
       ...
-      index.csv   (filename, source_npy, source_path, grid_row, grid_col,
-                   mean_intensity, channels, patch_size)
+      index.csv   (filename, source_image, source_npy, source_path,
+                   image_index, grid_row, grid_col, mean_intensity,
+                   channels, patch_size)
 
 Usage::
 
@@ -54,6 +55,23 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Canonical `index.csv` schema shared by every tiler in this repo
+# (preprocess_training.py, scripts/tile_from_mip.py, scripts/tile_from_mip_zip.py).
+# Keep this in sync across all three writers.
+INDEX_FIELDS: tuple[str, ...] = (
+    "filename",
+    "source_image",   # basename of original raw file (e.g. .vsi); '' if unknown
+    "source_npy",     # basename of full-MIP .npy that was tiled
+    "source_path",    # absolute path / UNC / URI of the original file; '' if unknown
+    "image_index",    # stable int per source image, scoped to this index.csv
+    "grid_row",
+    "grid_col",
+    "mean_intensity",
+    "channels",
+    "patch_size",
+)
+
+
 # ---------------------------------------------------------------------------
 # Tiling  (same logic as preprocess_training.py)
 # ---------------------------------------------------------------------------
@@ -78,6 +96,7 @@ def tile_one(
     output_dir: Path,
     patch_size: int,
     source_path: str,
+    image_index: int,
 ) -> list[dict]:
     """Load one full-MIP .npy, tile it, save patches. Return CSV records."""
     mip = np.load(npy_path)  # expected (C, H, W)
@@ -104,6 +123,13 @@ def tile_one(
     stem = npy_path.stem
     logger.info(f"  {npy_path.name}: {C}×{H}×{W} → {n_patches} patches ({n_rows}×{n_cols} grid)")
 
+    # Derive a human-friendly basename for the original raw file. Fall back
+    # to the .npy stem when source_path is empty / a synthetic URI.
+    if source_path and not source_path.startswith("zip://"):
+        source_image = Path(source_path).name
+    else:
+        source_image = npy_path.stem
+
     records = []
     for idx in range(n_patches):
         patch = patches[idx]
@@ -113,8 +139,10 @@ def tile_one(
         np.save(output_dir / fname, patch)
         records.append({
             "filename": fname,
+            "source_image": source_image,
             "source_npy": npy_path.name,
             "source_path": source_path,
+            "image_index": image_index,
             "grid_row": row,
             "grid_col": col,
             "mean_intensity": float(patch.mean()),
@@ -155,17 +183,23 @@ def process_dir(input_dir: Path, output_dir: Path, patch_size: int) -> list[dict
                     source_map[fname] = src
 
     all_records: list[dict] = []
-    for npy_path in npy_files:
+    for image_index, npy_path in enumerate(npy_files):
         source_path = source_map.get(npy_path.name, str(npy_path.resolve()))
-        records = tile_one(npy_path, output_dir, patch_size, source_path)
+        records = tile_one(
+            npy_path, output_dir, patch_size, source_path, image_index
+        )
         all_records.extend(records)
 
-    all_records.sort(key=lambda r: (r["source_npy"], r["grid_row"], r["grid_col"]))
+    all_records.sort(
+        key=lambda r: (r["image_index"], r["grid_row"], r["grid_col"])
+    )
 
     csv_path = output_dir / "index.csv"
     if all_records:
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=list(all_records[0].keys()))
+            writer = csv.DictWriter(
+                f, fieldnames=list(INDEX_FIELDS), extrasaction="ignore"
+            )
             writer.writeheader()
             writer.writerows(all_records)
         logger.info(f"  index.csv → {csv_path}  ({len(all_records)} patches)")
