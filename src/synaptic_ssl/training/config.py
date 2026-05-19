@@ -152,6 +152,19 @@ class SSLCfg:
     # foreground for the diagnostic recon_fg metric. tau=1 means "one
     # channel std above the channel mean" — a punctum in z-scored inputs.
     fg_metric_threshold: float = 1.0
+    # When True, validation builds two augmented views per sample using the
+    # train-time augmentation pipeline (with deterministic per-sample seeding
+    # so the val number is comparable across epochs) and computes the full
+    # joint SimMIM+VICReg loss under ``no_grad``. The validation dict then
+    # gains a ``sim`` term and a true ``ssl_loss`` matching the training
+    # objective. When False (default), validation is single-view and
+    # ``L_sim`` is omitted -- existing behaviour, exactly preserved.
+    two_view_validation: bool = False
+    # Base seed used by the deterministic two-view validation transform and
+    # by the deterministic validation block-mask. Per-sample seed is
+    # ``val_view_seed + sample_index``; per-batch mask seed is
+    # ``val_view_seed + batch_index``.
+    val_view_seed: int = 12345
 
 def _to_jsonable(obj: Any) -> Any:
     if dataclasses.is_dataclass(obj):

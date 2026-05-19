@@ -13,7 +13,14 @@ from ..utils_data.patch_dataset import PatchDataset
 
 
 class TransformedSubset(Dataset):
-    """Apply ``transform`` on the fly to every sample of a ``Subset``."""
+    """Apply ``transform`` on the fly to every sample of a ``Subset``.
+
+    If the transform has ``wants_index = True`` (e.g.
+    :class:`SeededTwoViewTransform`), the original sample index is forwarded
+    as the second positional argument, allowing deterministic per-sample
+    augmentation. Otherwise the transform is called with the sample only --
+    fully backward-compatible with all existing transforms.
+    """
 
     def __init__(self, subset, transform: Callable):
         self.subset = subset
@@ -23,7 +30,10 @@ class TransformedSubset(Dataset):
         return len(self.subset)
 
     def __getitem__(self, i):
-        return self.transform(self.subset[i])
+        sample = self.subset[i]
+        if getattr(self.transform, "wants_index", False):
+            return self.transform(sample, i)
+        return self.transform(sample)
 
 
 def split_train_val(

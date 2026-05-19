@@ -168,10 +168,44 @@ def extract_patch_embeddings(
         source_images = np.array(["UNKNOWN"] * Z.shape[0])
         image_indices = np.zeros(Z.shape[0], dtype=np.int64)
     else:
-        filenames     = np.array([r["filename"]              for r in records])
-        source_images = np.array([r["source_image"]          for r in records])
-        image_indices = np.array([int(r.get("image_index", 0))
-                                   for r in records], dtype=np.int64)
+        # Tolerate heterogeneous index.csv schemas: older zip-tiler outputs
+        # only write ``source_npy`` / ``source_path`` and omit ``source_image``
+        # and ``image_index``. Fall back to whatever per-source identifier
+        # is available, and derive a stable per-image int when missing.
+        def _resolve_source_image(r):
+            val = (r.get("source_image")
+                   or r.get("source_npy")
+                   or r.get("source_path"))
+            if not val:
+                return "UNKNOWN"
+            s = str(val).replace("\\", "/")
+            return s.rsplit("/", 1)[-1] or s
+
+        filenames     = np.array([r["filename"] for r in records])
+        source_images = np.array([_resolve_source_image(r) for r in records])
+
+        parsed_indices: list[int] = []
+        needs_derive = False
+        for r in records:
+            raw = str(r.get("image_index", "")).strip()
+            if not raw:
+                needs_derive = True
+                break
+            try:
+                parsed_indices.append(int(raw))
+            except ValueError:
+                needs_derive = True
+                break
+        if not needs_derive and len(parsed_indices) == len(records):
+            image_indices = np.array(parsed_indices, dtype=np.int64)
+        else:
+            seen: dict[str, int] = {}
+            indices_list: list[int] = []
+            for s in source_images.tolist():
+                if s not in seen:
+                    seen[s] = len(seen)
+                indices_list.append(seen[s])
+            image_indices = np.array(indices_list, dtype=np.int64)
 
     if cache_path is not None:
         cache_path.parent.mkdir(parents=True, exist_ok=True)

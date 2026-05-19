@@ -160,7 +160,9 @@ def compute_simmim_vicreg_loss(
 
     ``w_vicreg == 0`` skips the clean-view encoder pass (projector still runs
     under ``no_grad`` for diagnostics). ``fixed_mask=None`` samples a fresh
-    block mask. All loss math runs in fp32 under disabled autocast.
+    block mask. Encoder forwards (both masked and clean) run under the outer
+    autocast (typically fp16); only the *loss math* (recon, fourier, sim/std/
+    cov, vicreg) runs in fp32 for numerical stability.
     """
     decoder    = heads["decoder"]
     mask_token = heads["mask_token"]
@@ -179,7 +181,18 @@ def compute_simmim_vicreg_loss(
     r1 = decoder(z1_masked)
     r2 = decoder(z2_masked)
 
-    # fp32 forced — avoids inf grads from autocast fp16.
+    # ── VICReg encoder passes (clean views) ─────────────────────────
+    # Run BEFORE the fp32 block below so these forwards use the OUTER
+    # autocast (fp16), consistent with the masked-view passes above.
+    # Placing them inside ``autocast(enabled=False)`` would force them to
+    # fp32 and roughly double activation memory -- enough to OOM the
+    # vicreg_on path on a 95 GiB GPU even at batch_size=160.
+    if ssl_cfg.w_vicreg > 0:
+        z1_clean = _encode_at(encoder, view1.contiguous(), ssl_cfg.head_stage_index)
+        z2_clean = _encode_at(encoder, view2.contiguous(), ssl_cfg.head_stage_index)
+
+    # fp32 forced for the loss math only -- avoids inf grads from autocast
+    # fp16 in covariance/std computations. Encoder forwards stay in fp16.
     device_type = z1_masked.device.type
     with torch.amp.autocast(device_type, enabled=False):
         r1f = r1.float()
@@ -215,10 +228,11 @@ def compute_simmim_vicreg_loss(
         else:
             L_fourier = torch.tensor(0.0, device=view1.device)
 
-        # ── VICReg branch: encoder sees CLEAN views ─────────────────
+        # ── VICReg projector + loss math (fp32) ─────────────────────
+        # Encoder forwards above already produced ``z*_clean``; here we
+        # only run the projector + sim/std/cov in fp32 for numerical
+        # stability (covariance can underflow in fp16).
         if ssl_cfg.w_vicreg > 0:
-            z1_clean = _encode_at(encoder, view1.contiguous(), ssl_cfg.head_stage_index)
-            z2_clean = _encode_at(encoder, view2.contiguous(), ssl_cfg.head_stage_index)
             p1 = projector(z1_clean.float().mean(dim=(-2, -1)))
             p2 = projector(z2_clean.float().mean(dim=(-2, -1)))
             L_sim, L_std, L_cov = vicreg_terms(p1, p2)
@@ -308,3 +322,45 @@ def validation_simmim(
         "std":      float(L_std.item()),
         "cov":      float(L_cov.item()),
     }
+
+
+def validation_simmim_two_view(
+    encoder: nn.Module,
+    heads: dict[str, nn.Module],
+    view1: torch.Tensor,
+    view2: torch.Tensor,
+    ssl_cfg: SSLCfg,
+    *,
+    mask_seed: int = 0,
+) -> dict:
+    """Two-view validation step computing the full joint SSL loss.
+
+    Mirrors :func:`compute_simmim_vicreg_loss` under ``no_grad``, with a
+    deterministic block mask seeded by ``mask_seed`` so the val number is
+    reproducible across epochs. Returns the same metrics dict shape as
+    ``compute_simmim_vicreg_loss`` (keys: ``ssl_loss``, ``recon``,
+    ``recon_fg``, ``fourier``, ``sim``, ``std``, ``cov``, ``vicreg``). The
+    ``ssl_loss`` here is the *true* joint objective on two views, matching
+    what training optimises.
+    """
+    # Deterministic mask, restored RNG state.
+    cpu_state = torch.get_rng_state()
+    cuda_state = (
+        torch.cuda.get_rng_state(view1.device)
+        if view1.is_cuda else None
+    )
+    try:
+        torch.manual_seed(int(mask_seed))
+        if view1.is_cuda:
+            torch.cuda.manual_seed(int(mask_seed))
+        mask = random_block_mask(view1, ssl_cfg.mask_block_size, ssl_cfg.mask_ratio)
+    finally:
+        torch.set_rng_state(cpu_state)
+        if cuda_state is not None:
+            torch.cuda.set_rng_state(cuda_state, view1.device)
+
+    with torch.no_grad():
+        _, metrics = compute_simmim_vicreg_loss(
+            encoder, heads, view1, view2, ssl_cfg, fixed_mask=mask,
+        )
+    return metrics

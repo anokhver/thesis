@@ -112,3 +112,41 @@ class ValSingleViewTransform:
         if not torch.is_tensor(x):
             x = torch.from_numpy(x)
         return (x.float() - self.ch_mean) / self.ch_std
+
+
+class SeededTwoViewTransform(MicroscopyTwoViewTransform):
+    """Deterministic two-view transform for reproducible validation.
+
+    Identical augmentation pipeline as :class:`MicroscopyTwoViewTransform`, but
+    seeds the global CPU RNG with ``base_seed + sample_index`` before each call
+    and restores it afterwards. Result: the same sample index always yields the
+    same ``(v1, v2)`` pair across epochs, so val metrics measure model
+    improvement rather than augmentation noise. The ``wants_index = True``
+    attribute is detected by :class:`TransformedSubset` so the index is passed
+    through ``__call__``.
+    """
+
+    wants_index = True
+
+    def __init__(
+        self,
+        ch_mean: torch.Tensor,
+        ch_std: torch.Tensor,
+        *,
+        base_seed: int = 12345,
+        **kwargs,
+    ):
+        super().__init__(ch_mean, ch_std, **kwargs)
+        self.base_seed = int(base_seed)
+
+    def __call__(self, x, idx=None):
+        if idx is None:
+            # Fallback: behave like the base transform (non-deterministic).
+            return super().__call__(x)
+        cpu_state = torch.get_rng_state()
+        try:
+            torch.manual_seed(self.base_seed + int(idx))
+            result = super().__call__(x)
+        finally:
+            torch.set_rng_state(cpu_state)
+        return result

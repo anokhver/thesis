@@ -37,7 +37,11 @@ from synaptic_ssl.training.config import BaseCfg, DataCfg, ModelCfg, TrainCfg, S
 from synaptic_ssl.training.seeding import seed_everything
 from synaptic_ssl.training.logging import setup_logger, CSVMetricLogger
 from synaptic_ssl.training.data import TransformedSubset, compute_channel_stats
-from synaptic_ssl.training.augment import MicroscopyTwoViewTransform, ValSingleViewTransform
+from synaptic_ssl.training.augment import (
+    MicroscopyTwoViewTransform,
+    ValSingleViewTransform,
+    SeededTwoViewTransform,
+)
 from synaptic_ssl.training.masking import random_block_mask
 from synaptic_ssl.training.losses import compute_simmim_vicreg_loss
 from synaptic_ssl.training.lr_schedule import param_groups_layer_decay, make_warmup_cosine
@@ -203,7 +207,21 @@ def main():
 
     # Augmentation pipelines
     train_transform = MicroscopyTwoViewTransform(ch_mean, ch_std)
-    val_transform   = ValSingleViewTransform(ch_mean, ch_std)
+    # Two-view validation uses the train augmentation pipeline with
+    # deterministic per-sample seeding (val number comparable across epochs).
+    # When disabled (default), use the cheap single-view z-score transform
+    # -- exactly the pre-change behaviour.
+    if getattr(ssl_cfg, "two_view_validation", False):
+        val_transform = SeededTwoViewTransform(
+            ch_mean, ch_std,
+            base_seed=int(getattr(ssl_cfg, "val_view_seed", 12345)),
+        )
+        logger.info(
+            f"validation: two-view mode (seeded, base_seed={ssl_cfg.val_view_seed})"
+        )
+    else:
+        val_transform = ValSingleViewTransform(ch_mean, ch_std)
+        logger.info("validation: single-view mode")
 
     # DataLoaders
     train_ds = TransformedSubset(train_subset, train_transform)
@@ -305,25 +323,49 @@ def main():
             logger.info(f"  stage {i}: {tuple(f.shape)}{tag}")
         encoder.train()
 
-        # Gradient flow check
+        # Gradient flow check.
+        #
+        # This must mirror ``train_one_epoch`` (autocast + GradScaler +
+        # grad-clip) so peak VRAM here is representative of real training.
+        # A bare fp32 forward+backward at the full configured batch_size can
+        # OOM on GPUs where AMP training fits comfortably -- that gives a
+        # misleading "will I blow RAM?" signal.
         encoder.train()
         for h in heads.values():
             h.train()
-        _opt = torch.optim.AdamW(
+        _trainable = (
             list(encoder.parameters())
-            + [p for h in heads.values() for p in h.parameters()],
-            lr=1e-4,
+            + [p for h in heads.values() for p in h.parameters()]
         )
-        _v1 = v1.to(device)
-        _v2 = v2.to(device)
+        _opt    = torch.optim.AdamW(_trainable, lr=1e-4)
+        _scaler = torch.amp.GradScaler(device.type, enabled=device.type == "cuda")
+        _v1 = v1.to(device, non_blocking=True)
+        _v2 = v2.to(device, non_blocking=True)
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
         _opt.zero_grad(set_to_none=True)
-        _loss, _m = compute_simmim_vicreg_loss(encoder, heads, _v1, _v2, ssl_cfg)
-        _loss.backward()
+        with torch.amp.autocast(device.type, enabled=device.type == "cuda"):
+            _loss, _m = compute_simmim_vicreg_loss(encoder, heads, _v1, _v2, ssl_cfg)
+        _scaler.scale(_loss).backward()
+        _scaler.unscale_(_opt)
+        torch.nn.utils.clip_grad_norm_(_trainable, max_norm=train_cfg.grad_clip_norm)
         n_grad = sum(1 for p in encoder.parameters() if p.grad is not None)
         n_tot  = sum(1 for _ in encoder.parameters())
-        _opt.step()
-        del _opt, _loss, _m, _v1, _v2
-        logger.info(f"[ok] grad flow: {n_grad}/{n_tot} encoder params got gradients")
+        _scaler.step(_opt)
+        _scaler.update()
+        if device.type == "cuda":
+            peak_gb  = torch.cuda.max_memory_allocated(device) / 1e9
+            total_gb = torch.cuda.get_device_properties(device).total_memory / 1e9
+            logger.info(
+                f"[ok] grad flow: {n_grad}/{n_tot} encoder params got gradients  "
+                f"peak VRAM = {peak_gb:.2f} / {total_gb:.2f} GB "
+                f"({100 * peak_gb / total_gb:.1f}%, AMP-matched to training)"
+            )
+        else:
+            logger.info(f"[ok] grad flow: {n_grad}/{n_tot} encoder params got gradients")
+        del _opt, _scaler, _loss, _m, _v1, _v2, _trainable
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
 
     # ── Overfit check ──
     overfit_result = None
@@ -454,6 +496,13 @@ def main():
     logger.info(f"start_epoch = {start_epoch}  best_val_metric = {best_val_metric}")
 
     # ── CSV metric logger ──
+    # ``train_loss`` IS the joint optimised loss; ``val_ssl_loss`` is the
+    # joint val loss (populated only in two-view validation mode -- empty in
+    # single-view mode). All ``*_sim``/``*_std``/``*_cov`` are the *raw*
+    # VICReg components (before the (lambda_sim, lambda_std, lambda_cov)
+    # weights); ``*_vicreg`` is their lambda-weighted aggregate (before
+    # ``w_vicreg``). ``*_recon_fg`` is the foreground-only recon diagnostic
+    # (not part of the optimised loss).
     csv_fields = [
         "epoch", "phase",
         "train_loss", "val_metric",
@@ -461,8 +510,16 @@ def main():
         "epoch_time_s", "train_time_s", "val_time_s",
         "best_val_metric", "best_epoch",
         "grad_norm_mean", "grad_norm_max",
-        "train_recon", "train_fourier", "train_sim", "train_std", "train_cov", "train_vicreg",
-        "val_recon", "val_fourier", "val_std", "val_cov",
+        # train components
+        "train_recon", "train_recon_fg",
+        "train_fourier",
+        "train_sim", "train_std", "train_cov", "train_vicreg",
+        # val components (always logged when present)
+        "val_recon", "val_recon_fg",
+        "val_fourier",
+        "val_std", "val_cov",
+        # Two-view validation extras (empty cells in single-view mode).
+        "val_sim", "val_vicreg", "val_ssl_loss",
     ]
     csv_logger = CSVMetricLogger(save_dir / "metrics.csv", csv_fields)
 
@@ -568,21 +625,34 @@ def main():
                 best_val_metric=best_val_metric, best_epoch=best_epoch,
                 grad_norm_mean=gmean, grad_norm_max=gmax,
                 train_recon=train_components.get("recon"),
+                train_recon_fg=train_components.get("recon_fg"),
                 train_fourier=train_components.get("fourier"),
                 train_sim=train_components.get("sim"),
                 train_std=train_components.get("std"),
                 train_cov=train_components.get("cov"),
                 train_vicreg=train_components.get("vicreg"),
                 val_recon=val_accum.get("recon"),
+                val_recon_fg=val_accum.get("recon_fg"),
                 val_fourier=val_accum.get("fourier"),
                 val_std=val_accum.get("std"),
                 val_cov=val_accum.get("cov"),
+                val_sim=val_accum.get("sim"),
+                val_vicreg=val_accum.get("vicreg"),
+                val_ssl_loss=val_accum.get("ssl_loss"),
             ))
             logger.info(
                 f"ep {epoch:3d}/{train_cfg.epochs} [{phase}]  "
                 f"train={train_loss:.5f}  val[{train_cfg.val_metric_key}]={val_metric:.5f}  "
-                f"recon(t/v)={train_components.get('recon', 0):.4f}/{val_accum.get('recon', 0):.4f}  "
+                + (
+                    f"val_ssl={val_accum.get('ssl_loss', 0):.4f}  "
+                    if val_accum.get("ssl_loss") is not None else ""
+                )
+                + f"recon(t/v)={train_components.get('recon', 0):.4f}/{val_accum.get('recon', 0):.4f}  "
+                f"recon_fg(t/v)={train_components.get('recon_fg', 0):.4f}/{val_accum.get('recon_fg', 0):.4f}  "
+                f"vicreg(t/v)={train_components.get('vicreg', 0):.4f}/{val_accum.get('vicreg', 0):.4f}  "
+                f"sim(t/v)={train_components.get('sim', 0):.4f}/{val_accum.get('sim', 0):.4f}  "
                 f"std(t/v)={train_components.get('std', 0):.4f}/{val_accum.get('std', 0):.4f}  "
+                f"cov(t/v)={train_components.get('cov', 0):.4f}/{val_accum.get('cov', 0):.4f}  "
                 f"lr(enc/head)={enc_lr:.2e}/{head_lr:.2e}  t={epoch_time:.1f}s  gn={gmean:.2f}{improved}"
             )
 
