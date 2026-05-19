@@ -6,8 +6,10 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data (too large for GitHub)
-/data/
-*.pt
+data/*
+!data/imaging_outputs/
+!data/data_analysis/
+
 
 
 # Papermill executed-notebook outputs
