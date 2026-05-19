@@ -19,7 +19,18 @@ class PatchDataset(Dataset):
     matches on ``source_image`` are dropped. ``transform`` runs on the
     numpy array before tensor conversion.
 
-    Two layouts are supported:
+    Three exclusion mechanisms are supported (all combine OR-wise):
+
+    * ``exclude_patterns``: case-insensitive substring match against
+      ``source_image`` / ``source_path`` / ``source_npy`` (e.g. ``KONTROLA``).
+    * ``exclude_sources``: **exact-match** against the same three columns or
+      against the basename of ``source_path``. Use this with the JSON
+      denylist produced by ``scripts/score_image_noise.py`` to drop entire
+      noise-dominated source images.
+    * ``exclude_damaged``: drops rows whose ``damaged`` column is truthy
+      (populated by :mod:`damage_detection`).
+
+    Two on-disk layouts are supported:
 
     * **Flat**: ``root/index.csv`` + ``root/<filename>.npy``. Behaves as before.
     * **Nested**: ``root/<subdir>/index.csv`` + ``root/<subdir>/<filename>.npy``.
@@ -37,6 +48,7 @@ class PatchDataset(Dataset):
         transform=None,
         exclude_patterns: list[str] | None = None,
         exclude_damaged: bool = True,
+        exclude_sources: list[str] | set[str] | None = None,
     ):
         self.root = Path(root)
         self.channels = channels
@@ -102,6 +114,31 @@ class PatchDataset(Dataset):
             dropped = before - len(self.records)
             if dropped:
                 log.info(f"Excluded {dropped} damaged patches")
+
+        # Exact-match exclusion against an explicit denylist of source names
+        # (typically produced by ``scripts/score_image_noise.py``). We match
+        # against source_npy / source_image / source_path AND the basename of
+        # source_path so that callers can pass either bare ``.npy`` names or
+        # full paths.
+        if exclude_sources and self.records:
+            deny = {str(s).strip() for s in exclude_sources if str(s).strip()}
+            if deny:
+                before = len(self.records)
+                self.records = [
+                    r for r in self.records
+                    if not (
+                        str(r.get("source_npy",   "")).strip() in deny
+                        or str(r.get("source_image", "")).strip() in deny
+                        or str(r.get("source_path",  "")).strip() in deny
+                        or Path(str(r.get("source_path", ""))).name in deny
+                    )
+                ]
+                dropped = before - len(self.records)
+                if dropped:
+                    log.info(
+                        f"Excluded {dropped} patches matching "
+                        f"{len(deny)} exclude_sources entries"
+                    )
 
     def __len__(self) -> int:
         return len(self.records)
