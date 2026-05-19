@@ -5,7 +5,7 @@
     "seed": 42,
     "output_root": "../data/training_outputs/pretrain_tinny22k",
     "experiment_name": "simmim_vicreg_pretrain",
-    "tag": "tinny22k_no_fourier_vicreg_on",
+    "tag": "tinny22k_fourier_vicreg_weak",
     "method_name": "simmim_vicreg",
     "init_source": "timm_imagenet",
     "pretrained_ckpt_path": "../data/checkpoints/swin_tiny_patch4_window7_224_22k.pth",
@@ -91,7 +91,7 @@
     "save_every_n_epochs": 5,
     "val_metric_key": "recon_fg",
     "val_metric_direction": "min",
-    "encoder_save_name": "pretrained_encoder_tinny22k_no_fourier_vicreg_on.pt"
+    "encoder_save_name": "pretrained_encoder_tinny22k_fourier_vicreg_weak.pt"
   },
   "ssl": {
     "mask_ratio": 0.6,
@@ -101,10 +101,10 @@
     "lambda_std": 25.0,
     "lambda_cov": 1.0,
     "w_recon": 1.0,
-    "w_vicreg": 0.25,
+    "w_vicreg": 0.05,
     "projector_hidden": 2048,
     "projector_dim": 2048,
-    "w_fourier": 0.0,
+    "w_fourier": 0.01,
     "head_stage_index": -1,
     "two_view_validation": true,
     "val_view_seed": 42
