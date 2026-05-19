@@ -190,3 +190,7 @@ class ImageCache:
     def clear(self) -> None:
         """Drop all cached images."""
         self._cache.clear()
+
+    def evict(self, image_index: int) -> None:
+        """Drop a single image from the cache."""
+        self._cache.pop(int(image_index), None)
