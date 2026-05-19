@@ -31,6 +31,7 @@ dependencies:
   - gmpy2=2.3.0
   - icu=78.3
   - ipython=9.12.0
+  - ipykernel=6.31.0
   - ipython_pygments_lexers=1.1.1
   - ipywidgets=8.1.8
   - jedi=0.19.2
@@ -40,8 +41,7 @@ dependencies:
   - ld_impl_linux-64=2.45.1
   - lerc=4.1.0
   - libabseil=20240722.0
-  - libavif16=1.4.1
-  - libblas=3.11.0
+  - libavif16=1.4.1cd 
   - libcap=2.77
   - libcblas=3.11.0
   - libcublas=12.4.5.8
@@ -344,3 +344,4 @@ dependencies:
       - yarl==1.23.0
       - zarr==2.15.0
 prefix: /storage/brno2/home/anokhver/.conda/envs/microscopy
+#TODO add ipykernel

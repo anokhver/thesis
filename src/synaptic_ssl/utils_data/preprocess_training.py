@@ -42,6 +42,23 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Canonical `index.csv` schema shared by every tiler in this repo
+# (preprocess_training.py, scripts/tile_from_mip.py, scripts/tile_from_mip_zip.py).
+# Keep this in sync across all three writers.
+INDEX_FIELDS: tuple[str, ...] = (
+    "filename",
+    "source_image",   # basename of original raw file (e.g. .vsi); '' if unknown
+    "source_npy",     # basename of full-MIP .npy that was tiled; '' for this pipeline
+    "source_path",    # absolute path / UNC / URI of the original file; '' if unknown
+    "image_index",    # stable int per source image, scoped to this index.csv
+    "grid_row",
+    "grid_col",
+    "mean_intensity",
+    "channels",
+    "patch_size",
+)
+
+
 # ---------------------------------------------------------------------------
 # Loading
 # ---------------------------------------------------------------------------
@@ -260,6 +277,8 @@ def process_single_image(
         records.append({
             "filename": fname,
             "source_image": path.name,
+            "source_npy": "",
+            "source_path": str(path.resolve()),
             "image_index": image_index,
             "grid_row": row,
             "grid_col": col,
@@ -455,9 +474,10 @@ def main():
 
     csv_path = args.output_dir / "index.csv"
     if all_records:
-        fieldnames = list(all_records[0].keys())
         with open(csv_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(
+                f, fieldnames=list(INDEX_FIELDS), extrasaction="ignore"
+            )
             writer.writeheader()
             writer.writerows(all_records)
     else:
