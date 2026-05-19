@@ -61,7 +61,7 @@ _TIF_EXTS = [".tif", ".tiff"]
 # Folder scanning
 # ---------------------------------------------------------------------------
 
-def _find_session_folders(root: Path) -> list[Path]:
+def _find_session_folders(root: Path, recursive: bool = False) -> list[Path]:
     """Return sorted subdirectories of *root* that contain at least one
     microscopy file (.oex / .vsi / .ets / .tif / .tiff)."""
     extensions = {".oex", ".vsi", ".ets", ".tif", ".tiff"}
@@ -71,7 +71,8 @@ def _find_session_folders(root: Path) -> list[Path]:
         logger.error(f"Input root does not exist: {root}")
         return []
 
-    for item in sorted(root.iterdir()):
+    iter_dirs = root.rglob("*") if recursive else root.iterdir()
+    for item in sorted(iter_dirs):
         if not item.is_dir():
             continue
         has_file = any(
@@ -79,7 +80,8 @@ def _find_session_folders(root: Path) -> list[Path]:
         )
         if has_file:
             folders.append(item)
-            logger.info(f"  Found session: {item.name}")
+            rel = item.relative_to(root)
+            logger.info(f"  Found session: {rel}")
 
     return folders
 
@@ -784,6 +786,10 @@ def main() -> None:
         "--dry_run", action="store_true",
         help="Print what would be done without extracting anything.",
     )
+    parser.add_argument(
+        "--recursive", action="store_true",
+        help="Recursively scan nested subfolders under --input_root for session folders.",
+    )
 
     args = parser.parse_args()
 
@@ -793,9 +799,10 @@ def main() -> None:
     logger.info(f"Input root:  {args.input_root}")
     logger.info(f"Output root: {args.output_root}")
     logger.info(f"Max folders: {args.max_folders if args.max_folders > 0 else 'all'}")
+    logger.info(f"Recursive:   {args.recursive}")
 
     logger.info(f"\nScanning for session folders in {args.input_root} ...")
-    folders = _find_session_folders(args.input_root)
+    folders = _find_session_folders(args.input_root, recursive=args.recursive)
 
     if not folders:
         logger.error("No session folders found!")
@@ -812,7 +819,8 @@ def main() -> None:
         for folder in folders:
             oex = _pick_file_by_exts(folder, _OEX_EXTS)
             vsi = _pick_file_by_exts(folder, _VSI_EXTS)
-            logger.info(f"  - {folder.name}  OEX={oex.name if oex else 'none'}  VSI={vsi.name if vsi else 'none'}")
+            rel = folder.relative_to(args.input_root)
+            logger.info(f"  - {rel}  OEX={oex.name if oex else 'none'}  VSI={vsi.name if vsi else 'none'}")
         return
 
     args.output_root.mkdir(parents=True, exist_ok=True)
@@ -825,11 +833,16 @@ def main() -> None:
         logger.info(f"\n[{i}/{len(folders)}] {folder.name}")
         result = process_session(folder)
         if result is None:
-            full_json.append({"session_folder": folder.name, "_error": "no file found"})
+            full_json.append({
+                "session_folder": folder.name,
+                "session_path": str(folder),
+                "_error": "no file found",
+            })
             continue
         csv_rows.append(result["csv_row"])
         full_json.append({
             "session_folder": folder.name,
+            "session_path": str(folder),
             "sources": result["sources"],
             "metadata": result["raw_metadata"],
         })
@@ -865,9 +878,10 @@ def main() -> None:
     logger.info(f"{'='*70}")
     logger.info(f"Succeeded: {succeeded}/{len(folders)}")
     if succeeded < len(folders):
-        failed = [f.name for f in folders if not any(r["session_folder"] == f.name for r in csv_rows)]
-        for name in failed:
-            logger.info(f"  - {name}")
+        succeeded_paths = {str(r["session_path"]) for r in csv_rows}
+        failed = [str(f) for f in folders if str(f) not in succeeded_paths]
+        for path in failed:
+            logger.info(f"  - {path}")
 
 
 if __name__ == "__main__":
