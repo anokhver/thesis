@@ -35,7 +35,7 @@ import torch
 from torch.utils.data import random_split
 
 _REPO = Path(__file__).resolve().parents[1]
-_ROOT = _REPO / "root"
+_ROOT = _REPO / "src"
 for _p in (_ROOT, _REPO):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
@@ -258,7 +258,11 @@ def process_run(run_dir: Path, device: torch.device, args: argparse.Namespace) -
             show=False,
         )
 
-    if args.run_full_image and bool(full_image_cfg.get("enabled", False)):
+    if args.run_full_image:
+        # CLI flag forces full-image recon even when the saved config has
+        # no `full_image` block or has `enabled=false`.
+        effective_full_image_cfg = dict(full_image_cfg) if full_image_cfg else {}
+        effective_full_image_cfg["enabled"] = True
         try:
             run_full_image_recon(
                 encoder,
@@ -272,7 +276,7 @@ def process_run(run_dir: Path, device: torch.device, args: argparse.Namespace) -
                 run_dir,
                 run_label,
                 device,
-                full_image_cfg,
+                effective_full_image_cfg,
                 logger,
             )
         except Exception as e:

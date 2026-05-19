@@ -13,12 +13,11 @@ import torch.nn as nn
 # groups become trainable from that epoch onwards. The schedule is cumulative
 # (later entries override earlier ones based on the current epoch).
 DEFAULT_UNFREEZE_SCHEDULE: list[list] = [
-    [1,  ["random", "layers4"]],
-    [3,  ["random", "layers4"]],
-    [6,  ["random", "layers4", "layers3"]],
-    [9,  ["random", "layers4", "layers3", "layers2"]],
-    [12, ["random", "layers4", "layers3", "layers2", "layers1"]],
-    [15, ["random", "layers4", "layers3", "layers2", "layers1", "patch_embed"]],
+    [1, ["random", "layers4"]],
+    [2, ["random", "layers4", "layers3"]],
+    [3, ["random", "layers4", "layers3", "layers2"]],
+    [4, ["random", "layers4", "layers3", "layers2", "layers1"]],
+    [5, ["random", "layers4", "layers3", "layers2", "layers1", "patch_embed"]],
 ]
 
 # Default schedule for ``init_source="scratch"``: train every encoder

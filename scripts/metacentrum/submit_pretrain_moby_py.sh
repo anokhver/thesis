@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -N pretrain_moby_script
 #PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=95000mb:scratch_local=20gb
-#PBS -l walltime=10:00:00
+#PBS -l walltime=5:00:00
 #PBS -j oe
 #PBS -o /storage/brno2/home/anokhver/thesis/logs/
 #PBS -m abe

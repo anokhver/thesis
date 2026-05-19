@@ -18,8 +18,8 @@
       "KONTROLA"
     ],
     "val_split": 0.1,
-    "batch_size": 64,
-    "num_workers": 4,
+    "batch_size": 224,
+    "num_workers": 6,
     "pin_memory": true,
     "channel_names": [
       "pre_synaptic",
@@ -49,10 +49,10 @@
     "dropout_path_rate": 0.0
   },
   "train": {
-    "epochs": 20,
+    "epochs": 30,
     "warmup_epochs": 2,
-    "base_lr": 0.0002,
-    "head_lr": 0.0002,
+    "base_lr": 0.0007,
+    "head_lr": 0.0007,
     "weight_decay": 0.05,
     "layer_decay": 1.0,
     "grad_clip_norm": 5.0,
@@ -71,8 +71,8 @@
     "lambda_cov": 1.0,
     "w_recon": 1.0,
     "w_vicreg": 0.5,
-    "projector_hidden": 2048,
-    "projector_dim": 2048,
+    "projector_hidden": 512,
+    "projector_dim": 512,
     "w_fourier": 0.0,
     "head_stage_index": -1
   },
