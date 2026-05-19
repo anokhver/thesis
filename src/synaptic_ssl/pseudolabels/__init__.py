@@ -15,6 +15,7 @@ from .blobs import (
 from .refine import (
     RefineCfg,
     region_grow_from_prob,
+    seed_from_prob_map,
     fuse_image_with_prob,
     compute_mask_iou,
     compute_positive_fraction,
@@ -38,7 +39,7 @@ __all__ = [
     "compute_fullimage_structural_mask", "generate_pseudolabels_fullimage",
     # refine
     "RefineCfg",
-    "region_grow_from_prob", "fuse_image_with_prob",
+    "region_grow_from_prob", "seed_from_prob_map", "fuse_image_with_prob",
     "compute_mask_iou", "compute_positive_fraction",
     # viz
     "show_3channel_grid", "show_blob_overlay", "show_scored_blobs",

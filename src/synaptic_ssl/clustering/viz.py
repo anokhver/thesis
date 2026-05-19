@@ -47,19 +47,6 @@ def plot_resolution_stability(summary: dict, full: dict, ax=None):
     return ax
 
 
-def plot_bic_curve(bics, ax=None, title: str = "GMM-BIC"):
-    import matplotlib.pyplot as plt
-    if ax is None:
-        _, ax = plt.subplots(figsize=(6, 3.5))
-    ks, bs = zip(*sorted(bics))
-    ax.plot(ks, bs, "o-")
-    bestk = ks[int(np.argmin(bs))]
-    ax.axvline(bestk, color="red", ls="--", label=f"BIC-min K = {bestk}")
-    ax.set_xlabel("K"); ax.set_ylabel("BIC")
-    ax.set_title(title); ax.grid(alpha=0.3); ax.legend()
-    return ax
-
-
 def plot_2d_clusters(Z2: np.ndarray, labels: np.ndarray, *,
                      ax=None, title: str = "UMAP-2  (visualisation only)",
                      point_size: float = 3.0):
@@ -292,10 +279,14 @@ def plot_group_frequency_boxplots(
     *,
     max_clusters: int = 20,
     figsize: tuple[float, float] | None = None,
+    q_values: np.ndarray | None = None,
 ):
     """Per-cluster boxplot of image frequencies, split by group.
 
-    Shows which clusters drive group differences.
+    Shows which clusters drive group differences. When ``q_values`` is
+    given (one corrected p per cluster, e.g. from
+    :func:`per_cluster_kruskal_wallis`), each cluster is annotated with
+    ``*``/``**``/``***`` for q < 0.05/0.01/0.001 and ``n.s.`` otherwise.
     """
     import matplotlib.pyplot as plt
 
@@ -334,5 +325,30 @@ def plot_group_frequency_boxplots(
     ax.set_title("Cluster frequency by group")
     ax.legend(fontsize=9)
     ax.grid(axis="y", alpha=0.3)
+
+    if q_values is not None:
+        q_arr = np.asarray(q_values, dtype=np.float64)
+        # headroom for stars
+        ymax_per_k = freq[:, :k].max(axis=0) if freq.shape[1] >= k else \
+            np.full(k, np.nan)
+        ylim_top = float(np.nanmax(ymax_per_k)) if np.isfinite(
+            np.nanmax(ymax_per_k)) else 1.0
+        ax.set_ylim(top=ylim_top * 1.15)
+        for ki in range(k):
+            if ki >= len(q_arr) or not np.isfinite(q_arr[ki]):
+                continue
+            q = q_arr[ki]
+            if q < 0.001:
+                ann, weight = "***", "bold"
+            elif q < 0.01:
+                ann, weight = "**", "bold"
+            elif q < 0.05:
+                ann, weight = "*", "bold"
+            else:
+                ann, weight = "n.s.", "normal"
+            ax.text(ki, ymax_per_k[ki] * 1.05, ann,
+                    ha="center", va="bottom",
+                    fontsize=9, fontweight=weight)
+
     fig.tight_layout()
     return fig

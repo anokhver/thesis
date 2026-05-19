@@ -135,6 +135,44 @@ def _load_moby_ckpt(
             continue
         cleaned[k_clean] = v
 
+    if not cleaned:
+        raise RuntimeError(
+            f"MoBY loader found 0 keys with the ``encoder.`` prefix in "
+            f"{path}. This usually means the file is the supervised "
+            f"ImageNet-22k Swin-T checkpoint (raw timm format, no "
+            f"``encoder.`` prefix). Use ``init_source='timm_imagenet'`` "
+            "for that file."
+        )
+
+    return convert_timm_to_swinunetr_state_dict(
+        cleaned, target_sd, target_in_chans=target_in_chans,
+    )
+
+
+def _load_timm_imagenet_ckpt(
+    path: str | Path,
+    target_sd: dict[str, torch.Tensor],
+    target_in_chans: int,
+) -> tuple[dict[str, torch.Tensor], dict]:
+    """Load a raw timm-format Swin checkpoint (e.g. supervised ImageNet-22k).
+
+    Expects keys like ``patch_embed.*`` and ``layers.{i}.blocks.*`` (no
+    ``encoder.`` prefix). Strips an optional ``module.`` DDP prefix.
+    """
+    ckpt = torch.load(path, map_location="cpu", weights_only=False)
+
+    if isinstance(ckpt, dict) and "model" in ckpt:
+        raw_sd = ckpt["model"]
+    elif isinstance(ckpt, dict) and "state_dict" in ckpt:
+        raw_sd = ckpt["state_dict"]
+    else:
+        raw_sd = ckpt
+
+    cleaned = {
+        (k[len("module."):] if k.startswith("module.") else k): v
+        for k, v in raw_sd.items()
+    }
+
     return convert_timm_to_swinunetr_state_dict(
         cleaned, target_sd, target_in_chans=target_in_chans,
     )
@@ -171,6 +209,138 @@ def _load_local_simmim_ckpt(
     return new_sd, summary
 
 
+# Prefixes ``_load_any_ckpt`` tries to strip when probing an unknown
+# checkpoint. ``""`` means "leave keys as-is".
+_ANY_PREFIXES: tuple[str, ...] = (
+    "",
+    "module.",
+    "encoder.",
+    "module.encoder.",
+    "backbone.",
+    "swinViT.",
+    "model.",
+)
+
+
+def _strip_prefix(sd: dict[str, torch.Tensor], prefix: str) -> dict[str, torch.Tensor]:
+    if not prefix:
+        return dict(sd)
+    return {
+        k[len(prefix):]: v for k, v in sd.items() if k.startswith(prefix)
+    }
+
+
+def _direct_match(
+    cleaned: dict[str, torch.Tensor],
+    target_sd: dict[str, torch.Tensor],
+) -> tuple[dict[str, torch.Tensor], dict]:
+    """Name-match without remapping. Used by the best-effort loader."""
+    new_sd: dict[str, torch.Tensor] = {}
+    shape_mismatch: list = []
+    skipped: list = []
+    for k, v in cleaned.items():
+        if k not in target_sd:
+            skipped.append((k, "missing_in_target"))
+            continue
+        if v.shape != target_sd[k].shape:
+            shape_mismatch.append((k, k, tuple(v.shape), tuple(target_sd[k].shape)))
+            continue
+        new_sd[k] = v
+    in_target_not_loaded = sorted(set(target_sd) - set(new_sd))
+    summary = {
+        "n_target_params":     len(target_sd),
+        "n_loaded":            len(new_sd),
+        "n_skipped_in_source": len(skipped),
+        "n_shape_mismatch":    len(shape_mismatch),
+        "n_random_init":       len(in_target_not_loaded),
+        "skipped":             skipped,
+        "shape_mismatch":      shape_mismatch,
+        "random_init":         in_target_not_loaded,
+    }
+    return new_sd, summary
+
+
+def _load_any_ckpt(
+    path: str | Path,
+    target_sd: dict[str, torch.Tensor],
+    target_in_chans: int,
+) -> tuple[dict[str, torch.Tensor], dict]:
+    """Best-effort load of an unknown checkpoint format.
+
+    Tries the usual top-level containers (``model`` / ``state_dict`` /
+    ``encoder_state_dict`` / ``model_state_dict``), then several prefix-
+    strip variants (``module.``, ``encoder.``, ``swinViT.``, …). For each
+    variant it attempts both a direct name-match and a timm-to-MONAI remap
+    and keeps the combination with the highest coverage. Never raises on
+    low coverage -- the caller opted in to a lenient load.
+    """
+    ckpt = torch.load(path, map_location="cpu", weights_only=False)
+
+    # ---- unwrap the most common container layouts ----
+    raw_sd: dict[str, torch.Tensor]
+    if isinstance(ckpt, dict):
+        for container in (
+            "encoder_state_dict", "model_state_dict", "model", "state_dict",
+        ):
+            inner = ckpt.get(container)
+            if isinstance(inner, dict) and inner:
+                raw_sd = inner
+                break
+        else:
+            raw_sd = ckpt
+    else:
+        raw_sd = ckpt  # tensors at top level
+
+    best_loaded = -1
+    best: tuple[dict[str, torch.Tensor], dict] | None = None
+
+    for prefix in _ANY_PREFIXES:
+        cleaned = _strip_prefix(raw_sd, prefix)
+        if not cleaned:
+            continue
+        # (a) direct name-match
+        d_sd, d_summary = _direct_match(cleaned, target_sd)
+        if d_summary["n_loaded"] > best_loaded:
+            d_summary["strategy"] = (
+                f"direct (strip {prefix!r})" if prefix else "direct (as-is)"
+            )
+            best = (d_sd, d_summary)
+            best_loaded = d_summary["n_loaded"]
+        # (b) timm-to-MONAI remap
+        try:
+            m_sd, m_summary = convert_timm_to_swinunetr_state_dict(
+                cleaned, target_sd, target_in_chans=target_in_chans,
+            )
+        except Exception:
+            m_sd, m_summary = None, None
+        if m_summary is not None and m_summary["n_loaded"] > best_loaded:
+            m_summary["strategy"] = (
+                f"timm-remap (strip {prefix!r})" if prefix else "timm-remap (as-is)"
+            )
+            best = (m_sd, m_summary)
+            best_loaded = m_summary["n_loaded"]
+
+    if best is None:
+        # No prefix-strip produced any keys at all.
+        skipped_list = (
+            list(raw_sd.keys()) if isinstance(raw_sd, dict) else []
+        )
+        empty_summary = {
+            "n_target_params":     len(target_sd),
+            "n_loaded":            0,
+            "n_skipped_in_source": len(skipped_list),
+            "n_shape_mismatch":    0,
+            "n_random_init":       len(target_sd),
+            "skipped":             skipped_list,
+            "shape_mismatch":      [],
+            "random_init":         sorted(target_sd.keys()),
+            "strategy":            "none",
+        }
+        return {}, empty_summary
+
+    return best
+
+
 def load_pretrained_into_encoder(
     encoder: nn.Module,
     base_cfg: BaseCfg,
@@ -180,8 +350,11 @@ def load_pretrained_into_encoder(
 ) -> dict:
     """Load pretrained weights into ``encoder`` based on ``base_cfg.init_source``.
 
-    Recognised values: ``"scratch"``, ``"moby"``, ``"local_ckpt"``.
-    Returns a summary dict with load statistics.
+    Recognised values: ``"scratch"``, ``"moby"``, ``"timm_imagenet"``,
+    ``"local_ckpt"``, ``"any"``. ``"any"`` is a best-effort loader that
+    tries common container layouts and prefix-strip variants and keeps
+    whichever combination produces the highest key coverage; it never
+    raises on low coverage. Returns a summary dict with load statistics.
     """
     log = (logger.info if logger is not None else print)
     if base_cfg.init_source == "scratch":
@@ -215,6 +388,21 @@ def load_pretrained_into_encoder(
             base_cfg.pretrained_ckpt_path, target_sd,
             target_in_chans=model_cfg.in_channels,
         )
+    elif base_cfg.init_source == "timm_imagenet":
+        if not base_cfg.pretrained_ckpt_path:
+            raise ValueError(
+                "init_source='timm_imagenet' but base_cfg.pretrained_ckpt_path "
+                "is None. Provide the supervised ImageNet (e.g. 22k) Swin-T "
+                "checkpoint, such as swin_tiny_patch4_window7_224_22k.pth."
+            )
+        log(
+            f"[init] loading timm/ImageNet checkpoint: "
+            f"{base_cfg.pretrained_ckpt_path}"
+        )
+        new_sd, summary = _load_timm_imagenet_ckpt(
+            base_cfg.pretrained_ckpt_path, target_sd,
+            target_in_chans=model_cfg.in_channels,
+        )
     elif base_cfg.init_source == "local_ckpt":
         if not base_cfg.pretrained_ckpt_path:
             raise ValueError(
@@ -224,10 +412,25 @@ def load_pretrained_into_encoder(
         new_sd, summary = _load_local_simmim_ckpt(
             base_cfg.pretrained_ckpt_path, target_sd,
         )
+    elif base_cfg.init_source == "any":
+        if not base_cfg.pretrained_ckpt_path:
+            raise ValueError(
+                "init_source='any' but base_cfg.pretrained_ckpt_path is None. "
+                "Provide a path to the checkpoint you want to best-effort load."
+            )
+        log(
+            f"[init] best-effort loading checkpoint: "
+            f"{base_cfg.pretrained_ckpt_path}"
+        )
+        new_sd, summary = _load_any_ckpt(
+            base_cfg.pretrained_ckpt_path, target_sd,
+            target_in_chans=model_cfg.in_channels,
+        )
+        log(f"[init] best-effort strategy: {summary.get('strategy', '?')}")
     else:
         raise ValueError(
             f"Unknown init_source={base_cfg.init_source!r}. "
-            "Use 'moby' / 'local_ckpt' / 'scratch'."
+            "Use 'moby' / 'timm_imagenet' / 'local_ckpt' / 'any' / 'scratch'."
         )
 
     incompatible = encoder.load_state_dict(new_sd, strict=False)
@@ -243,9 +446,14 @@ def load_pretrained_into_encoder(
         f"skipped {summary['n_skipped_in_source']}"
     )
     if summary["n_loaded"] < 0.5 * summary["n_target_params"]:
-        warnings.warn(
+        msg = (
             f"Only {summary['n_loaded']}/{summary['n_target_params']} encoder "
             f"params were loaded from {base_cfg.init_source}. The remap may "
             "have failed; inspect summary['random_init'] / 'shape_mismatch'."
         )
+        if base_cfg.init_source == "any":
+            # User explicitly opted in to a lenient load -- info-level only.
+            log(f"[init] {msg}")
+        else:
+            warnings.warn(msg)
     return summary

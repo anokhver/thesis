@@ -1,11 +1,20 @@
 """Patch-level SSL feature clustering with image-aware statistics.
 
-HPL recipe (Quiros et al., Nat Commun 15:4596, 2024): patch embeddings
-→ L2 + PCA whiten → kNN+Leiden in PCA/UMAP space → per-image cluster
-frequency vectors. HPL's Cox PH / multinomial-logistic step is replaced
-by PERMANOVA + MMD (multi-group treatment comparison rather than
-survival). Every test uses the source image as the unit of analysis to
-avoid pseudoreplication (Caicedo et al., Nat Methods 14:849-863, 2017).
+HPL-inspired (Quiros et al., Nat Commun 15:4596, 2024): SSL patch
+embeddings → kNN+Leiden → per-image cluster frequency vectors. HPL
+itself clusters directly on the 128-D representations (kNN K=250,
+Methods §"Clustering representations"); we add an L2 + PCA-whiten
+preprocessing step because our pooled Swin features sit in 768 dims
+with measured effective rank around 5–22, so reducing to
+``d ≈ eff_rank`` before kNN cuts the noise floor in the Leiden
+graph. ``pca_dim=None`` selects ``d`` from the cumulative variance
+curve; see :func:`auto_pca_dim`.
+
+HPL's Cox PH / multinomial-logistic readout is replaced by
+PERMANOVA on per-image cluster-frequency vectors (multi-group
+treatment comparison rather than survival). Every test uses the
+source image as the unit of analysis to avoid pseudoreplication
+(Lazic et al., BMC Neurosci 11:5, 2010).
 """
 from __future__ import annotations
 
@@ -25,30 +34,21 @@ class ClusterCfg:
 
     seed: int = 42
 
-    # Clustering space — "pca" clusters directly in PCA-whitened space
-    # (recommended for N < 5000; avoids UMAP instability at small N,
-    # see Chari & Pachter 2023). "umap" uses the legacy UMAP-15D path.
-    cluster_space: str = "pca"
-
     # Preprocessing
     l2_normalise: bool = True
-    pca_dim: int | None = None         # None -> auto via RankMe
+    pca_dim: int | None = None         # None -> auto via RankMe-style
+                                       # 95% cumulative explained variance
     pca_dim_target_var: float = 0.95   # auto: smallest d capturing this
     pca_dim_max: int = 200             # auto: hard cap
-    tvn_reference_pattern: str | None = None  # substring matched against
+    control_reference_pattern: str | None = None  # substring matched against
                                               # source_image; if set, the
                                               # mean of those patches is
                                               # subtracted before PCA
 
-    # UMAP (clustering geometry — only used when cluster_space="umap")
-    umap_n_components: int = 15
-    umap_n_neighbors: int = 30
-    umap_min_dist: float = 0.0
+    # UMAP (2D visualisation only; clustering happens directly in PCA)
     umap_metric: str = "cosine"
     umap_init: str = "pca"
     umap_n_epochs: int = 500
-
-    # UMAP (visualisation only)
     umap2_n_neighbors: int = 30
     umap2_min_dist: float = 0.1
 
@@ -60,18 +60,6 @@ class ClusterCfg:
     # Bootstrap stability
     bootstrap_b: int = 50
     bootstrap_frac: float = 0.7
-
-    # GMM-BIC cross-check
-    gmm_k_min: int = 3
-    gmm_k_max: int = 25
-    gmm_covariance_type: str = "auto"  # "auto", "full", "diag", "tied"
-    gmm_pca_dim: int | None = None     # None -> auto (10-20 PCs for GMM)
-
-    # HDBSCAN fallback
-    hdb_min_cluster_size: int = 30
-    hdb_min_samples: int = 5
-    hdb_method: str = "leaf"
-    hdb_auto: bool = True              # auto-scale based on N
 
     # Permutation null
     permutation_p: int = 10
@@ -88,12 +76,9 @@ class ClusterCfg:
     chi2_n_permutations: int = 10_000  # Monte Carlo sims for sparse tables
 
     # Group-level statistical tests
-    mmd_n_permutations: int = 1000
-    mmd_gamma: float | None = None      # None -> median heuristic
-    mmd_max_patches: int = 5000         # subsample cap per group for kernel matrix
-    mmd_correction: str = "bh"          # "bonferroni" or "bh" (Benjamini-Hochberg)
     permanova_n_permutations: int = 999
     permanova_metric: str = "braycurtis"
+    kw_correction: str = "bh"           # per-cluster Kruskal-Wallis multiple-comp
 
     # IO
     embedding_cache: str | None = None  # path to .npy cache; None disables
@@ -104,65 +89,15 @@ class ClusterCfg:
 # ---------------------------------------------------------------------------
 
 def adaptive_leiden_k(N: int, default_k: int = 30) -> int:
-    """Scale Leiden k to maintain ~1.5% kNN-graph connectivity.
+    """Scale Leiden k for small datasets.
 
-    Reproduces the PhenoGraph (Levine et al., 2015) operating regime
-    (k=30 at N≈15000) for small N. Lower-bounded at 5, capped at
-    ``default_k``.
+    Adapts the PhenoGraph code default k=30 (Levine et al., Cell
+    162:184-197, 2015) to small N by linear scaling, lower-bounded
+    at 5, capped at ``default_k``. Unlike PhenoGraph we omit Jaccard
+    weighting and use Leiden instead of Louvain.
     """
     k = int(round(0.015 * N))
     return max(5, min(default_k, k))
-
-
-def adaptive_gmm_params(
-    N: int, D: int, *, cfg: ClusterCfg,
-) -> tuple[int, str, int]:
-    """Auto-select ``(k_max, covariance_type, pca_dim)`` for GMM-BIC.
-
-    Targets ≥10 data points per free parameter so BIC stays reliable
-    (McLachlan & Peel, 2000). Falls back full → diag → spherical when N
-    is too small for the previous tier.
-    """
-    def _k_max(n_params_per_comp: int) -> int:
-        return max(cfg.gmm_k_min, N // (10 * max(1, n_params_per_comp)))
-
-    # Auto-select PCA dim for GMM (10-20 PCs)
-    if cfg.gmm_pca_dim is not None:
-        d = min(cfg.gmm_pca_dim, D)
-    else:
-        d = min(20, D)
-
-    # Auto-select covariance type
-    if cfg.gmm_covariance_type != "auto":
-        cov = cfg.gmm_covariance_type
-        full_params = d * (d + 1) // 2 + d
-        diag_params = 2 * d
-        params = {"full": full_params, "diag": diag_params,
-                  "tied": full_params, "spherical": d + 1}[cov]
-        k_max = min(cfg.gmm_k_max, _k_max(params))
-        return k_max, cov, d
-
-    full_params = d * (d + 1) // 2 + d
-    if _k_max(full_params) >= cfg.gmm_k_min:
-        return min(cfg.gmm_k_max, _k_max(full_params)), "full", d
-
-    diag_params = 2 * d
-    if _k_max(diag_params) >= cfg.gmm_k_min:
-        return min(cfg.gmm_k_max, _k_max(diag_params)), "diag", d
-
-    return min(cfg.gmm_k_max, _k_max(d + 1)), "spherical", d
-
-
-def adaptive_hdbscan_params(
-    N: int, default_min_cluster: int = 30,
-) -> tuple[int, int]:
-    """Auto-scale HDBSCAN ``(min_cluster_size, min_samples)`` for N.
-
-    Targets ~1% of N as min cluster size (floor 10).
-    """
-    min_cluster = max(10, min(default_min_cluster, int(0.01 * N)))
-    min_samples = min(5, max(2, min_cluster // 3))
-    return min_cluster, min_samples
 
 
 # ---------------------------------------------------------------------------
@@ -249,13 +184,20 @@ def extract_patch_embeddings(
 
 
 # ---------------------------------------------------------------------------
-# Preprocessing: L2 + (TVN) + PCA whitening
+# Preprocessing: L2 + (control-mean centering) + PCA whitening
 # ---------------------------------------------------------------------------
 
 def auto_pca_dim(Z: np.ndarray, target_var: float = 0.95, hard_cap: int = 200) -> int:
-    """Choose d such that cumulative explained variance >= target_var.
+    """Smallest ``d`` with cumulative explained variance >= ``target_var``.
 
-    Lower-bounded by 5; upper-bounded by hard_cap and min(N-1, D).
+    Lower-bounded by 5, upper-bounded by ``hard_cap`` and ``min(N-1, D)``.
+
+    For pooled CNN / transformer features the effective rank is typically
+    far below the nominal dimension; fixed defaults inherited from
+    scRNA-seq pipelines (e.g. Scanpy's ``n_comps=50``; Wolf et al.,
+    Genome Biol 2018) over-allocate here, so noise PCs get rescaled to
+    unit variance by ``PCA(whiten=True)`` and dominate Euclidean kNN
+    distances.
     """
     from sklearn.decomposition import PCA
     n_max = int(min(Z.shape[0] - 1, Z.shape[1], hard_cap))
@@ -265,18 +207,19 @@ def auto_pca_dim(Z: np.ndarray, target_var: float = 0.95, hard_cap: int = 200) -
     return max(5, min(d, n_max))
 
 
-def tvn_centre(Z: np.ndarray, source_images: np.ndarray, pattern: str) -> np.ndarray:
-    """Subtract mean of patches matching ``pattern`` (TVN; Kraus et al., CVPR 2024).
+def subtract_control_mean(Z: np.ndarray, source_images: np.ndarray, pattern: str) -> np.ndarray:
+    """Subtract mean of reference patches matching ``pattern``.
 
-    Removes plate/well effects before feature analysis.
-    Ref: https://github.com/recursionpharma/maes_microscopy
+    Control-mean centering: removes additive plate/well offset.
+    Inspired by TVN (Ando et al., bioRxiv:161422, 2017) but only
+    performs mean subtraction, not the full TVN covariance whitening.
     """
     if not pattern:
         return Z
     pat = pattern.upper()
     mask = np.array([pat in s.upper() for s in source_images])
     if mask.sum() == 0:
-        raise ValueError(f"no source_image matched TVN pattern {pattern!r}")
+        raise ValueError(f"no source_image matched control pattern {pattern!r}")
     return Z - Z[mask].mean(axis=0, keepdims=True)
 
 
@@ -294,27 +237,8 @@ def l2_then_pca_whiten(
 
 
 # ---------------------------------------------------------------------------
-# UMAP
+# UMAP (2D visualisation only)
 # ---------------------------------------------------------------------------
-
-def fit_umap(P: np.ndarray, *, cfg: ClusterCfg, seed: int | None = None,
-             n_components: int | None = None) -> np.ndarray:
-    import umap
-    n_comp = n_components if n_components is not None else cfg.umap_n_components
-    init = cfg.umap_init
-    if init == "pca" and P.shape[1] < n_comp:
-        init = "spectral"
-    return umap.UMAP(
-        n_components=n_comp,
-        n_neighbors=cfg.umap_n_neighbors,
-        min_dist=cfg.umap_min_dist,
-        metric=cfg.umap_metric,
-        init=init,
-        n_epochs=cfg.umap_n_epochs,
-        random_state=seed if seed is not None else cfg.seed,
-        n_jobs=1,
-    ).fit_transform(P)
-
 
 def fit_umap_2d(P: np.ndarray, *, cfg: ClusterCfg, seed: int | None = None) -> np.ndarray:
     """2D UMAP for visualisation. Larger ``min_dist`` avoids misleading density."""
@@ -375,10 +299,11 @@ def bootstrap_stability(
     """Bootstrap stability of Leiden partitions.
 
     Subsample → re-cluster → 1-NN propagate → ARI vs full partition.
-    Hennig (2007); Lange et al. (2004). When ``source_images`` is given,
-    resampling is at the image-block level (correct unit when patches
-    are not independent; Caicedo et al., Nat Methods 2017); otherwise
-    legacy patch-level bootstrap. Returns ``({res: (mean_ari, std_ari)},
+    Adapted from the stability framework of Lange et al. (Neural
+    Computation 16:1299-1323, 2004) with ARI replacing their Hamming
+    distance. When ``source_images`` is given, resampling is at the
+    image-block level to respect the statistical unit; otherwise
+    patch-level bootstrap. Returns ``({res: (mean_ari, std_ari)},
     {res: labels})``.
     """
     from sklearn.neighbors import KNeighborsClassifier
@@ -400,10 +325,10 @@ def bootstrap_stability(
 
     for b in range(B):
         if image_block:
-            sampled = rng.choice(unique_images, size=n_img_sample, replace=True)
+            sampled = rng.choice(unique_images, size=n_img_sample, replace=False)
             idx = np.concatenate([img_to_idx[img] for img in sampled])
         else:
-            idx = rng.choice(n, size=int(frac * n), replace=True)
+            idx = rng.choice(n, size=int(frac * n), replace=False)
         U_sub = U[idx]
         if len(U_sub) <= k:
             continue
@@ -420,51 +345,25 @@ def bootstrap_stability(
 
 
 def pick_resolution(summary: dict, full: dict):
-    """Highest mean ARI; tie-break: fewer clusters (Occam)."""
-    items = [(r, m, s, len(set(full[r]))) for r, (m, s) in summary.items()]
-    items.sort(key=lambda t: (-t[1], t[3]))
-    return items[0]  # (resolution, mean_ari, std_ari, n_clusters)
+    """Highest mean ARI among non-trivial partitions; tie-break by fewer clusters.
 
-
-# ---------------------------------------------------------------------------
-# Cross-check + fallback
-# ---------------------------------------------------------------------------
-
-def gmm_bic_scan(X: np.ndarray, k_min: int, k_max: int, seed: int = 0,
-                 *, covariance_type: str = "diag", pca_dim: int | None = None):
-    """GMM-BIC scan with configurable covariance type and optional PCA.
-
-    When ``pca_dim`` is set and smaller than X.shape[1], the data is first
-    reduced via PCA so that the per-component parameter count stays
-    manageable relative to N (McLachlan & Peel 2000).
+    Trivial partitions (K=1 or K=0) are excluded before sorting: with K=1
+    the bootstrap ARI is automatically 1.0 because every resampling
+    "agrees" on the single label, so a collapsed resolution would
+    otherwise win the stability sort.
     """
-    from sklearn.mixture import GaussianMixture
-    if pca_dim is not None and pca_dim < X.shape[1]:
-        from sklearn.decomposition import PCA
-        X = PCA(n_components=pca_dim, random_state=seed).fit_transform(X)
-    bics = []
-    for k in range(k_min, k_max + 1):
-        gmm = GaussianMixture(
-            n_components=k, covariance_type=covariance_type,
-            random_state=seed, max_iter=200, reg_covar=1e-4,
-        ).fit(X)
-        bics.append((k, float(gmm.bic(X))))
-    bics.sort(key=lambda t: t[1])
-    return bics
+    import logging
 
-
-def run_hdbscan_leaf(U: np.ndarray, *, min_cluster_size: int, min_samples: int,
-                     method: str = "leaf"):
-    import hdbscan
-    clusterer = hdbscan.HDBSCAN(
-        min_cluster_size=min_cluster_size,
-        min_samples=min_samples,
-        cluster_selection_method=method,
-        cluster_selection_epsilon=0.0,
-        metric="euclidean",
-        core_dist_n_jobs=-1,
-    )
-    return clusterer.fit_predict(U)
+    candidates = [(r, m, s, len(set(full[r]))) for r, (m, s) in summary.items()]
+    nontrivial = [t for t in candidates if t[3] >= 2]
+    if not nontrivial:
+        logging.getLogger(__name__).warning(
+            "All resolutions collapsed to K<2; falling back to the lowest "
+            "candidate to avoid an empty pick."
+        )
+        nontrivial = candidates
+    nontrivial.sort(key=lambda t: (-t[1], t[3]))
+    return nontrivial[0]  # (resolution, mean_ari, std_ari, n_clusters)
 
 
 # ---------------------------------------------------------------------------
@@ -505,7 +404,10 @@ def permutation_null_ari(
     ``image_mean + residual``, permute image-means across images,
     reconstruct, re-cluster, ARI vs real. Preserves multivariate
     covariance and within-image structure but breaks image-level batch
-    effects. Without: per-PC shuffle null (Witten & Tibshirani, 2010).
+    effects. Without: per-PC shuffle null — each PC column is
+    independently permuted, destroying joint structure while preserving
+    marginals (Tibshirani et al., JRSS-B 63:411-423, 2001; adapted
+    in Witten & Tibshirani, JASA 105:713-726, 2010 §3.2).
     Returns ``(mean_ari, std_ari, max_ari)``.
     """
     from sklearn.metrics import adjusted_rand_score
@@ -537,11 +439,7 @@ def permutation_null_ari(
             P_perm = P.copy()
             for d in range(P_perm.shape[1]):
                 rng.shuffle(P_perm[:, d])
-        if cfg.cluster_space == "pca":
-            X_clust = P_perm
-        else:
-            X_clust = fit_umap(P_perm, cfg=cfg, seed=cfg.seed + it)
-        g_perm = knn_igraph(X_clust, effective_k)
+        g_perm = knn_igraph(P_perm, effective_k)
         lab_perm = leiden_partition(g_perm, resolution, seed=cfg.seed + it)
         aris.append(adjusted_rand_score(labels_real, lab_perm))
     return float(np.mean(aris)), float(np.std(aris)), float(np.max(aris))
@@ -556,9 +454,9 @@ def image_level_cv(
 
     kNN in PCA space transfers labels across held-out images; tests
     whether the embedding generalises beyond training images. With
-    ``group_map``, half-split is stratified by treatment group so every
-    group is represented on both sides (Caicedo et al., Nat Methods
-    2017). Returns ``(median_ari, q25, q75, per_split_aris)``.
+    ``group_map``, half-split is stratified by treatment group so
+    every group is represented on both sides.
+    Returns ``(median_ari, q25, q75, per_split_aris)``.
     """
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.metrics import adjusted_rand_score
@@ -613,30 +511,6 @@ def image_level_cv(
         float(np.percentile(aris, 75)),
         aris,
     )
-
-
-# Keep backward-compatible alias
-def train_on_imageset_predict_other(
-    P: np.ndarray, source_images: np.ndarray, *,
-    cfg: ClusterCfg, resolution: float,
-):
-    """Deprecated — use :func:`image_level_cv` instead."""
-    import warnings
-    warnings.warn(
-        "train_on_imageset_predict_other is deprecated; use image_level_cv",
-        DeprecationWarning, stacklevel=2,
-    )
-    # Build labels from full-dataset clustering for CV
-    k = adaptive_leiden_k(len(P), cfg.leiden_k) if cfg.leiden_k_auto else cfg.leiden_k
-    if cfg.cluster_space == "pca":
-        X_clust = P
-    else:
-        X_clust = fit_umap(P, cfg=cfg)
-    g = knn_igraph(X_clust, k)
-    labels = leiden_partition(g, resolution, seed=cfg.seed)
-    med, q25, q75, _ = image_level_cv(P, source_images, labels, cfg=cfg)
-    n_a = len(P) // 2
-    return med, n_a, len(P) - n_a
 
 
 # ---------------------------------------------------------------------------
@@ -757,7 +631,6 @@ def cluster_purity_by_image(
     """Per-cluster normalised entropy of the source-image distribution.
 
     1.0 = perfectly mixed; 0.0 = one image dominates.
-    Caicedo et al. (Nat Methods 2017).
     """
     import math
     from scipy.stats import entropy as shannon_entropy
@@ -820,16 +693,6 @@ class GroupTestResult(NamedTuple):
     n_images_per_group: dict[str, int]
 
 
-class MMDResult(NamedTuple):
-    """Result of an MMD permutation test between two groups."""
-    mmd_squared: float
-    p_value: float
-    n_permutations: int
-    gamma: float
-    group_pair: tuple[str, str]
-    n_per_group: tuple[int, int]
-
-
 class PERMANOVAResult(NamedTuple):
     """Result of a PERMANOVA test on per-image frequency vectors."""
     f_statistic: float
@@ -837,6 +700,17 @@ class PERMANOVAResult(NamedTuple):
     n_permutations: int
     r_squared: float
     n_per_group: dict[str, int]
+
+
+class PerClusterTestResult(NamedTuple):
+    """Result of per-cluster Kruskal-Wallis with multiple-comparison correction."""
+    cluster_ids: np.ndarray
+    statistics: np.ndarray         # H per cluster (NaN when undefined)
+    p_values_raw: np.ndarray
+    p_values_corrected: np.ndarray
+    group_names: list[str]
+    n_per_group: dict[str, int]
+    method: str                    # e.g. "kruskal_wallis_bh"
 
 
 def _build_group_counts(
@@ -864,15 +738,17 @@ def group_cluster_test(
     cluster_ids: np.ndarray,
     group_map: GroupMap,
     *,
-    min_expected: float = 5.0,
     n_permutations: int = 10_000,
     seed: int = 0,
 ) -> GroupTestResult:
     """Test cluster composition differs between biological groups.
 
-    Chi² when expected cell counts are sufficient; otherwise permutation
-    chi² with image-level label shuffling (avoids pseudoreplication).
-    Agresti (2002), ch. 3.
+    χ² statistic with **image-level permutation null**: group labels are
+    shuffled across images (not patches) so the test respects the
+    statistical unit (Lazic et al., BMC Neurosci 11:5, 2010). The
+    asymptotic χ² distribution is not used — its degrees of freedom
+    assume independent observations, but patches from the same image
+    are not independent, so it would inflate significance.
     """
     from scipy.stats import chi2_contingency
 
@@ -894,22 +770,12 @@ def group_cluster_test(
             gc, groups, cids, n_imgs,
         )
 
-    chi2_obs, _, dof, expected = chi2_contingency(gc)
-
-    if expected.min() >= min_expected:
-        _, p, _, _ = chi2_contingency(gc)
-        return GroupTestResult(
-            float(chi2_obs), float(p), "chi2", gc, groups, cids, n_imgs,
-        )
+    chi2_obs, _, _, _ = chi2_contingency(gc)
 
     # Permutation chi²: shuffle group labels at image level
     rng = np.random.default_rng(seed)
     mapped_images = np.array(
         [img for img in image_names if group_map.get(str(img)) is not None]
-    )
-    mapped_idx = np.array(
-        [i for i, img in enumerate(image_names)
-         if group_map.get(str(img)) is not None]
     )
     image_groups = np.array(
         [group_map[str(img)] for img in mapped_images]
@@ -932,123 +798,6 @@ def group_cluster_test(
         float(chi2_obs), float(p_perm), "permutation_chi2",
         gc, groups, cids, n_imgs,
     )
-
-
-def _median_heuristic_gamma(X: np.ndarray, max_pairs: int = 5000) -> float:
-    """RBF gamma via median heuristic: gamma = 1 / (2 * median(||x-y||²)).
-
-    Gretton et al. (JMLR 2012), §7.
-    """
-    from scipy.spatial.distance import pdist
-    if len(X) > max_pairs:
-        rng = np.random.default_rng(0)
-        X = X[rng.choice(len(X), max_pairs, replace=False)]
-    dists_sq = pdist(X, metric="sqeuclidean")
-    med = float(np.median(dists_sq))
-    return 1.0 / (2.0 * med) if med > 0 else 1.0
-
-
-def mmd_permutation_test(
-    Z: np.ndarray,
-    source_images: np.ndarray,
-    group_map: GroupMap,
-    *,
-    gamma: float | None = None,
-    n_permutations: int = 1000,
-    max_patches: int = 5000,
-    seed: int = 0,
-    correction: str = "bh",
-) -> list[MMDResult]:
-    """MMD² permutation test on per-image mean embeddings.
-
-    Per-image means (not raw patches) avoid pseudoreplication.  Gretton
-    et al. (JMLR 2012).  Returns one ``MMDResult`` per group pair.
-
-    ``correction`` controls multiple-comparison adjustment:
-    ``"bh"`` (Benjamini-Hochberg FDR, default) or ``"bonferroni"``.
-    """
-    import logging
-    from sklearn.metrics.pairwise import rbf_kernel
-
-    log = logging.getLogger(__name__)
-
-    # per-image mean embeddings
-    unique_images = sorted(set(source_images))
-    img_means = {}
-    for img in unique_images:
-        mask = source_images == img
-        img_means[img] = Z[mask].mean(axis=0)
-
-    groups = sorted(set(group_map.values()))
-    group_embeds: dict[str, np.ndarray] = {}
-    for g in groups:
-        imgs = [img for img in unique_images if group_map.get(str(img)) == g]
-        if not imgs:
-            continue
-        group_embeds[g] = np.array([img_means[img] for img in imgs])
-
-    active_groups = sorted(group_embeds.keys())
-    if len(active_groups) < 2:
-        return []
-
-    # Warn when group sizes are very small
-    for g in active_groups:
-        n_g = len(group_embeds[g])
-        if n_g < 5:
-            log.warning(
-                "MMD group %r has only %d image-level observations — "
-                "statistical power is very limited", g, n_g,
-            )
-
-    # gamma via median heuristic on all image means
-    all_means = np.vstack(list(group_embeds.values()))
-    used_gamma = gamma if gamma is not None else _median_heuristic_gamma(all_means)
-
-    def _mmd2(X: np.ndarray, Y: np.ndarray) -> float:
-        XX = rbf_kernel(X, X, gamma=used_gamma)
-        YY = rbf_kernel(Y, Y, gamma=used_gamma)
-        XY = rbf_kernel(X, Y, gamma=used_gamma)
-        return float(np.mean(XX) + np.mean(YY) - 2 * np.mean(XY))
-
-    rng = np.random.default_rng(seed)
-    pairs = [(active_groups[i], active_groups[j])
-             for i in range(len(active_groups))
-             for j in range(i + 1, len(active_groups))]
-
-    raw_ps: list[float] = []
-    raw_results: list[tuple] = []
-    for ga, gb in pairs:
-        Xa, Xb = group_embeds[ga], group_embeds[gb]
-        mmd_obs = _mmd2(Xa, Xb)
-        combined = np.concatenate([Xa, Xb], axis=0)
-        na = len(Xa)
-        n_ge = 0
-        for _ in range(n_permutations):
-            perm = rng.permutation(len(combined))
-            mmd_p = _mmd2(combined[perm[:na]], combined[perm[na:]])
-            if mmd_p >= mmd_obs:
-                n_ge += 1
-        p_raw = (n_ge + 1) / (n_permutations + 1)
-        raw_ps.append(p_raw)
-        raw_results.append((mmd_obs, ga, gb, len(Xa), len(Xb)))
-
-    # Multiple-comparison correction
-    if correction == "bh":
-        corrected_ps = _bh_fdr(raw_ps)
-    else:
-        corrected_ps = np.minimum(1.0, np.array(raw_ps) * len(pairs))
-
-    results = []
-    for i, (mmd_obs, ga, gb, na, nb) in enumerate(raw_results):
-        results.append(MMDResult(
-            mmd_squared=float(mmd_obs),
-            p_value=float(corrected_ps[i]),
-            n_permutations=n_permutations,
-            gamma=float(used_gamma),
-            group_pair=(ga, gb),
-            n_per_group=(na, nb),
-        ))
-    return results
 
 
 def permanova_frequencies(
@@ -1129,6 +878,106 @@ def permanova_frequencies(
         n_permutations=n_permutations,
         r_squared=float(r_sq),
         n_per_group=n_per,
+    )
+
+
+def per_cluster_kruskal_wallis(
+    freq: np.ndarray,
+    image_names: np.ndarray,
+    cluster_ids: np.ndarray,
+    group_map: GroupMap,
+    *,
+    correction: str = "bh",
+) -> PerClusterTestResult:
+    """Per-cluster Kruskal-Wallis across groups, BH-FDR corrected.
+
+    For each cluster column, tests whether per-image frequency
+    distributions differ between biological groups. Unit of analysis
+    is the image. Used as a posthoc on top of PERMANOVA to identify
+    *which* clusters drive a global difference.
+
+    Multiple-comparison correction: ``"bh"`` (Benjamini & Hochberg,
+    J R Stat Soc B 1995) or ``"bonferroni"``. Returns
+    :class:`PerClusterTestResult` with NaN entries for clusters where
+    the KW statistic is undefined (e.g. all values tied).
+    """
+    import logging
+    from scipy.stats import kruskal
+
+    log = logging.getLogger(__name__)
+
+    mapped = [(i, group_map[str(img)])
+              for i, img in enumerate(image_names)
+              if group_map.get(str(img)) is not None]
+    k_clusters = len(cluster_ids)
+    nan_arr = np.full(k_clusters, np.nan)
+    if len(mapped) < 3:
+        return PerClusterTestResult(
+            cluster_ids=cluster_ids,
+            statistics=nan_arr.copy(),
+            p_values_raw=nan_arr.copy(),
+            p_values_corrected=nan_arr.copy(),
+            group_names=[],
+            n_per_group={},
+            method=f"kruskal_wallis_{correction}",
+        )
+    idx, grp_labels = zip(*mapped)
+    idx = np.array(idx)
+    grp_labels = np.array(grp_labels)
+    F_sub = freq[idx]
+
+    groups = sorted({str(g) for g in grp_labels})
+    n_per = {g: int((grp_labels == g).sum()) for g in groups}
+    if len(groups) < 2:
+        return PerClusterTestResult(
+            cluster_ids=cluster_ids,
+            statistics=nan_arr.copy(),
+            p_values_raw=nan_arr.copy(),
+            p_values_corrected=nan_arr.copy(),
+            group_names=list(groups),
+            n_per_group=n_per,
+            method=f"kruskal_wallis_{correction}",
+        )
+
+    for g, n in n_per.items():
+        if n < 2:
+            log.warning(
+                "Kruskal-Wallis: group %r has only %d image(s); "
+                "per-cluster power is very limited", g, n,
+            )
+
+    stats_arr = np.full(k_clusters, np.nan)
+    p_raw = np.full(k_clusters, np.nan)
+    for k in range(k_clusters):
+        samples = [F_sub[grp_labels == g, k] for g in groups]
+        try:
+            h, p_k = kruskal(*samples)
+        except ValueError:
+            continue
+        if np.isnan(h):
+            continue
+        stats_arr[k] = float(h)
+        p_raw[k] = float(p_k)
+
+    valid = ~np.isnan(p_raw)
+    p_corr = np.full(k_clusters, np.nan)
+    if valid.any():
+        if correction == "bh":
+            adj = _bh_fdr(p_raw[valid])
+        elif correction == "bonferroni":
+            adj = np.minimum(1.0, p_raw[valid] * int(valid.sum()))
+        else:
+            raise ValueError(f"unknown correction: {correction!r}")
+        p_corr[valid] = adj
+
+    return PerClusterTestResult(
+        cluster_ids=cluster_ids,
+        statistics=stats_arr,
+        p_values_raw=p_raw,
+        p_values_corrected=p_corr,
+        group_names=list(groups),
+        n_per_group=n_per,
+        method=f"kruskal_wallis_{correction}",
     )
 
 

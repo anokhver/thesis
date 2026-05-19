@@ -1,17 +1,22 @@
 #!/bin/bash
-#PBS -N pretrain_scratch_script
-#PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=95000mb:scratch_local=50gb
-#PBS -l walltime=6:00:00
+#PBS -N pretrain_tinny_script
+#PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=95000mb:scratch_local=20gb
+#PBS -l walltime=5:00:00
 #PBS -j oe
 #PBS -o /storage/brno2/home/anokhver/thesis/logs/
 #PBS -m abe
-#PBS -M your@email.com
+#PBS -M veronika.i.anokhina@gmail.com
 
-# SimMIM+VICReg pretrain from scratch (script version).
+# SimMIM+VICReg pretrain from Swin-Tiny ImageNet-22k weights (script version).
 # Outputs go to data/training_outputs/.
+#
+# Variant selection (default: 128_default.json):
+#   qsub scripts/metacentrum/submit_pretrain_tinny_py.sh
+#   qsub -v CONFIG=configs/pretrain_tinny/128_no_fourier_vicreg_on.json  scripts/metacentrum/submit_pretrain_tinny_py.sh
+#   qsub -v CONFIG=configs/pretrain_tinny/128_no_fourier_vicreg_off.json scripts/metacentrum/submit_pretrain_tinny_py.sh
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-CONFIG="${PROJECT_DIR}/configs/pretrain_scratch/default.json"
+CONFIG="${CONFIG:-${PROJECT_DIR}/configs/pretrain_tinny/128_default.json}"
 CONDA_ENV="microscopy"
 
 set -euo pipefail

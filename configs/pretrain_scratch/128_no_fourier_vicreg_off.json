@@ -5,21 +5,21 @@
     "seed": 42,
     "output_root": "../data/training_outputs",
     "experiment_name": "simmim_vicreg_pretrain",
-    "tag": "moby_128_no_fourier_vicreg_05",
+    "tag": "scratch_no_fourier_vicreg_off",
     "method_name": "simmim_vicreg",
-    "init_source": "moby",
-    "pretrained_ckpt_path": "../data/checkpoints/moby_swin_t_300ep_pretrained.pth",
+    "init_source": "scratch",
+    "pretrained_ckpt_path": null,
     "resume_path": null,
     "dry_run": false
   },
   "data": {
-    "data_root": "../data/patches_128",
+    "data_root": "../data/patches_128_from_zip",
     "exclude_patterns": [
       "KONTROLA"
     ],
     "val_split": 0.1,
-    "batch_size": 128,
-    "num_workers": 1,
+    "batch_size": 224,
+    "num_workers": 6,
     "pin_memory": true,
     "channel_names": [
       "pre_synaptic",
@@ -46,21 +46,21 @@
       12,
       24
     ],
-    "dropout_path_rate": 0.05
+    "dropout_path_rate": 0.0
   },
   "train": {
-    "epochs": 200,
-    "warmup_epochs": 15,
-    "base_lr": 0.0001,
-    "head_lr": 0.0001,
+    "epochs": 30,
+    "warmup_epochs": 2,
+    "base_lr": 0.0007,
+    "head_lr": 0.0007,
     "weight_decay": 0.05,
     "layer_decay": 1.0,
     "grad_clip_norm": 5.0,
-    "freeze_encoder_epochs": 5,
-    "save_every_n_epochs": 25,
+    "freeze_encoder_epochs": 0,
+    "save_every_n_epochs": 10,
     "val_metric_key": "recon_fg",
     "val_metric_direction": "min",
-    "encoder_save_name": "pretrained_encoder_simmim_vicreg_moby_128_no_fourier.pt"
+    "encoder_save_name": "pretrained_encoder_scratch_no_fourier_vicreg_off.pt"
   },
   "ssl": {
     "mask_ratio": 0.6,
@@ -70,66 +70,12 @@
     "lambda_std": 25.0,
     "lambda_cov": 1.0,
     "w_recon": 1.0,
-    "w_vicreg": 0.5,
-    "projector_hidden": 2048,
-    "projector_dim": 2048,
+    "w_vicreg": 0.0,
+    "projector_hidden": 512,
+    "projector_dim": 512,
     "w_fourier": 0.0,
     "head_stage_index": -1
   },
-  "unfreeze_schedule": [
-    [
-      1,
-      [
-        "random",
-        "layers4"
-      ]
-    ],
-    [
-      3,
-      [
-        "random",
-        "layers4"
-      ]
-    ],
-    [
-      6,
-      [
-        "random",
-        "layers4",
-        "layers3"
-      ]
-    ],
-    [
-      9,
-      [
-        "random",
-        "layers4",
-        "layers3",
-        "layers2"
-      ]
-    ],
-    [
-      12,
-      [
-        "random",
-        "layers4",
-        "layers3",
-        "layers2",
-        "layers1"
-      ]
-    ],
-    [
-      15,
-      [
-        "random",
-        "layers4",
-        "layers3",
-        "layers2",
-        "layers1",
-        "patch_embed"
-      ]
-    ]
-  ],
   "full_image": {
     "enabled": false,
     "image_index": null,

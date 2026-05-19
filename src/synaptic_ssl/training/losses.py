@@ -45,36 +45,11 @@ def _fg_weighted_mask(
     return w * mask
 
 
-def _per_patch_normalize(target: torch.Tensor, patch_size: int) -> torch.Tensor:
-    """Normalise each ``patch_size x patch_size`` tile to mean 0 / std 1.
-
-    Breaks channel-mean shortcut. He et al. (CVPR 2022) §4.2.
-    Raises ``ValueError`` if spatial dims do not divide by ``patch_size``.
-    Ref: https://github.com/facebookresearch/mae
-    """
-    if patch_size <= 0:
-        return target
-    B, C, H, W = target.shape
-    p = patch_size
-    if H % p != 0 or W % p != 0:
-        raise ValueError(
-            f"per-patch norm: target {H}x{W} not divisible by patch_size={p}"
-        )
-    t = target.unfold(2, p, p).unfold(3, p, p)  # (B, C, H/p, W/p, p, p)
-    mean = t.mean(dim=(-1, -2), keepdim=True)
-    var = t.var(dim=(-1, -2), keepdim=True, unbiased=False)
-    t = (t - mean) / (var + 1e-6).sqrt()
-    return t.permute(0, 1, 2, 4, 3, 5).reshape(B, C, H, W).contiguous()
-
-
 def _fg_recon_metric(
     pred: torch.Tensor,
     target_raw: torch.Tensor,
     mask: torch.Tensor,
     threshold: float,
-    *,
-    per_patch_target_norm: bool = False,
-    target_norm_patch_size: int = 8,
 ) -> torch.Tensor:
     """Masked L1 on foreground pixels only. Eval-time diagnostic; no grad.
 
@@ -82,12 +57,8 @@ def _fg_recon_metric(
     exposes background-focus collapse independently of training-time fg weighting.
     """
     fg = (target_raw.amax(dim=1, keepdim=True) > threshold).to(target_raw.dtype)
-    if per_patch_target_norm:
-        target_for_err = _per_patch_normalize(target_raw, target_norm_patch_size)
-    else:
-        target_for_err = target_raw
     wm = mask * fg
-    err = (pred - target_for_err).abs() * wm
+    err = (pred - target_raw).abs() * wm
     denom = wm.sum() * pred.shape[1] + 1e-8
     return err.sum() / denom
 
@@ -111,17 +82,12 @@ def simmim_recon_loss(
     fg_alpha: float = 0.0,
     fg_tau: float = 0.0,
     fg_temp: float = 1.0,
-    per_patch_target_norm: bool = False,
-    target_norm_patch_size: int = 8,
 ) -> torch.Tensor:
     """Masked reconstruction loss. ``kind='l1'`` only.
 
-    ``per_patch_target_norm``: per-tile mean 0 / std 1 (MAE §4.2).
     ``fg_alpha > 0``: sigmoid fg-reweighting; weighted denom preserves scale.
     Ref: https://github.com/microsoft/SimMIM
     """
-    if per_patch_target_norm:
-        target = _per_patch_normalize(target, target_norm_patch_size)
     if kind == "l1":
         return _simmim_recon_l1(pred, target, mask, fg_alpha, fg_tau, fg_temp)
     raise ValueError(f"Unknown loss_kind={kind!r}; expected 'l1'.")
@@ -227,29 +193,17 @@ def compute_simmim_vicreg_loss(
                 fg_alpha=ssl_cfg.fg_weight_alpha,
                 fg_tau=ssl_cfg.fg_weight_tau,
                 fg_temp=ssl_cfg.fg_weight_temp,
-                per_patch_target_norm=ssl_cfg.per_patch_target_norm,
-                target_norm_patch_size=ssl_cfg.target_norm_patch_size,
             )
             + simmim_recon_loss(
                 r2f, v2f, mf, ssl_cfg.loss_kind,
                 fg_alpha=ssl_cfg.fg_weight_alpha,
                 fg_tau=ssl_cfg.fg_weight_tau,
                 fg_temp=ssl_cfg.fg_weight_temp,
-                per_patch_target_norm=ssl_cfg.per_patch_target_norm,
-                target_norm_patch_size=ssl_cfg.target_norm_patch_size,
             )
         )
         L_recon_fg = 0.5 * (
-            _fg_recon_metric(
-                r1f, v1f, mf, ssl_cfg.fg_metric_threshold,
-                per_patch_target_norm=ssl_cfg.per_patch_target_norm,
-                target_norm_patch_size=ssl_cfg.target_norm_patch_size,
-            )
-            + _fg_recon_metric(
-                r2f, v2f, mf, ssl_cfg.fg_metric_threshold,
-                per_patch_target_norm=ssl_cfg.per_patch_target_norm,
-                target_norm_patch_size=ssl_cfg.target_norm_patch_size,
-            )
+            _fg_recon_metric(r1f, v1f, mf, ssl_cfg.fg_metric_threshold)
+            + _fg_recon_metric(r2f, v2f, mf, ssl_cfg.fg_metric_threshold)
         )
 
         # Fourier auxiliary loss (CA-MAE, Kraus 2024) on masked tiles.
@@ -326,13 +280,9 @@ def validation_simmim(
         fg_alpha=ssl_cfg.fg_weight_alpha,
         fg_tau=ssl_cfg.fg_weight_tau,
         fg_temp=ssl_cfg.fg_weight_temp,
-        per_patch_target_norm=ssl_cfg.per_patch_target_norm,
-        target_norm_patch_size=ssl_cfg.target_norm_patch_size,
     )
     L_recon_fg = _fg_recon_metric(
         recon, batch, mask, ssl_cfg.fg_metric_threshold,
-        per_patch_target_norm=ssl_cfg.per_patch_target_norm,
-        target_norm_patch_size=ssl_cfg.target_norm_patch_size,
     )
     L_fourier = fourier_recon_loss(
         recon.float(), batch.float(), mask.float(), ssl_cfg.mask_block_size,
