@@ -123,9 +123,11 @@ class SSLCfg:
     # ICLR 2022, Table 12: top-1 accuracy improves from 55.9% (dim=256) to
     # 68.6% (dim=8192). Width must be >= encoder dim or BN inside the
     # projector trivially satisfies the variance hinge while the encoder
-    # collapses. 2048 is safely above typical Swin-T stage widths used here.
-    projector_hidden: int = 2048
-    projector_dim: int = 2048
+    # collapses. 512 is a compact default; raise above the encoder dim used
+    # here (Swin-T stage-4 = feature_size * 8, e.g. 768) when running with
+    # ``w_vicreg > 0``.
+    projector_hidden: int = 512
+    projector_dim: int = 512
     # Foreground-weighted reconstruction. Each masked pixel's error is
     # multiplied by ``1 + alpha * sigmoid((target - tau) / temp)``, with the
     # logit reduced over channels by ``amax`` so a pixel that is bright in
