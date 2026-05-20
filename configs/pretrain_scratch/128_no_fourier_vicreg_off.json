@@ -25,7 +25,7 @@
       "structural"
     ],
     "channel_stats_max_samples": 4096,
-    "exclude_patterns_file": "data/data_analysis/exclude.json"
+    "exclude_patterns_file": "../data/data_analysis/exclude.json"
   },
   "model": {
     "in_channels": 3,
