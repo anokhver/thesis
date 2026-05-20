@@ -3,7 +3,7 @@ r"""Run the pre/post synaptic-puncta detection pipeline on full-MIP .npy
 files or a tiled-patches session, using pre-computed soma + dendrite
 masks for the structural near-gate.
 
-Mirrors ``scripts/soma_from_mip.py`` and ``scripts/dendrite_from_mip.py``.
+Mirrors ``scripts/pseudolabels/soma_from_mip.py`` and ``scripts/pseudolabels/dendrite_from_mip.py``.
 The soma and dendrite masks are NOT recomputed here -- they are loaded
 from separate directories (the outputs of those two scripts). For a MIP
 input ``<stem>.npy`` the script expects:
@@ -40,28 +40,28 @@ Disable with ``--no_auto_floors`` to use the literal cfg values.
 Usage::
 
     # MIP mode, single folder:
-    python scripts/puncta_from_mip.py \
+    python scripts/pseudolabels/puncta_from_mip.py \
         --input_dir     Microscopy_no_patch/SessionName \
         --soma_dir      Microscopy_soma/SessionName \
         --dendrite_dir  Microscopy_dend/SessionName \
         --output_dir    Microscopy_puncta/SessionName
 
     # MIP mode, all session subfolders under a root:
-    python scripts/puncta_from_mip.py \
+    python scripts/pseudolabels/puncta_from_mip.py \
         --input_root     Microscopy_no_patch \
         --soma_root      Microscopy_soma \
         --dendrite_root  Microscopy_dend \
         --output_root    Microscopy_puncta
 
     # Patches mode, single session:
-    python scripts/puncta_from_mip.py \
+    python scripts/pseudolabels/puncta_from_mip.py \
         --input_patches Microscopy/SessionName \
         --soma_dir      Microscopy_soma/SessionName \
         --dendrite_dir  Microscopy_dend/SessionName \
         --output_dir    Microscopy_puncta/SessionName
 
     # Override a knob (JSON):
-    python scripts/puncta_from_mip.py --input_dir ... --soma_dir ... \
+    python scripts/pseudolabels/puncta_from_mip.py --input_dir ... --soma_dir ... \
         --dendrite_dir ... --output_dir ... \
         --cfg_pre '{"zscore_threshold": 3.0, "intensity_tophat_radius": 10}'
 """
@@ -93,7 +93,7 @@ def _np_load(path, *, mmap_mode=None):
 
     NTFS-3G (FUSE) occasionally returns EIO on np.load's multi-chunk
     read pattern but tolerates one large read fine. Mirrors the helper
-    in ``scripts/dendrite_from_mip.py``.
+    in ``scripts/pseudolabels/dendrite_from_mip.py``.
     """
     path = Path(path)
     if mmap_mode is not None:

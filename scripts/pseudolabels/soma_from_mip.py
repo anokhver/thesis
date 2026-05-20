@@ -20,27 +20,27 @@ Two input modes (mirroring ``scripts/preprocess/tile_from_mip.py``):
 Usage::
 
     # MIP mode, single folder:
-    python scripts/soma_from_mip.py \
+    python scripts/pseudolabels/soma_from_mip.py \
         --input_dir  Microscopy_no_patch/SessionName \
         --output_dir Microscopy_soma/SessionName
 
     # MIP mode, all session subfolders under a root:
-    python scripts/soma_from_mip.py \
+    python scripts/pseudolabels/soma_from_mip.py \
         --input_root  Microscopy_no_patch \
         --output_root Microscopy_soma
 
     # Patches mode, single session:
-    python scripts/soma_from_mip.py \
+    python scripts/pseudolabels/soma_from_mip.py \
         --input_patches  Microscopy/SessionName \
         --output_dir     Microscopy_soma/SessionName
 
     # Patches mode, all session subfolders under a root:
-    python scripts/soma_from_mip.py \
+    python scripts/pseudolabels/soma_from_mip.py \
         --input_patch_root  Microscopy \
         --output_root       Microscopy_soma
 
     # Override soma cfg (any DEFAULT_SOMA_CFG key, JSON):
-    python scripts/soma_from_mip.py --input_patch_root ... --output_root ... \
+    python scripts/pseudolabels/soma_from_mip.py --input_patch_root ... --output_root ... \
         --soma_cfg '{"pixel_size_nm": 65.0, "blob_fdt_pct": 97.0}'
 """
 

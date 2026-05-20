@@ -3,11 +3,11 @@ r"""Run the Frangi-on-FDT dendrite pipeline on full-MIP .npy files or on a
 tiled-patches session, using pre-computed soma masks for carving.
 
 The soma masks are NOT recomputed here. They are loaded from a separate
-directory (the output of ``scripts/soma_from_mip.py``). For a MIP input
+directory (the output of ``scripts/pseudolabels/soma_from_mip.py``). For a MIP input
 ``<stem>.npy`` the script expects ``<stem>_soma.npy`` (bool, ``(H, W)``)
 under ``--soma_dir`` / ``--soma_root``.
 
-Two input modes (mirroring ``scripts/soma_from_mip.py``):
+Two input modes (mirroring ``scripts/pseudolabels/soma_from_mip.py``):
 
   1. **MIP mode** -- inputs are full ``(C, H, W)`` ``.npy`` files. One
      ``<stem>_dend.npy`` (bool, ``(H, W)``) is written per source image
@@ -31,31 +31,31 @@ Defaults bake in the calibration from
 Usage::
 
     # MIP mode, single folder:
-    python scripts/dendrite_from_mip.py \
+    python scripts/pseudolabels/dendrite_from_mip.py \
         --input_dir  Microscopy_no_patch/SessionName \
         --soma_dir   Microscopy_soma/SessionName \
         --output_dir Microscopy_dend/SessionName
 
     # MIP mode, all session subfolders under a root:
-    python scripts/dendrite_from_mip.py \
+    python scripts/pseudolabels/dendrite_from_mip.py \
         --input_root  Microscopy_no_patch \
         --soma_root   Microscopy_soma \
         --output_root Microscopy_dend
 
     # Patches mode, single session:
-    python scripts/dendrite_from_mip.py \
+    python scripts/pseudolabels/dendrite_from_mip.py \
         --input_patches  Microscopy/SessionName \
         --soma_dir       Microscopy_soma/SessionName \
         --output_dir     Microscopy_dend/SessionName
 
     # Patches mode, all session subfolders under a root:
-    python scripts/dendrite_from_mip.py \
+    python scripts/pseudolabels/dendrite_from_mip.py \
         --input_patch_root Microscopy \
         --soma_root        Microscopy_soma \
         --output_root      Microscopy_dend
 
     # Override a knob (JSON):
-    python scripts/dendrite_from_mip.py --input_dir ... --soma_dir ... \
+    python scripts/pseudolabels/dendrite_from_mip.py --input_dir ... --soma_dir ... \
         --output_dir ... --dend_cfg '{"hysteresis_low_pct": 45.0}'
 """
 
