@@ -44,7 +44,7 @@ def interpolate_z_axis(data: NDArray,
     logger.info("Z-interpolation factor: %.4f", interpolation_factor)
     logger.info("Input shape: %s", data.shape)
 
-    # Zoom only the z-axis (axis 1 in CZYX format)
+    # Zoom Z only (axis 1 in CZYX); X, Y unchanged.
     zoom_factors = (1.0, interpolation_factor, 1.0, 1.0)
     result = zoom(data, zoom_factors, order=1, prefilter=False)
 
@@ -59,7 +59,6 @@ def interpolate_z_memory_efficient(data: NDArray, xy_pixel_size: float = 0.10685
     """
     c, z, y, x = data.shape
 
-    # Calculate the exact interpolation factor to make pixels square
     interpolation_factor = z_pixel_size / xy_pixel_size
     new_z = int(np.round((z - 1) * interpolation_factor + 1))
 
@@ -69,10 +68,6 @@ def interpolate_z_memory_efficient(data: NDArray, xy_pixel_size: float = 0.10685
     )
     logger.info("Memory-efficient processing with chunk size: %d", chunk_size)
 
-    # Calculate zoom factors for each axis (only z-axis changes)
-    zoom_factors = (1.0, interpolation_factor, 1.0, 1.0)  # (C, Z, Y, X)
-
-    # Estimate memory usage
     input_size_mb = data.nbytes / (1024 ** 2)
     output_size_mb = c * new_z * y * x * data.itemsize / (1024 ** 2)
     logger.info(
@@ -80,10 +75,10 @@ def interpolate_z_memory_efficient(data: NDArray, xy_pixel_size: float = 0.10685
         input_size_mb, output_size_mb,
     )
 
-    # Create output array with memory mapping if large
-    if output_size_mb > 1000:  # > 1GB
+    zoom_factors = (1.0, interpolation_factor, 1.0, 1.0)  # (C, Z, Y, X)
+
+    if output_size_mb > 1000:
         logger.info("Using memory mapping for large output array")
-        # Create a temporary file for memory mapping
         import tempfile
         temp_file = tempfile.NamedTemporaryFile(delete=False)
         temp_file.close()
@@ -91,25 +86,16 @@ def interpolate_z_memory_efficient(data: NDArray, xy_pixel_size: float = 0.10685
     else:
         new_data = np.empty((c, new_z, y, x), dtype=data.dtype)
 
-    # Process each channel separately to save memory
     for channel_idx in range(c):
         logger.info("Processing channel %d/%d...", channel_idx + 1, c)
 
-        # Process in chunks along Y axis to minimize memory usage
         for y_start in range(0, y, chunk_size):
             y_end = min(y_start + chunk_size, y)
-
-            # Extract chunk for this channel
             chunk = data[channel_idx, :, y_start:y_end, :]
-
-            # Use scipy's zoom for fast linear interpolation
-            # Only interpolate along z-axis (axis=0)
+            # Interpolate along Z only (axis=0 inside the per-channel slice).
             interpolated_chunk = zoom(chunk, (interpolation_factor, 1.0, 1.0), order=1, prefilter=False)
-
-            # Store result
             new_data[channel_idx, :, y_start:y_end, :] = interpolated_chunk
 
-            # Force garbage collection to free memory
             del chunk, interpolated_chunk
             gc.collect()
 
@@ -117,7 +103,6 @@ def interpolate_z_memory_efficient(data: NDArray, xy_pixel_size: float = 0.10685
                 progress = (y_start / y) * 100
                 logger.info("  Progress: %.1f%%", progress)
 
-    # Verify the new pixel spacing
     actual_z_spacing = (z - 1) * z_pixel_size / (new_z - 1)
     logger.info(
         "Final z-spacing: %.6f (target: %.6f)", actual_z_spacing, xy_pixel_size,

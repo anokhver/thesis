@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Regenerate post-training visualizations from completed/partial output folders.
 
-This script scans run folders under an output root (or explicit run dirs), loads
+Scans run folders under an output root (or explicit run dirs), loads
 model/config/checkpoint from each run, and regenerates the standard post-training
 artifacts:
 - training_curves.png (from metrics.csv)

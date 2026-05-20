@@ -15,11 +15,10 @@ class PatchDataset(Dataset):
     """Indexed ``.npy`` patch dataset from ``index.csv``.
 
     Patches are ``(C, H, W)`` float32 in ``[0, 1]``. Channel subset is taken
-    when ``channels`` is set. Damaged patches and ``exclude_patterns``
-    matches on ``source_image`` are dropped. ``transform`` runs on the
-    numpy array before tensor conversion.
+    when ``channels`` is set. ``transform`` runs on the numpy array before
+    tensor conversion.
 
-    Three exclusion mechanisms are supported (all combine OR-wise):
+    Two exclusion mechanisms are supported (combine OR-wise):
 
     * ``exclude_patterns``: case-insensitive substring match against
       ``source_image`` / ``source_path`` / ``source_npy`` (e.g. ``KONTROLA``).
@@ -27,8 +26,6 @@ class PatchDataset(Dataset):
       against the basename of ``source_path``. Use this with the JSON
       denylist produced by ``scripts/score_image_noise.py`` to drop entire
       noise-dominated source images.
-    * ``exclude_damaged``: drops rows whose ``damaged`` column is truthy
-      (populated by :mod:`damage_detection`).
 
     Two on-disk layouts are supported:
 
@@ -47,7 +44,6 @@ class PatchDataset(Dataset):
         channels: list[int] | None = None,
         transform=None,
         exclude_patterns: list[str] | None = None,
-        exclude_damaged: bool = True,
         exclude_sources: list[str] | set[str] | None = None,
     ):
         self.root = Path(root)
@@ -101,19 +97,6 @@ class PatchDataset(Dataset):
                 log.info(
                     f"Excluded {dropped} patches matching {exclude_patterns}"
                 )
-
-        # Drop damaged patches flagged by data_utils.damage_detection.
-        # The column is optional for backward compatibility with old
-        # index.csv files that pre-date the damage check.
-        if exclude_damaged and self.records and "damaged" in self.records[0]:
-            before = len(self.records)
-            self.records = [
-                r for r in self.records
-                if str(r.get("damaged", "")).strip().lower() not in ("true", "1")
-            ]
-            dropped = before - len(self.records)
-            if dropped:
-                log.info(f"Excluded {dropped} damaged patches")
 
         # Exact-match exclusion against an explicit denylist of source names
         # (typically produced by ``scripts/score_image_noise.py``). We match

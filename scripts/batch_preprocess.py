@@ -50,7 +50,6 @@ def _find_image_folders(root: Path, min_files: int = 1) -> list[Path]:
     for item in sorted(root.iterdir()):
         if not item.is_dir():
             continue
-        # Check if folder contains image files
         image_files = [
             f for ext in extensions
             for f in item.glob(f"*{ext}")
@@ -66,7 +65,6 @@ def _load_config_overrides(config_path: Path) -> dict:
     """Load config values to pass as CLI overrides."""
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
-    # Extract only the parameters that apply (ignore input_dir, output_dir)
     return {
         "patch_size": cfg.get("patch_size"),
         "plow": cfg.get("plow"),
@@ -93,7 +91,6 @@ def process_folder(
     if skip_patterns is None:
         skip_patterns = []
     
-    # Create output folder with same name as input
     output_dir = output_root / input_folder.name
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -101,7 +98,6 @@ def process_folder(
     logger.info(f"  Input:  {input_folder}")
     logger.info(f"  Output: {output_dir}")
     
-    # Call preprocess_training.py
     _repo = Path(__file__).resolve().parents[1]
     script_path = _repo / "src" / "synaptic_ssl" / "utils_data" / "preprocess_training.py"
     
@@ -202,14 +198,14 @@ def main():
 
     args = parser.parse_args()
 
-    # Load config overrides if provided
     config_overrides = {}
     if args.config is not None:
         config_overrides = _load_config_overrides(args.config)
         logger.info(f"Loaded config: {args.config}")
         logger.info(f"  Overrides: {config_overrides}")
 
-    # Merge config with CLI args (CLI takes precedence)
+    # CLI explicitly-set values override config; values left at their defaults
+    # fall back to the config (or to the hard-coded default if neither sets them).
     patch_size = args.patch_size if args.patch_size != 128 else config_overrides.get("patch_size", 128)
     plow = args.plow if args.plow != 1.0 else config_overrides.get("plow", 1.0)
     phigh = args.phigh if args.phigh != 99.8 else config_overrides.get("phigh", 99.8)
@@ -228,7 +224,6 @@ def main():
     logger.info(f"Max folders: {args.max_folders if args.max_folders > 0 else 'all'}")
     logger.info(f"Max files/folder: {args.max_files_per_folder if args.max_files_per_folder > 0 else 'all'}")
     
-    # Find folders to process
     logger.info(f"\nScanning for image folders in {args.input_root}...")
     folders = _find_image_folders(args.input_root)
     
@@ -248,7 +243,6 @@ def main():
             logger.info(f"  - {folder.name}")
         return
     
-    # Process each folder
     args.output_root.mkdir(parents=True, exist_ok=True)
     
     results = {}
@@ -267,7 +261,6 @@ def main():
         )
         results[folder.name] = success
     
-    # Summary
     logger.info(f"\n{'='*70}")
     logger.info("Summary")
     logger.info(f"{'='*70}")

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 r"""Gather full metadata for a pseudolabel damage-detection experiment.
 
-This script consumes the experiment summary JSON (the one containing
-``patch_root``, thresholds, ``exclude_patterns``, ``n_images``,
-``n_flagged``, and ``flagged_sources``), then enriches it with:
+Reads the experiment summary JSON (``patch_root``, thresholds,
+``exclude_patterns``, ``n_images``, ``n_flagged``, ``flagged_sources``) and
+adds:
 
 1) Parsed metadata from each source filename
 2) Optional patch-level aggregates from ``<patch_root>/index.csv``
@@ -364,19 +364,6 @@ def parse_source_name(source: str) -> dict[str, Any]:
     }
 
 
-def _parse_bool(value: Any) -> bool | None:
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return None
-    s = str(value).strip().lower()
-    if s in {"1", "true", "yes", "y", "t"}:
-        return True
-    if s in {"0", "false", "no", "n", "f"}:
-        return False
-    return None
-
-
 def load_index_by_source(patch_root: Path) -> dict[str, dict[str, Any]]:
     """Read ``index.csv`` and aggregate patch-level metadata per source."""
     csv_path = patch_root / "index.csv"
@@ -418,10 +405,6 @@ def load_index_by_source(patch_root: Path) -> dict[str, dict[str, Any]]:
         grid_rows = [int(v) for v in grid_rows if v is not None]
         grid_cols = [int(v) for v in grid_cols if v is not None]
 
-        damaged_vals = [_parse_bool(r.get("damaged")) for r in recs]
-        damaged_true = sum(1 for v in damaged_vals if v is True)
-        damaged_known = sum(1 for v in damaged_vals if v is not None)
-
         channels_vals = {_to_float(r.get("channels")) for r in recs}
         channels_vals = sorted({int(v) for v in channels_vals if v is not None})
 
@@ -437,8 +420,6 @@ def load_index_by_source(patch_root: Path) -> dict[str, dict[str, Any]]:
             "grid_row_max": max(grid_rows) if grid_rows else None,
             "grid_col_min": min(grid_cols) if grid_cols else None,
             "grid_col_max": max(grid_cols) if grid_cols else None,
-            "damaged_patches": damaged_true,
-            "damaged_patches_known": damaged_known,
             "channels_values": channels_vals,
             "patch_size_values": patch_size_vals,
         }
@@ -477,8 +458,6 @@ def _source_row(
                 "grid_row_max": None,
                 "grid_col_min": None,
                 "grid_col_max": None,
-                "damaged_patches": None,
-                "damaged_patches_known": None,
                 "channels_values": [],
                 "patch_size_values": [],
             }
@@ -541,8 +520,6 @@ def _write_csv(rows: list[dict[str, Any]], path: Path) -> None:
         "acquisition_date_yyyymmdd",
         "acquisition_run_sequence",
         "n_patches",
-        "damaged_patches",
-        "damaged_patches_known",
         "mean_intensity_mean",
         "mean_intensity_min",
         "mean_intensity_max",

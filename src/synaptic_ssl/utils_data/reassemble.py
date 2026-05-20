@@ -145,22 +145,22 @@ def load_patch_records(
     patch_root,
     exclude_patterns: Sequence[str] | None = None,
 ) -> list[dict]:
-    """Load ``index.csv`` as a flat list, filtering damaged / excluded records.
+    """Load ``index.csv`` as a flat list, filtering excluded records.
 
     Unlike ``_load_index`` this returns a **flat** list (not grouped by image)
-    and drops rows where ``damaged`` is truthy or the source label matches
-    any pattern in *exclude_patterns* (case-insensitive substring match).
-    Supports both flat and nested (per-subdir) ``index.csv`` layouts.
+    and drops rows whose source label matches any pattern in
+    *exclude_patterns* (case-insensitive substring match). Supports both
+    flat and nested (per-subdir) ``index.csv`` layouts.
     """
     patch_root = Path(patch_root)
     records = _normalise_records(_read_index_rows(patch_root))
 
     pats = [p.upper() for p in (exclude_patterns or [])]
+    if not pats:
+        return records
     return [
-        r
-        for r in records
-        if str(r.get("damaged", "")).strip().lower() not in ("true", "1")
-        and not any(p in _source_label(r).upper() for p in pats)
+        r for r in records
+        if not any(p in _source_label(r).upper() for p in pats)
     ]
 
 

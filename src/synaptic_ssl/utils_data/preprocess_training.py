@@ -157,14 +157,12 @@ def load_image(path: Path) -> np.ndarray:
 
 def maximum_intensity_projection(volume: np.ndarray) -> np.ndarray:
     """MIP along Z (axis 1). ``(C, Z, Y, X)`` → ``(C, Y, X)`` float32."""
-    # MIP along Z axis (axis=1)
     mip = volume.max(axis=1).astype(np.float32)
     return mip
 
 
 def best_z_slice(volume: np.ndarray) -> int:
     """Return the Z-index with the highest summed intensity across C·Y·X."""
-    # Sum over C, Y, X for each z → shape (Z,)
     intensity_per_z = volume.sum(axis=(0, 2, 3))
     return int(np.argmax(intensity_per_z))
 
@@ -192,7 +190,6 @@ def normalize_percentile(
         vmax = np.percentile(ch, phigh)
         denom = vmax - vmin
         if denom < 1e-8:
-            # Dead channel: set to zero
             out[c] = 0.0
         else:
             out[c] = np.clip((ch - vmin) / denom, 0.0, 1.0)
@@ -215,13 +212,12 @@ def extract_patches(
     n_rows = H // patch_size
     n_cols = W // patch_size
 
-    # Trim if not perfectly divisible
     image = image[:, : n_rows * patch_size, : n_cols * patch_size]
 
-    # Reshape via view: (C, n_rows, ps, n_cols, ps) → (n_rows, n_cols, C, ps, ps)
+    # reshape via view: (C, n_rows, ps, n_cols, ps) -> (n_rows, n_cols, C, ps, ps)
     patches = image.reshape(C, n_rows, patch_size, n_cols, patch_size)
-    patches = patches.transpose(1, 3, 0, 2, 4)  # (n_rows, n_cols, C, ps, ps)
-    patches = patches.reshape(-1, C, patch_size, patch_size)  # (N, C, ps, ps)
+    patches = patches.transpose(1, 3, 0, 2, 4)
+    patches = patches.reshape(-1, C, patch_size, patch_size)
 
     return patches
 

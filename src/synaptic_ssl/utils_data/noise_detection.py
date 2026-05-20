@@ -1,28 +1,23 @@
-"""Image-level noise-floor detection (complements per-patch ``damage_detection``).
+"""Image-level noise-floor detection for percentile-stretched MIPs.
 
-Per-patch ``damage_detection`` looks for *within-image* outlier patches and so
-cannot detect images where **every** patch is equally noisy. That situation
-arises naturally with this pipeline's :func:`normalize_percentile` stretch:
-a channel that has no real signal still contains sensor shot noise, and the
-per-channel ``[p1, p99.8]`` linear stretch in
-``preprocess_training.py`` maps that narrow noise band to the full ``[0, 1]``
-dynamic range. The result is a uniform, high-frequency speckle that looks
-"pixelated as hell" on display.
+Source images where **every** patch is equally noisy slip past per-patch
+within-image outlier checks. That happens with :func:`normalize_percentile`:
+a channel with no real signal still contains sensor shot noise, and the
+per-channel ``[p1, p99.8]`` stretch in ``preprocess_training.py`` maps that
+narrow noise band onto ``[0, 1]``, producing a uniform high-frequency
+speckle.
 
-This module exposes two scale-invariant frequency-domain metrics per channel
-that distinguish such noise-dominated channels from real signal:
+Two scale-invariant frequency-domain metrics per channel separate such
+noise-dominated channels from real signal:
 
 * ``hp_var_ratio``  — ``Var(image - Gaussian-blur(image)) / Var(image)``.
-  White noise -> ~1.0; real images concentrate energy at low frequencies
-  and score < 0.2.
+  White noise → ~1.0; real images < 0.2.
 * ``hf_energy_frac`` — fraction of FFT energy outside a centred disk of
-  radius ``low_radius_frac * r_max``. Also ~1.0 for white noise, < 0.2 for
-  real images.
+  radius ``low_radius_frac * r_max``. White noise → ~1.0; real images < 0.2.
 
-An image is flagged when **any** non-dead channel exceeds **both** thresholds
-simultaneously. Defaults were calibrated on the project's microscopy patches
-(see commit message / notebook) to flag the obviously noise-dominated source
-images while keeping the clean ``KONTROLA`` controls below threshold.
+An image is flagged when any non-dead channel exceeds both thresholds.
+Defaults were calibrated on the project's patches to flag noise-dominated
+source images while keeping clean ``KONTROLA`` controls below threshold.
 """
 from __future__ import annotations
 
