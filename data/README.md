@@ -37,11 +37,11 @@ data/
 
 | Producer                                            | Output |
 |:----------------------------------------------------|:-------|
-| `scripts/batch_extract_metadata.py`                 | `Microscopy_meta/metadata.csv` + `metadata_full.json`. |
-| `scripts/batch_preprocess.py`                       | `patches_128/<session>/*.npy` + per-folder `index.csv`. |
-| `scripts/tile_from_mip.py` / `tile_from_mip_zip.py` | `patches_128_from_zip/<date>/...` from pre-MIPped `.npy`. |
-| `scripts/pretrain_simmim_vicreg.py`                 | `training_outputs/<run_label>/` (config, checkpoints, metrics, plots). |
-| `scripts/extract_embeddings.py`                     | `training_outputs/<run>/embeddings.npy`. |
+| `scripts/metadata/batch_extract_metadata.py`        | `Microscopy_meta/metadata.csv` + `metadata_full.json`. |
+| `scripts/preprocess/batch_preprocess.py`            | `patches_128/<session>/*.npy` + per-folder `index.csv`. |
+| `scripts/preprocess/tile_from_mip.py`               | `patches_128_from_zip/<date>/...` from pre-MIPped `.npy`. |
+| `scripts/training/pretrain_simmim_vicreg.py`        | `training_outputs/<run_label>/` (config, checkpoints, metrics, plots). |
+| `scripts/evaluation/extract_embeddings.py`          | `training_outputs/<run>/embeddings.npy`. |
 
 ## Pretrained weights
 

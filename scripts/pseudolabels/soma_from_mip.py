@@ -2,7 +2,7 @@
 r"""Run the pseudo-FDT soma pipeline on full-MIP .npy files or on a
 tiled-patches session (stitch → soma → slice back per patch).
 
-Two input modes (mirroring ``scripts/tile_from_mip.py``):
+Two input modes (mirroring ``scripts/preprocess/tile_from_mip.py``):
 
   1. **MIP mode** -- inputs are full ``(C, H, W)`` ``.npy`` files (the
      output of the no-tile preprocessing pipeline). One
