@@ -10,7 +10,7 @@ data/*
 !data/imaging_outputs/
 !data/data_analysis/
 
-
+.github
 
 # Papermill executed-notebook outputs
 notebooks/**/runs/
@@ -21,10 +21,9 @@ notebooks/**/outputs/
 # Personall notes
 .my/
 .old/
-
 .venv/
 .runs-analyse/
-inspo
+.inspo
 .venv1
 .planning
 .papers

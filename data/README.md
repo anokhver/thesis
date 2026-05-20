@@ -1,11 +1,50 @@
-# Data Directory
+# `data/`
 
-## Directories
+Datasets, intermediate artefacts, and training outputs. `data/` is
+git-ignored; only the placeholders and small reference files listed
+below are tracked. Everything else lives on local disk or the cluster.
 
-### `training_outputs`
-Standard path where results from training Python scripts are saved. Contains logs, metrics, and training artifacts.
+## Layout
 
-### `checkpoint`
-Directory for storing model weights to preload. This is where most data is written by default for the majority of scripts. Place pretrained or previously saved model weights here for resuming training or inference.
+```
+data/
+├── .gitkeep
+├── README.md                          # this file
+│
+├── Microscopy/                        # raw acquisitions (.vsi/.ets/.tif/.oex)
+├── Microscopy_meta/                   # batch_extract_metadata.py output
+│
+├── patches_128/                       # 128x128 patches + index.csv (SSL training input)
+├── patches_32/                        # 32x32 patches  + index.csv
+│
+├── metadata/Microscopy_meta/          # session metadata (TRACKED)
+│   ├── metadata.csv                   #   one row per acquisition session
+│   └── metadata_full.json             #   full raw metadata for auditing
+│
+├── checkpoints/                       # pretrained encoder weights
+│   └── README.md                      #   download links (Swin-T 22k, MoBY) — TRACKED
+│
+├── training_outputs/                  # one timestamped subdir per training run
+│   ├── pretrain_moby/.gitkeep         #   placeholders — TRACKED
+│   ├── pretrain_scratch/.gitkeep
+│   ├── clustering/.gitkeep
+│   └── segmentation/.gitkeep
+│
+└── csv/                               # external CSV exports (manual)
+```
 
-### Used pretrained model links
+## What gets written here
+
+| Producer                                            | Output |
+|:----------------------------------------------------|:-------|
+| `scripts/batch_extract_metadata.py`                 | `Microscopy_meta/metadata.csv` + `metadata_full.json`. |
+| `scripts/batch_preprocess.py`                       | `patches_128/<session>/*.npy` + per-folder `index.csv`. |
+| `scripts/tile_from_mip.py` / `tile_from_mip_zip.py` | `patches_128_from_zip/<date>/...` from pre-MIPped `.npy`. |
+| `scripts/pretrain_simmim_vicreg.py`                 | `training_outputs/<run_label>/` (config, checkpoints, metrics, plots). |
+| `scripts/extract_embeddings.py`                     | `training_outputs/<run>/embeddings.npy`. |
+
+## Pretrained weights
+
+`checkpoints/README.md` has the upstream URLs (Swin-Tiny ImageNet-22k,
+MoBY contrastive). Drop the `.pth` / `.pt` files into `data/checkpoints/`
+and point `base.pretrained_ckpt_path` at them.
