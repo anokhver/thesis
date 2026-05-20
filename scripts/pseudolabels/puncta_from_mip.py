@@ -82,7 +82,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
-from skimage.morphology import disk as morph_disk, dilation, white_tophat
+from skimage.morphology import disk as morph_disk, dilation
 
 
 _MP_CTX = mp.get_context("spawn")
@@ -118,9 +118,9 @@ for _p in (_ROOT, _REPO):
 from synaptic_ssl.pseudolabels.puncta import (  # noqa: E402
     PunctaCfg,
     puncta_to_mask,
-    detect_puncta_log,
+    detect_puncta_channel,
+    restrict_puncta_to_near,
     filter_by_size_shape,
-    score_puncta_zscore,
 )
 
 logging.basicConfig(
@@ -276,85 +276,8 @@ def _parse_json_cfg(s: str | None) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Detection on one 2D channel
+# Detection pipeline on full-shape arrays
 # ---------------------------------------------------------------------------
-
-def _derive_floors(detected: np.ndarray) -> tuple[float, float, float]:
-    """Per-image safety floors from bg stats of the (already tophatted)
-    array the detector will see.
-
-    Returns ``(sigma_bg_floor, min_inner, min_contrast)``. Falls back to
-    ``(0.0, 0.0, 0.0)`` (floors disabled) on degenerate / non-finite
-    inputs. Mirrors ``set_bg_floors`` in the puncta_detection notebook.
-    """
-    finite = detected[np.isfinite(detected)]
-    if finite.size == 0:
-        return 0.0, 0.0, 0.0
-    p30 = np.percentile(finite, 30)
-    bg = finite[finite <= p30]
-    if bg.size == 0:
-        return 0.0, 0.0, 0.0
-    bg_med = float(np.median(bg))
-    bg_mad = float(np.median(np.abs(bg - bg_med)))
-    bg_sigma = 1.4826 * bg_mad
-    if not (np.isfinite(bg_med) and np.isfinite(bg_sigma)):
-        return 0.0, 0.0, 0.0
-    return bg_sigma, bg_med + 4.0 * bg_sigma, 4.0 * bg_sigma
-
-
-def _detect_channel(
-    img2d: np.ndarray,
-    cfg: PunctaCfg,
-    *,
-    auto_floors: bool,
-) -> tuple[np.ndarray, PunctaCfg, tuple[float, float, float]]:
-    """Tophat -> (optionally derive floors) -> LoG -> z-score + floor gate.
-
-    Returns ``(kept_blobs[N,3], effective_cfg, (sigma_bg_floor,
-    min_inner, min_contrast))``. ``effective_cfg`` is the cfg actually
-    used for scoring (after the per-image floor overwrite if
-    auto_floors is on), so callers can log it.
-    """
-    r = int(cfg.intensity_tophat_radius)
-    det = white_tophat(img2d, footprint=morph_disk(r)) if r > 0 else img2d
-
-    if auto_floors:
-        sg_floor, in_floor, dlt_floor = _derive_floors(det)
-        cfg_eff = dataclasses.replace(
-            cfg,
-            zscore_sigma_bg_floor=sg_floor,
-            zscore_min_inner=in_floor,
-            zscore_min_contrast=dlt_floor,
-        )
-    else:
-        sg_floor = cfg.zscore_sigma_bg_floor
-        in_floor = cfg.zscore_min_inner
-        dlt_floor = cfg.zscore_min_contrast
-        cfg_eff = cfg
-
-    raw = detect_puncta_log(det, cfg_eff)
-    if not cfg_eff.use_zscore or raw.shape[0] == 0:
-        kept = raw
-    else:
-        scored = score_puncta_zscore(det, raw, cfg_eff)
-        if scored:
-            kept = np.array(
-                [[s["row"], s["col"], s["sigma"]] for s in scored if s["kept"]]
-            ).reshape(-1, 3)
-        else:
-            kept = np.empty((0, 3), dtype=np.float64)
-    return kept, cfg_eff, (sg_floor, in_floor, dlt_floor)
-
-
-def _restrict_to_near(blobs: np.ndarray, near_mask: np.ndarray) -> np.ndarray:
-    """Keep blobs whose rounded centre lies on near_mask."""
-    if blobs.shape[0] == 0:
-        return blobs
-    H, W = near_mask.shape
-    rr = np.clip(np.round(blobs[:, 0]).astype(int), 0, H - 1)
-    cc = np.clip(np.round(blobs[:, 1]).astype(int), 0, W - 1)
-    return blobs[near_mask[rr, cc].astype(bool)]
-
 
 def _run_puncta(
     pre_img: np.ndarray,
@@ -393,11 +316,16 @@ def _run_puncta(
     else:
         near_mask = structural
 
-    kept_pre, _, fp = _detect_channel(pre_img, cfg_pre, auto_floors=auto_floors)
-    kept_post, _, fq = _detect_channel(post_img, cfg_post, auto_floors=auto_floors)
+    # detect_puncta_channel returns (raw, scored, kept, cfg_eff)
+    _, _, kept_pre, cfg_eff_pre = detect_puncta_channel(
+        pre_img, cfg_pre, auto_floors=auto_floors,
+    )
+    _, _, kept_post, cfg_eff_post = detect_puncta_channel(
+        post_img, cfg_post, auto_floors=auto_floors,
+    )
 
-    on_pre = _restrict_to_near(kept_pre, near_mask)
-    on_post = _restrict_to_near(kept_post, near_mask)
+    on_pre = restrict_puncta_to_near(kept_pre, near_mask)
+    on_post = restrict_puncta_to_near(kept_post, near_mask)
 
     H, W = pre_img.shape
     pre_mask = puncta_to_mask(on_pre, (H, W)).astype(bool)
@@ -406,6 +334,14 @@ def _run_puncta(
     if apply_shape_filter:
         pre_mask = filter_by_size_shape(pre_mask, cfg_pre).astype(bool)
         post_mask = filter_by_size_shape(post_mask, cfg_post).astype(bool)
+
+    # Extract floor values from the effective configs
+    fp = (cfg_eff_pre.zscore_sigma_bg_floor,
+          cfg_eff_pre.zscore_min_inner,
+          cfg_eff_pre.zscore_min_contrast)
+    fq = (cfg_eff_post.zscore_sigma_bg_floor,
+          cfg_eff_post.zscore_min_inner,
+          cfg_eff_post.zscore_min_contrast)
 
     return dict(
         pre_mask=pre_mask,
