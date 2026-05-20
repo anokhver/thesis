@@ -17,6 +17,7 @@ from typing import List, Tuple
 import numpy as np
 
 from .puncta_log import PunctaCfg
+from .puncta_spotiflow import SpotiflowPunctaCfg
 
 
 def _on_near_flags(scored: List[dict], near_mask: np.ndarray | None) -> List[bool]:
@@ -246,9 +247,153 @@ def visualise_puncta_full(
     return fig, ax
 
 
+def visualise_puncta_channel_spotiflow(
+    image: np.ndarray,
+    raw: np.ndarray,
+    scored: List[dict],
+    kept: np.ndarray,
+    *,
+    near_mask: np.ndarray | None = None,
+    color: str = "lime",
+    cfg: SpotiflowPunctaCfg | None = None,
+    axes=None,
+    vmax: float = 0.3,
+    title_prefix: str = "",
+):
+    """3-panel per-channel diagnostic for the Spotiflow pipeline.
+
+    Takes the live output of
+    ``puncta_spotiflow.detect_puncta_channel(img, cfg, model=...)`` —
+    ``(raw, scored, kept, cfg_eff)`` — and renders:
+
+      0. raw channel (with ``near_mask`` overlay in blue if provided).
+      1. all Spotiflow detections as yellow circles
+         (radius = sqrt(2)*sigma; matches the rendered mask).
+      2. kept-on-near (``color``), kept-off-near (orange), rejected by
+         the intensity floor (red). When ``scored`` is empty, every
+         ``kept`` blob is drawn as ``color``.
+
+    Mirrors ``visualise_puncta_channel`` (LoG) but the panel-2 title
+    reports the absolute intensity floor instead of a z-score threshold.
+    Pass ``cfg`` (or ``cfg_eff``) to print the actual floor.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Circle
+
+    if axes is None:
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    else:
+        fig = axes[0].figure
+    if len(axes) < 3:
+        raise ValueError(
+            f"visualise_puncta_channel_spotiflow needs 3 axes; got {len(axes)}"
+        )
+
+    axes[0].imshow(image, cmap="gray", vmin=0, vmax=vmax)
+    if near_mask is not None:
+        rgba = np.zeros((*near_mask.shape, 4))
+        rgba[..., 2] = 1.0
+        rgba[..., 3] = near_mask * 0.18
+        axes[0].imshow(rgba)
+    near_hint = "  (near=blue)" if near_mask is not None else ""
+    axes[0].set_title(f"{title_prefix}raw{near_hint}".strip())
+
+    axes[1].imshow(image, cmap="gray", vmin=0, vmax=vmax)
+    for r, c, s in raw:
+        axes[1].add_patch(Circle(
+            (c, r), float(np.sqrt(2) * s),
+            fill=False, edgecolor="yellow", linewidth=0.6,
+        ))
+    axes[1].set_title(f"spotiflow candidates (n={len(raw)})")
+
+    axes[2].imshow(image, cmap="gray", vmin=0, vmax=vmax)
+    n_kept_on = n_kept_off = n_rej = 0
+    if scored:
+        on_flags = _on_near_flags(scored, near_mask)
+        for s, on in zip(scored, on_flags):
+            if s["kept"]:
+                if on:
+                    n_kept_on += 1; col = color
+                else:
+                    n_kept_off += 1; col = "orange"
+            else:
+                n_rej += 1; col = "red"
+            sigma = s.get("sigma")
+            if sigma is None:
+                radius_px = cfg.render_radius_px if cfg is not None else 3.0
+            else:
+                radius_px = float(np.sqrt(2) * sigma)
+            axes[2].add_patch(Circle(
+                (s["col"], s["row"]), radius_px,
+                fill=False, edgecolor=col, linewidth=0.6,
+            ))
+    else:
+        for r, c, s in kept:
+            axes[2].add_patch(Circle(
+                (c, r), float(np.sqrt(2) * s),
+                fill=False, edgecolor=color, linewidth=0.6,
+            ))
+        n_kept_on = len(kept)
+    floor_txt = (
+        f"floor>={cfg.intensity_floor:.3g}" if cfg is not None else "kept"
+    )
+    if near_mask is not None and scored:
+        title2 = f"{floor_txt}  on={n_kept_on} off={n_kept_off} rej={n_rej}"
+    elif scored:
+        title2 = f"{floor_txt}  kept={n_kept_on + n_kept_off} rej={n_rej}"
+    else:
+        title2 = f"kept (n={n_kept_on})"
+    axes[2].set_title(title2)
+
+    for ax in axes:
+        ax.set_xticks([]); ax.set_yticks([])
+    return fig, axes
+
+
+def visualise_puncta_pair_spotiflow(
+    pre_image: np.ndarray,
+    post_image: np.ndarray,
+    raw_pre: np.ndarray,
+    scored_pre: List[dict],
+    kept_pre: np.ndarray,
+    raw_post: np.ndarray,
+    scored_post: List[dict],
+    kept_post: np.ndarray,
+    *,
+    near_mask: np.ndarray | None = None,
+    cfg_pre: SpotiflowPunctaCfg | None = None,
+    cfg_post: SpotiflowPunctaCfg | None = None,
+    vmax: float = 0.3,
+    title: str = "",
+):
+    """2x3 grid: pre row (lime) on top, post row (cyan) on bottom.
+
+    Spotiflow analogue of ``visualise_puncta_pair``.
+    """
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    visualise_puncta_channel_spotiflow(
+        pre_image, raw_pre, scored_pre, kept_pre,
+        near_mask=near_mask, color="lime", cfg=cfg_pre,
+        axes=axes[0], vmax=vmax, title_prefix="pre ",
+    )
+    visualise_puncta_channel_spotiflow(
+        post_image, raw_post, scored_post, kept_post,
+        near_mask=near_mask, color="cyan", cfg=cfg_post,
+        axes=axes[1], vmax=vmax, title_prefix="post ",
+    )
+    if title:
+        fig.suptitle(title)
+    fig.tight_layout()
+    return fig, axes
+
+
 __all__ = [
     "visualise_structural_overview",
     "visualise_puncta_channel",
     "visualise_puncta_pair",
     "visualise_puncta_full",
+    "visualise_puncta_channel_spotiflow",
+    "visualise_puncta_pair_spotiflow",
 ]

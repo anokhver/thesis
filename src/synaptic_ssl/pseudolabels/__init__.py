@@ -38,6 +38,8 @@ from .viz import (
     visualise_puncta_channel,
     visualise_puncta_pair,
     visualise_puncta_full,
+    visualise_puncta_channel_spotiflow,
+    visualise_puncta_pair_spotiflow,
 )
 from .refine import (
     RefineCfg,
@@ -102,6 +104,8 @@ __all__ = [
     "visualise_puncta_channel",
     "visualise_puncta_pair",
     "visualise_puncta_full",
+    "visualise_puncta_channel_spotiflow",
+    "visualise_puncta_pair_spotiflow",
     # refine
     "RefineCfg",
     "region_grow_from_prob", "fuse_image_with_prob",
