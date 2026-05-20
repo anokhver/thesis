@@ -1,0 +1,35 @@
+{
+  "_comment": "Reusable exclude_patterns for SSL pretraining configs. Each pattern is an underscore-anchored substring that catches exactly one treatment tag and nothing else (verified against data/patches_128_from_zip). PatchDataset matches case-insensitively, so the casing here does not matter.",
+  "_notes": {
+    "_PP_": "Catches the 20 PP runs only (NOT PPNC2 or PPKONTROLA — those contain PP but are anchored differently).",
+    "_NC_": "Catches the 7 NC runs only (NOT NCH or PPNC2).",
+    "_PSI1H01UM_": "User wrote 'PSI1H01UM'; real files use lowercase 'PSI1h01uM' but matching is case-insensitive, so the uppercase form is fine.",
+    "_KONTROLAHARMIN_": "User wrote 'KONTROLLAHARMIN' (double L). Real tag is 'KONTROLAHARMIN' (single L); using the real spelling here.",
+    "_NCH_": "User wrote 'NHC'. Closest existing tag is 'NCH' (1 run). If 'NHC' was intentional and refers to something else, no matching files exist.",
+    "_ORGANOID": "Trailing underscore omitted because 'ORGANOID' appears as a prefix (e.g. ORGANOID_KONTROLA_0HOD_…). Catches 2 runs."
+  },
+  "_match_counts": {
+    "_PSI1H1UM_": 21,
+    "_PSI1H01UM_": 10,
+    "_PP_": 20,
+    "_PPNC2_": 11,
+    "_PPKONTROLA_": 10,
+    "_KONTROLAA_": 10,
+    "_KONTROLAHARMIN_": 10,
+    "_NC_": 7,
+    "_NCH_": 1,
+    "_ORGANOID": 2
+  },
+  "exclude_patterns": [
+    "_PSI1H1UM_",
+    "_PSI1H01UM_",
+    "_PP_",
+    "_PPNC2_",
+    "_PPKONTROLA_",
+    "_KONTROLAA_",
+    "_KONTROLAHARMIN_",
+    "_NC_",
+    "_NCH_",
+    "_ORGANOID"
+  ]
+}

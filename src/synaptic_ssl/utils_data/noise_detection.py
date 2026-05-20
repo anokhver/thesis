@@ -197,6 +197,7 @@ def score_image_set(
     hp_var_thresh: float = DEFAULT_HP_VAR_RATIO,
     hf_energy_thresh: float = DEFAULT_HF_ENERGY_FRAC,
     dead_std: float = DEFAULT_DEAD_STD,
+    min_channels: int | None = None,
     progress: bool = True,
 ) -> list[dict]:
     """Reassemble every source image under *patch_root* and score it.
@@ -229,6 +230,23 @@ def score_image_set(
 
         try:
             full, _ = reassemble_image(patch_root, idx)
+            if min_channels is not None and full.shape[0] < min_channels:
+                records.append({
+                    "image_index":    int(idx),
+                    "source_image":   src_image,
+                    "source_npy":     src_npy,
+                    "source_path":    src_path,
+                    "n_patches":      len(recs),
+                    "n_channels":     int(full.shape[0]),
+                    "worst_channel":  "",
+                    "worst_hp_var_ratio":   0.0,
+                    "worst_hf_energy_frac": 0.0,
+                    "noisy_channels": f"too_few_channels({full.shape[0]}<{min_channels})",
+                    "flag_reason":    "too_few_channels",
+                    "flagged":        True,
+                    "per_channel":    [],
+                })
+                continue
             stats = image_noise_stats(
                 full,
                 channel_names=channel_names,
@@ -256,10 +274,12 @@ def score_image_set(
             "source_npy":            src_npy,
             "source_path":           src_path,
             "n_patches":             len(recs),
+            "n_channels":            int(full.shape[0]),
             "worst_channel":         stats["worst_channel"],
             "worst_hp_var_ratio":    stats["worst_hp_var_ratio"],
             "worst_hf_energy_frac":  stats["worst_hf_energy_frac"],
             "noisy_channels":        stats["noisy_channels"],
+            "flag_reason":           "noise" if stats["flagged"] else "",
             "flagged":               stats["flagged"],
             "per_channel":           stats["per_channel"],
         }

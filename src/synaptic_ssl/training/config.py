@@ -26,6 +26,12 @@ class BaseCfg:
 class DataCfg:
     data_root: str = "../../../data/patches_128"
     exclude_patterns: list[str] = field(default_factory=lambda: ["KONTROLA"])
+    # Optional path to an external JSON file holding a list of exclude
+    # patterns under either the top-level key ``"exclude_patterns"`` or as
+    # a bare JSON list. When set, those patterns are appended to
+    # ``exclude_patterns`` (deduplicated, order preserved) at config load
+    # time. Lets configs reuse a shared exclude list without inlining it.
+    exclude_patterns_file: str | None = None
     val_split: float = 0.1
     batch_size: int = 64
     num_workers: int = 1

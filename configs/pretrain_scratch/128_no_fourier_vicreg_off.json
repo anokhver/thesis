@@ -14,41 +14,8 @@
   },
   "data": {
     "data_root": "../data/patches_128_from_zip",
-    "exclude_patterns": [
-      "KONTROLA",
-      "5_LITHIUM_1uM_24hod_1_Multichannel Z-Stack_20251205_206.npy",
-      "5_LITHIUM_1uM_24hod_2_Multichannel Z-Stack_20251205_207.npy",
-      "5_LITHIUM_1uM_24hod_3_Multichannel Z-Stack_20251205_208.npy",
-      "5_PSI1h10uM_WO_48hod_1_Multichannel Z-Stack_20251208_241.npy",
-      "5_PSI1h10uM_WO_48hod_2_Multichannel Z-Stack_20251208_242.npy",
-      "5_PSI1h10uM_WO_48hod_9_Multichannel Z-Stack_20251208_249.npy",
-      "5_PSI_01uM_48hod_10_Multichannel Z-Stack_20251208_260.npy",
-      "5_PSI_01uM_48hod_1_Multichannel Z-Stack_20251208_251.npy",
-      "5_PSI_01uM_48hod_2_Multichannel Z-Stack_20251208_252.npy",
-      "5_PSI_01uM_48hod_4_Multichannel Z-Stack_20251208_254.npy",
-      "5_PSI_01uM_48hod_6_Multichannel Z-Stack_20251208_256.npy",
-      "5_PSI_01uM_48hod_7_Multichannel Z-Stack_20251208_257.npy",
-      "5_PSI_01uM_48hod_8_Multichannel Z-Stack_20251208_258.npy",
-      "5_PSI_01uM_48hod_9_Multichannel Z-Stack_20251208_259.npy",
-      "5_PSI_10uM_24hod_1A_Multichannel Z-Stack_20251205_195.npy",
-      "5_PSI_10uM_24hod_1_Multichannel Z-Stack_20251205_194.npy",
-      "5_PSI_10uM_24hod_2A_Multichannel Z-Stack_20251205_196.npy",
-      "5_PSI_10uM_48hod_10_Multichannel Z-Stack_20251208_270.npy",
-      "5_PSI_10uM_48hod_1_Multichannel Z-Stack_20251208_261.npy",
-      "5_PSI_10uM_48hod_2_Multichannel Z-Stack_20251208_262.npy",
-      "5_PSI_10uM_48hod_3_Multichannel Z-Stack_20251208_263.npy",
-      "5_PSI_10uM_48hod_4_Multichannel Z-Stack_20251208_264.npy",
-      "5_PSI_10uM_48hod_5_Multichannel Z-Stack_20251208_265.npy",
-      "5_PSI_10uM_48hod_6_Multichannel Z-Stack_20251208_266.npy",
-      "5_PSI_10uM_48hod_7_Multichannel Z-Stack_20251208_267.npy",
-      "5_PSI_10uM_48hod_8_Multichannel Z-Stack_20251208_268.npy",
-      "5_PSI_10uM_48hod_9_Multichannel Z-Stack_20251208_269.npy",
-      "6_3_PSY_24hod_8_Multichannel Z-Stack_20251213_340.npy",
-      "7_8_PPNC2_24hod_9_Multichannel Z-Stack_20251220_809.npy",
-      "8_7_NC_24hod_1_Multichannel Z-Stack_20251220_775.npy",
-      "8_7_PSYHARMIN24_hod_1_Multichannel Z-Stack_20251219_690.npy"
-    ],
-    "val_split": 0.1,
+    "exclude_patterns": [],
+    "val_split": 0.2,
     "batch_size": 224,
     "num_workers": 6,
     "pin_memory": true,
@@ -57,7 +24,8 @@
       "post_synaptic",
       "structural"
     ],
-    "channel_stats_max_samples": 4096
+    "channel_stats_max_samples": 4096,
+    "exclude_patterns_file": "data/data_analysis/exclude.json"
   },
   "model": {
     "in_channels": 3,
@@ -113,6 +81,6 @@
     "enabled": true,
     "image_index": null,
     "overlap": 0.5,
-    "batch_size": 64
+    "batch_size": 16
   }
 }

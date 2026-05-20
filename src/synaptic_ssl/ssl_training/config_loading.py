@@ -89,6 +89,37 @@ def load_config(config_path: str | Path, root_dir: str | Path) -> dict[str, Any]
     base_cfg.pretrained_ckpt_path = _resolve_path(base_cfg.pretrained_ckpt_path, root_dir)
     base_cfg.resume_path          = _resolve_path(base_cfg.resume_path, root_dir)
     data_cfg.data_root            = _resolve_path(data_cfg.data_root, root_dir)
+    data_cfg.exclude_patterns_file = _resolve_path(data_cfg.exclude_patterns_file, root_dir)
+
+    # Merge externally defined exclude patterns (file overrides only append).
+    if data_cfg.exclude_patterns_file:
+        epf = Path(data_cfg.exclude_patterns_file)
+        if not epf.is_file():
+            raise ValueError(
+                f"data.exclude_patterns_file does not exist: {epf}"
+            )
+        with open(epf, "r", encoding="utf-8") as f:
+            ep_raw = json.load(f)
+        if isinstance(ep_raw, dict):
+            extra = ep_raw.get("exclude_patterns", [])
+        elif isinstance(ep_raw, list):
+            extra = ep_raw
+        else:
+            raise ValueError(
+                f"{epf} must be a JSON list or an object with key 'exclude_patterns'."
+            )
+        if not all(isinstance(p, str) for p in extra):
+            raise ValueError(
+                f"{epf}: all entries in 'exclude_patterns' must be strings."
+            )
+        # Dedup, preserve order (inlined entries first, file additions after).
+        merged: list[str] = []
+        seen: set[str] = set()
+        for p in list(data_cfg.exclude_patterns) + list(extra):
+            if p not in seen:
+                seen.add(p)
+                merged.append(p)
+        data_cfg.exclude_patterns = merged
 
     # Script-specific settings (optional, with defaults).
     run_sanity  = raw.get("run_sanity", True)

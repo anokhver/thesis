@@ -64,6 +64,10 @@ def _parse_args() -> argparse.Namespace:
                    help="Gaussian sigma (px) defining 'low-frequency'.")
     p.add_argument("--low-radius-frac", type=float, default=0.25,
                    help="FFT inner-disk radius as fraction of r_max.")
+    p.add_argument("--min-channels", type=int, default=2,
+                   help="Flag any image with fewer than this many channels "
+                        "(default %(default)d, e.g. drops 1-channel acquisitions "
+                        "in a 3-channel dataset). Pass 0 to disable.")
     p.add_argument("--top-n", type=int, default=20,
                    help="Number of worst images to print in the summary.")
     return p.parse_args()
@@ -93,6 +97,7 @@ def main() -> None:
         low_radius_frac=args.low_radius_frac,
         hp_var_thresh=args.hp_thresh,
         hf_energy_thresh=args.hf_thresh,
+        min_channels=args.min_channels if args.min_channels > 0 else None,
         progress=True,
     )
 
@@ -122,8 +127,8 @@ def main() -> None:
     # Stable column order: scalar fields first, then sorted per-channel cols.
     scalar_fields = [
         "image_index", "source_image", "source_npy", "source_path", "n_patches",
-        "worst_channel", "worst_hp_var_ratio", "worst_hf_energy_frac",
-        "noisy_channels", "flagged", "error",
+        "n_channels", "worst_channel", "worst_hp_var_ratio", "worst_hf_energy_frac",
+        "noisy_channels", "flag_reason", "flagged", "error",
     ]
     per_channel_fields: set[str] = set()
     for r in records:
@@ -155,6 +160,7 @@ def main() -> None:
         "blur_sigma":        args.blur_sigma,
         "low_radius_frac":   args.low_radius_frac,
         "top_percentile":    args.top_percentile,
+        "min_channels":      args.min_channels,
         "exclude_patterns":  list(args.exclude_patterns or []),
         "n_images":          len(records),
         "n_flagged":         len(denylist),
