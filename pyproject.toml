@@ -41,6 +41,9 @@ notebooks = [
     "ipywidgets",
     "papermill",
 ]
+spotiflow = [
+    "spotiflow",
+]
 dev = [
     "pytest>=7",
 ]

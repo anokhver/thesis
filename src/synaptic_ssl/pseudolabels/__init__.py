@@ -1,23 +1,38 @@
-"""Pseudo-label generators: soma (FDT), dendrite (Frangi), puncta (LoG).
+"""Pseudo-label generators: soma (FDT), dendrite (Frangi), puncta (LoG + Spotiflow).
 
 Live pipeline (scripts/{soma,dendrite,puncta}_from_mip.py): soma_fdt ->
-dendrite_frangi -> puncta. ``viz`` mirrors the per-step inspection from
-``notebooks/pseudolabels/puncta_detection.ipynb``.
+dendrite_frangi -> puncta_log. ``viz`` mirrors the per-step inspection
+from ``notebooks/pseudolabels/puncta_detection.ipynb``.
 
-Alternative soma detector (scale-normalised LoG) in ``soma_log``.
+Alternative detectors:
+  * soma_log -- scale-normalised LoG soma detector.
+  * puncta_spotiflow -- pretrained Spotiflow puncta detector
+    (Dominguez Mantes et al., Nat. Methods 2025).
 """
 
-from .puncta import (
+from .puncta_log import (
     PunctaCfg,
     DEFAULT_PUNCTA_CFG_PRE, DEFAULT_PUNCTA_CFG_POST, DEFAULT_NEAR_DILATE_PX,
-    detect_puncta_log, puncta_to_mask,
+    detect_puncta_log,
     score_puncta_zscore,
     filter_by_size_shape,
     derive_zscore_floors,
     detect_puncta_channel,
-    restrict_puncta_to_near,
 )
-from .puncta import resolve_cfg as resolve_puncta_cfg
+from .puncta_log import resolve_cfg as resolve_puncta_cfg
+from .puncta_common import puncta_to_mask, restrict_puncta_to_near
+from .puncta_spotiflow import (
+    SpotiflowPunctaCfg,
+    DEFAULT_PUNCTA_CFG_PRE_SPOTIFLOW,
+    DEFAULT_PUNCTA_CFG_POST_SPOTIFLOW,
+    load_model as load_spotiflow_model,
+    detect_spots_spotiflow,
+    filter_by_intensity as filter_spots_by_intensity,
+    derive_intensity_floor as derive_spotiflow_floor,
+    spots_to_blobs,
+    detect_puncta_channel as detect_puncta_channel_spotiflow,
+)
+from .puncta_spotiflow import resolve_cfg as resolve_spotiflow_cfg
 from .viz import (
     visualise_structural_overview,
     visualise_puncta_channel,
@@ -60,17 +75,28 @@ from .soma_log import (
 )
 
 __all__ = [
-    # puncta
+    # puncta (LoG)
     "PunctaCfg",
     "DEFAULT_PUNCTA_CFG_PRE", "DEFAULT_PUNCTA_CFG_POST",
     "DEFAULT_NEAR_DILATE_PX",
     "resolve_puncta_cfg",
-    "detect_puncta_log", "puncta_to_mask",
+    "detect_puncta_log",
     "score_puncta_zscore",
     "filter_by_size_shape",
     "derive_zscore_floors",
     "detect_puncta_channel",
-    "restrict_puncta_to_near",
+    # puncta (common geometry helpers)
+    "puncta_to_mask", "restrict_puncta_to_near",
+    # puncta (Spotiflow)
+    "SpotiflowPunctaCfg",
+    "DEFAULT_PUNCTA_CFG_PRE_SPOTIFLOW", "DEFAULT_PUNCTA_CFG_POST_SPOTIFLOW",
+    "resolve_spotiflow_cfg",
+    "load_spotiflow_model",
+    "detect_spots_spotiflow",
+    "filter_spots_by_intensity",
+    "derive_spotiflow_floor",
+    "spots_to_blobs",
+    "detect_puncta_channel_spotiflow",
     # puncta viz
     "visualise_structural_overview",
     "visualise_puncta_channel",

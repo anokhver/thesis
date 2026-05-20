@@ -16,7 +16,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .puncta import PunctaCfg
+from .puncta_log import PunctaCfg
 
 
 def _on_near_flags(scored: List[dict], near_mask: np.ndarray | None) -> List[bool]:
