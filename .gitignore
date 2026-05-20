@@ -28,4 +28,4 @@ notebooks/**/outputs/
 .planning
 .papers
 .tmp_papers
-
+.github

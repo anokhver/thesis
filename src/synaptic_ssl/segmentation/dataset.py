@@ -28,7 +28,7 @@ class PseudoLabelSegDataset(Dataset):
     Mask lookup order (first hit wins):
         1. ``precomputed_masks`` dict (in-memory, ``filename -> (H, W) mask``).
         2. ``cache_dir`` disk cache (filled lazily from per-patch fallback).
-        3. Per-patch ``generate_blob_pseudolabel`` (fallback).
+        3. Per-patch ``generate_puncta_pseudolabel`` (fallback).
 
     To consume pseudo-labels saved by the ``blob_pseudolabels`` notebook,
     eager-load them into a dict and pass as ``precomputed_masks``::
@@ -126,9 +126,9 @@ class PseudoLabelSegDataset(Dataset):
             return self._validate_mask(np.load(cp), name, expected_shape)
 
         # 3. generate per-patch (fallback)
-        from ..pseudolabels.blobs import generate_blob_pseudolabel
+        from ..pseudolabels.puncta import generate_puncta_pseudolabel
 
-        mask, _intermediates, _stats = generate_blob_pseudolabel(
+        mask, _intermediates, _stats = generate_puncta_pseudolabel(
             patch_np, self.pseudo_cfg
         )
         if cp is not None:

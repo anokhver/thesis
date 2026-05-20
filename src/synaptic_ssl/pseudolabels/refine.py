@@ -2,10 +2,9 @@
 
 2D adaptation of Xiao et al., "DDeep3M+: adaptive enhancement powered
 weakly supervised learning for neuron segmentation", Neurophotonics
-10(3), 035003, 2023 (PMC10289179). Covers steps 3 (region growing,
-§3.3) and 4 (image-probability fusion, §3.4). Step 1 is in
-``pseudolabels.blobs``; step 2 is the SwinUNETR training loop in
-``notebooks/segmentation/train_swinunetr_pseudolabels_iter.ipynb``.
+10(3), 035003, 2023 (PMC10289179). Covers steps 3 (region growing) and
+4 (image-probability fusion); step 1 is in ``pseudolabels.puncta``,
+step 2 is the SwinUNETR training loop.
 
 Faithful behaviour
 ------------------

@@ -15,6 +15,9 @@ license = { text = "Proprietary" }
 
 # Core runtime dependencies. See requirements.txt for the full pinned list
 # used in development (CUDA-specific torch builds belong there, not here).
+#
+# GPU note: requires NVIDIA GPU with compute capability >= 7.0 (Volta+).
+# Pascal GPUs (GTX 10xx, sm_61) need PyTorch <=2.5 — see README.md.
 dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
