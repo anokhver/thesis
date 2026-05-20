@@ -26,6 +26,7 @@ LOSS_LABELS: dict[str, str] = {
     "val_recon":     r"$\mathcal{L}_\mathrm{recon}$ (val)",
     "sim":           r"$\mathcal{L}_\mathrm{sim}$ (VICReg invariance)",
     "train_sim":     r"$\mathcal{L}_\mathrm{sim}$ (train)",
+    "val_sim":       r"$\mathcal{L}_\mathrm{sim}$ (val)",
     "std":           r"$\mathcal{L}_\mathrm{var}$ (VICReg variance)",
     "train_std":     r"$\mathcal{L}_\mathrm{var}$ (train)",
     "val_std":       r"$\mathcal{L}_\mathrm{var}$ (val)",
@@ -34,6 +35,12 @@ LOSS_LABELS: dict[str, str] = {
     "val_cov":       r"$\mathcal{L}_\mathrm{cov}$ (val)",
     "vicreg":        r"$\mathcal{L}_\mathrm{VICReg}$",
     "train_vicreg":  r"$\mathcal{L}_\mathrm{VICReg}$ (train)",
+    "val_vicreg":    r"$\mathcal{L}_\mathrm{VICReg}$ (val)",
+    "train_fourier": r"$\mathcal{L}_\mathrm{Fourier}$ (train)",
+    "val_fourier":   r"$\mathcal{L}_\mathrm{Fourier}$ (val)",
+    "train_recon_fg": r"$\mathcal{L}_\mathrm{recon\_fg}$ (train)",
+    "val_recon_fg":  r"$\mathcal{L}_\mathrm{recon\_fg}$ (val)",
+    "val_ssl_loss":  r"$\mathcal{L}_\mathrm{total}$ (val)",
     "lr_encoder":    r"lr (encoder)",
     "lr_head":       r"lr (heads)",
 }
@@ -250,6 +257,16 @@ def plot_loss_curves(
         x, y = col(k)
         if y:
             ax_total.plot(x, y, label=loss_label(k), linewidth=1.4)
+    # If a true joint train+val total is logged (two_view_validation),
+    # show it dashed so the val curve can be compared against the train loss
+    # directly. ``val_metric`` (e.g. recon_fg) stays for the best-epoch marker.
+    if "val_ssl_loss" not in (train_key, val_key) and has("val_ssl_loss"):
+        x, y = col("val_ssl_loss")
+        if y:
+            ax_total.plot(
+                x, y, label=loss_label("val_ssl_loss"),
+                linewidth=1.2, linestyle="--",
+            )
     if best_ep is not None and best_val is not None:
         ax_total.axvline(best_ep, color="k", linestyle=":", linewidth=0.9, alpha=0.7)
         ax_total.scatter([best_ep], [best_val], s=22, color="k", zorder=5)
@@ -267,12 +284,18 @@ def plot_loss_curves(
     ax_total.legend(fontsize=9)
     ax_total.grid(alpha=0.25)
 
-    # --- (0,1) SimMIM recon
+    # --- (0,1) SimMIM recon (+ recon_fg + fourier when logged)
     plotted = False
-    for k in ("train_recon", "val_recon"):
+    recon_keys = (
+        "train_recon",    "val_recon",
+        "train_recon_fg", "val_recon_fg",
+        "train_fourier",  "val_fourier",
+    )
+    for k in recon_keys:
         if has(k):
             x, y = col(k)
-            ax_recon.plot(x, y, label=loss_label(k), linewidth=1.4)
+            linestyle = "--" if k.startswith("val_") else "-"
+            ax_recon.plot(x, y, label=loss_label(k), linewidth=1.4, linestyle=linestyle)
             plotted = True
     if plotted:
         ax_recon.set_xlabel("epoch")
@@ -285,12 +308,17 @@ def plot_loss_curves(
     else:
         ax_recon.set_visible(False)
 
-    # --- (1,0) VICReg components
+    # --- (1,0) VICReg components (train + val if present)
     plotted = False
-    for k in ("train_sim", "train_std", "train_cov", "train_vicreg"):
+    vic_keys = (
+        "train_sim", "train_std", "train_cov", "train_vicreg",
+        "val_sim",   "val_std",   "val_cov",   "val_vicreg",
+    )
+    for k in vic_keys:
         if has(k):
             x, y = col(k)
-            ax_vic.plot(x, y, label=loss_label(k), linewidth=1.2)
+            linestyle = "--" if k.startswith("val_") else "-"
+            ax_vic.plot(x, y, label=loss_label(k), linewidth=1.2, linestyle=linestyle)
             plotted = True
     if plotted:
         ax_vic.set_xlabel("epoch")

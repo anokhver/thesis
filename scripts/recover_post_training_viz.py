@@ -52,6 +52,7 @@ from synaptic_ssl.training.augment import MicroscopyTwoViewTransform, ValSingleV
 from synaptic_ssl.training.checkpoints import find_latest_checkpoint, load_checkpoint
 from synaptic_ssl.training.data import compute_channel_stats
 from synaptic_ssl.training.logging import setup_logger
+from synaptic_ssl.training.seeding import seed_everything
 from synaptic_ssl.utils_data.patch_dataset import PatchDataset
 
 
@@ -107,9 +108,11 @@ def resolve_run_dirs(output_root: Path, explicit: list[str] | None) -> list[Path
     if not output_root.exists():
         return []
 
+    # Recursive: a run dir is any directory containing config.json. This
+    # supports both flat layouts (output_root/<run>) and grouped layouts
+    # (output_root/<group>/<run>, e.g. pretrain_moby/<run>).
     return sorted(
-        p for p in output_root.iterdir()
-        if p.is_dir() and (p / "config.json").exists()
+        p.parent for p in output_root.rglob("config.json") if p.is_file()
     )
 
 
@@ -160,6 +163,7 @@ def process_run(run_dir: Path, device: torch.device, args: argparse.Namespace) -
     base_cfg = cfg["base_cfg"]
     data_cfg = cfg["data_cfg"]
     model_cfg = cfg["model_cfg"]
+    train_cfg = cfg["train_cfg"]
     ssl_cfg = cfg["ssl_cfg"]
     full_image_cfg = cfg["full_image"]
 
@@ -203,7 +207,9 @@ def process_run(run_dir: Path, device: torch.device, args: argparse.Namespace) -
         plt.close("all")
         return True
 
-    g = torch.Generator().manual_seed(base_cfg.seed)
+    # Match training-time split exactly: pretrain calls seed_everything(seed)
+    # then uses the returned generator for random_split.
+    g = seed_everything(base_cfg.seed)
     n_val = int(len(raw_dataset) * data_cfg.val_split)
     n_train = len(raw_dataset) - n_val
     if n_train <= 0:
@@ -281,6 +287,28 @@ def process_run(run_dir: Path, device: torch.device, args: argparse.Namespace) -
             )
         except Exception as e:
             logger.warning(f"full-image reconstruction failed: {e}")
+
+    # Encoder-only export, mirroring pretrain_simmim_vicreg post-training step.
+    best_path = run_dir / "best_model.pt"
+    if best_path.exists() and getattr(train_cfg, "encoder_save_name", None):
+        try:
+            src = torch.load(best_path, map_location=device, weights_only=False)
+            enc_path = run_dir / train_cfg.encoder_save_name
+            torch.save(
+                {
+                    "encoder_state_dict": src["encoder_state_dict"],
+                    "channel_mean": src.get("channel_mean", ch_mean.tolist()),
+                    "channel_std":  src.get("channel_std",  ch_std.tolist()),
+                    "epoch":        src.get("epoch"),
+                    "val_metric":   src.get("val_metric"),
+                    "init_source":  base_cfg.init_source,
+                    "method_name":  base_cfg.method_name,
+                },
+                enc_path,
+            )
+            logger.info(f"encoder saved to {enc_path}")
+        except Exception as e:
+            logger.warning(f"encoder export failed: {e}")
 
     plt.close("all")
     logger.info("generated post-training artifacts")
