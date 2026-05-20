@@ -24,7 +24,7 @@ class PatchDataset(Dataset):
       ``source_image`` / ``source_path`` / ``source_npy`` (e.g. ``KONTROLA``).
     * ``exclude_sources``: **exact-match** against the same three columns or
       against the basename of ``source_path``. Use this with the JSON
-      denylist produced by ``scripts/score_image_noise.py`` to drop entire
+      denylist produced by ``scripts/preprocess/score_image_noise.py`` to drop entire
       noise-dominated source images.
 
     Two on-disk layouts are supported:
@@ -99,7 +99,7 @@ class PatchDataset(Dataset):
                 )
 
         # Exact-match exclusion against an explicit denylist of source names
-        # (typically produced by ``scripts/score_image_noise.py``). We match
+        # (typically produced by ``scripts/preprocess/score_image_noise.py``). We match
         # against source_npy / source_image / source_path AND the basename of
         # source_path so that callers can pass either bare ``.npy`` names or
         # full paths.

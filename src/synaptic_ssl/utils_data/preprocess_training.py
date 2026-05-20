@@ -34,29 +34,14 @@ from typing import Optional
 
 import numpy as np
 
+from .patching import INDEX_FIELDS, extract_patches
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-
-
-# Canonical `index.csv` schema shared by every tiler in this repo
-# (preprocess_training.py, scripts/tile_from_mip.py, scripts/tile_from_mip_zip.py).
-# Keep this in sync across all three writers.
-INDEX_FIELDS: tuple[str, ...] = (
-    "filename",
-    "source_image",   # basename of original raw file (e.g. .vsi); '' if unknown
-    "source_npy",     # basename of full-MIP .npy that was tiled; '' for this pipeline
-    "source_path",    # absolute path / UNC / URI of the original file; '' if unknown
-    "image_index",    # stable int per source image, scoped to this index.csv
-    "grid_row",
-    "grid_col",
-    "mean_intensity",
-    "channels",
-    "patch_size",
-)
 
 
 # ---------------------------------------------------------------------------
@@ -199,27 +184,7 @@ def normalize_percentile(
 # ---------------------------------------------------------------------------
 # Tiling into patches
 # ---------------------------------------------------------------------------
-
-def extract_patches(
-    image: np.ndarray,
-    patch_size: int = 128,
-) -> np.ndarray:
-    """Tile ``(C, H, W)`` into non-overlapping ``(N, C, ps, ps)`` patches.
-
-    Trim the bottom/right strip if ``H`` or ``W`` is not divisible by ``patch_size``.
-    """
-    C, H, W = image.shape
-    n_rows = H // patch_size
-    n_cols = W // patch_size
-
-    image = image[:, : n_rows * patch_size, : n_cols * patch_size]
-
-    # reshape via view: (C, n_rows, ps, n_cols, ps) -> (n_rows, n_cols, C, ps, ps)
-    patches = image.reshape(C, n_rows, patch_size, n_cols, patch_size)
-    patches = patches.transpose(1, 3, 0, 2, 4)
-    patches = patches.reshape(-1, C, patch_size, patch_size)
-
-    return patches
+# ``extract_patches`` lives in ``patching`` and is re-exported above.
 
 
 # ---------------------------------------------------------------------------
