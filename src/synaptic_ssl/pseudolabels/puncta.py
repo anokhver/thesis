@@ -94,54 +94,53 @@ class PunctaCfg:
 # Biology → pixel mapping (Harris & Stevens 1989, J Neurosci 9(8):2982–2997):
 #   PRE  (Bassoon/Synaptophysin) bouton: 500–1000 nm EM diameter
 #   POST (PSD-95/Homer)          PSD:    200–500 nm  EM diameter
-# Confocal PSF (Abbe limit ~200 nm) broadens both; observed sizes at 107 nm/px:
-#   PRE  ≈ 3–7 px  → LoG sigma 1.4–2.4  (disk ∅ ≈ 2·√2·σ ≈ 4–7 px)
-#   POST ≈ 2.5–5 px → LoG sigma 1.3–1.8 (disk ∅ ≈ 3.7–5 px)
+# Convolved with PSF (~200 nm ≈ 1.9 px); observed sizes at 107 nm/px:
+#   PRE  ≈ 5–10 px → LoG sigma 1.8–3.4  (disk ∅ ≈ 2·√2·σ ≈ 5.1–9.6 px)
+#   POST ≈ 2.7–5 px → LoG sigma 1.0–1.8 (disk ∅ ≈ 2.8–5.1 px)
 #
 # Channel selection lives in scripts/puncta_from_mip.py (--pre_channel /
 # --post_channel); the detection functions take a 2D array, not a stack.
 
 DEFAULT_PUNCTA_CFG_PRE: dict = dict(
-    # LoG scales: pre-synaptic markers (Bassoon/Synaptophysin) ~ 3-7 px.
-    # min_sigma >= 1.0 -- below 1.0 the LoG fires on hot pixels.
-    log_min_sigma=1.0,
-    log_max_sigma=2.5,
+    # PRE boutons observed ≈ 5–10 px after PSF convolution.
+    log_min_sigma=1.8,
+    log_max_sigma=3.4,
     log_num_sigma=5,
-    # 0.02-0.05 is the operating range for [0,1] floats after tophat
-    # (scikit-image default 0.2 catches only the brightest puncta).
     log_threshold=0.025,
     log_overlap=0.5,
-    log_exclude_border=5,
+    # ~ 3 * max_sigma
+    log_exclude_border=10,
 
-    # Big-FISH compute_snr_spots geometry: inner = sqrt(2)*max_sigma,
-    # outer = 2 * inner. Robust 25th-percentile + MAD tolerates crowded
-    # fields where mean+std collapses on neighbouring puncta.
+    # Annulus: inner ≈ ceil(sqrt(2)*max_sigma), outer ≈ 2*inner.
     use_zscore=True,
-    zscore_inner_radius=4,
-    zscore_outer_radius=8,
+    zscore_inner_radius=5,
+    zscore_outer_radius=10,
     zscore_threshold=4.0,
     zscore_bg_percentile=25,
     zscore_bg_robust_scale=True,
 
-    # max_blob_radius + 1.
-    intensity_tophat_radius=4,
+    # ~ 2 * sqrt(2) * max_sigma
+    intensity_tophat_radius=10,
 
-    min_size=15,
-    max_size=60,
+    # pi*(sqrt(2)*sigma)^2: min≈20 at sigma=1.8, max≈73 at sigma=3.4
+    min_size=20,
+    max_size=75,
     min_fill=0.5,
     max_wh_ratio=2.5,
 )
 
 
 DEFAULT_PUNCTA_CFG_POST: dict = dict(
-    # Post markers (PSD-95/Homer/Gephyrin) are smaller and tighter.
+    # POST PSD observed ≈ 2.7–5 px after PSF convolution.
     log_min_sigma=1.0,
-    log_max_sigma=2.0,
+    log_max_sigma=1.8,
     log_num_sigma=4,
     log_threshold=0.030,
     log_overlap=0.5,
-    log_exclude_border=5,
+    # ~ 3 * max_sigma
+    log_exclude_border=6,
 
+    # Tighter annulus for smaller spots.
     use_zscore=True,
     zscore_inner_radius=3,
     zscore_outer_radius=6,
@@ -149,10 +148,12 @@ DEFAULT_PUNCTA_CFG_POST: dict = dict(
     zscore_bg_percentile=25,
     zscore_bg_robust_scale=True,
 
-    intensity_tophat_radius=3,
+    # ~ 2 * sqrt(2) * max_sigma
+    intensity_tophat_radius=5,
 
-    min_size=13,
-    max_size=40,
+    # pi*(sqrt(2)*sigma)^2: min≈6 at sigma=1.0, max≈20 at sigma=1.8
+    min_size=6,
+    max_size=22,
     min_fill=0.5,
     max_wh_ratio=2.0,
 )

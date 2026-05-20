@@ -190,7 +190,7 @@ def visualise_puncta_pair(
     vmax: float = 0.3,
     title: str = "",
 ):
-    """2x3 grid: top row pre (lime), bottom row post (magenta).
+    """2x3 grid: top row pre (lime), bottom row post (cyan).
 
     Convenience for tuning notebooks that compare both puncta channels
     side by side; each row is ``visualise_puncta_channel``.
@@ -205,7 +205,7 @@ def visualise_puncta_pair(
     )
     visualise_puncta_channel(
         post_image, raw_post, scored_post, kept_post,
-        near_mask=near_mask, color="magenta", cfg=cfg_post,
+        near_mask=near_mask, color="cyan", cfg=cfg_post,
         axes=axes[1], vmax=vmax, title_prefix="post ",
     )
     if title:
