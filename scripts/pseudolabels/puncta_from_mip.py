@@ -77,6 +77,7 @@ import json
 import logging
 import multiprocessing as mp
 import os
+import re
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -306,6 +307,49 @@ def _post_mask_path(out_dir: Path, stem: str) -> Path:
     return out_dir / f"{stem}_post.npy"
 
 
+def _stitch_tiled_mask(mask_dir: Path, stem: str, kind: str,
+                       full_shape: tuple[int, int]) -> np.ndarray:
+    """Stitch ``{stem}_r##_c##_{kind}.npy`` tiles into one (H, W) bool mask.
+
+    Mirrors the on-disk convention written by the pseudolabels notebook
+    (notebooks/pseudolabels/puncta_detection.ipynb cell 8) so the script
+    can consume per-patch masks without a separate stitching step.
+    """
+    H, W = full_shape
+    pattern = f"{stem}_r??_c??_{kind}.npy"
+    files = sorted(mask_dir.glob(pattern))
+    if not files:
+        raise FileNotFoundError(f"no patches matching {pattern} in {mask_dir}")
+    first = np.load(files[0])
+    ps = first.shape[0]
+    if first.shape != (ps, ps):
+        raise ValueError(f"non-square tile {first.shape} in {files[0].name}")
+    nr, nc = H // ps, W // ps
+    if len(files) != nr * nc:
+        raise ValueError(
+            f"expected {nr*nc} tiles ({nr}x{nc} at ps={ps}) for {stem}, "
+            f"got {len(files)} in {mask_dir}"
+        )
+    rx = re.compile(r"_r(\d{2})_c(\d{2})_[a-z]+\.npy$")
+    out = np.zeros((H, W), dtype=bool)
+    for fp in files:
+        m = rx.search(fp.name)
+        if not m:
+            raise ValueError(f"bad tile filename: {fp.name}")
+        rr, cc = int(m.group(1)), int(m.group(2))
+        out[rr*ps:(rr+1)*ps, cc*ps:(cc+1)*ps] = np.load(fp).astype(bool)
+    return out
+
+
+def _load_struct_mask(mask_dir: Path, stem: str, kind: str,
+                      full_shape: tuple[int, int]) -> np.ndarray:
+    """Load ``{stem}_{kind}.npy`` (full image) or stitch tiled patches."""
+    full = mask_dir / f"{stem}_{kind}.npy"
+    if full.exists():
+        return _np_load(full).astype(bool)
+    return _stitch_tiled_mask(mask_dir, stem, kind, full_shape)
+
+
 def puncta_one(
     npy_path: Path,
     output_dir: Path,
@@ -325,15 +369,25 @@ def puncta_one(
     """
     pre_path = _pre_mask_path(output_dir, npy_path.stem)
     post_path = _post_mask_path(output_dir, npy_path.stem)
-    soma_path = _soma_mask_path(soma_dir, npy_path.stem)
-    dend_path = _dend_mask_path(dend_dir, npy_path.stem)
+    soma_full = _soma_mask_path(soma_dir, npy_path.stem)
+    dend_full = _dend_mask_path(dend_dir, npy_path.stem)
+    soma_tiles = sorted(soma_dir.glob(f"{npy_path.stem}_r??_c??_soma.npy"))
+    dend_tiles = sorted(dend_dir.glob(f"{npy_path.stem}_r??_c??_dend.npy"))
 
-    if not soma_path.exists():
-        logger.error(f"  {npy_path.name}: soma mask missing at {soma_path}")
+    if not soma_full.exists() and not soma_tiles:
+        logger.error(
+            f"  {npy_path.name}: soma mask missing "
+            f"(no {soma_full.name} or tiled patches in {soma_dir})"
+        )
         return None
-    if not dend_path.exists():
-        logger.error(f"  {npy_path.name}: dend mask missing at {dend_path}")
+    if not dend_full.exists() and not dend_tiles:
+        logger.error(
+            f"  {npy_path.name}: dend mask missing "
+            f"(no {dend_full.name} or tiled patches in {dend_dir})"
+        )
         return None
+    soma_path = soma_full if soma_full.exists() else soma_tiles[0]
+    dend_path = dend_full if dend_full.exists() else dend_tiles[0]
 
     if pre_path.exists() and post_path.exists() and not overwrite:
         logger.info(
@@ -388,8 +442,9 @@ def puncta_one(
             )
         pre_img = full[pre_channel].astype(np.float32)
         post_img = full[post_channel].astype(np.float32)
-        soma_mask = _np_load(soma_path).astype(bool)
-        dend_mask = _np_load(dend_path).astype(bool)
+        H, W = pre_img.shape
+        soma_mask = _load_struct_mask(soma_dir, npy_path.stem, "soma", (H, W))
+        dend_mask = _load_struct_mask(dend_dir, npy_path.stem, "dend", (H, W))
         result = _run_puncta(
             pre_img, post_img, soma_mask, dend_mask,
             cfg_pre, cfg_post,

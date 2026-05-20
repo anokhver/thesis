@@ -102,65 +102,59 @@ class PunctaCfg:
 # --post_channel); the detection functions take a 2D array, not a stack.
 
 DEFAULT_PUNCTA_CFG_PRE: dict = dict(
-    # LoG scales cover punctum half-widths ~ 1.4-2.4 px (full ~ 3-5 px):
-    # pre-synaptic markers (Bassoon, Synaptophysin) are slightly larger
-    # than post.
-    log_min_sigma=1.4,
-    log_max_sigma=2.4,
-    log_num_sigma=4,
-    # LoG pre-filter. Raise to cut noise candidates before z-score
-    # (fewer ghost dots in dark voids).
-    log_threshold=0.008,
+    # LoG scales: pre-synaptic markers (Bassoon/Synaptophysin) ~ 3-7 px.
+    # min_sigma >= 1.0 -- below 1.0 the LoG fires on hot pixels.
+    log_min_sigma=1.0,
+    log_max_sigma=2.5,
+    log_num_sigma=5,
+    # 0.02-0.05 is the operating range for [0,1] floats after tophat
+    # (scikit-image default 0.2 catches only the brightest puncta).
+    log_threshold=0.025,
     log_overlap=0.5,
-    # Border exclude radius ~= 3 * log_max_sigma so partial blobs at
-    # patch edges are not scored.
-    log_exclude_border=8,
+    log_exclude_border=5,
 
-    # Wider annulus on pre (puncta are larger and more spaced) reduces
-    # the chance the annulus picks up a neighbour.
+    # Big-FISH compute_snr_spots geometry: inner = sqrt(2)*max_sigma,
+    # outer = 2 * inner. Robust 25th-percentile + MAD tolerates crowded
+    # fields where mean+std collapses on neighbouring puncta.
     use_zscore=True,
-    zscore_inner_radius=5,
-    zscore_outer_radius=12,
-    zscore_threshold=2.5,
-    # Robust annulus stats (25th-percentile + 1.4826*MAD): tolerates
-    # crowded fields where the std-based version inflates sigma_bg.
-    zscore_bg_percentile=25,
-    zscore_bg_robust_scale=True,
-
-    # ~ 2 * sqrt(2) * log_max_sigma: bigger than any individual punctum
-    # but smaller than dendrite crossings.
-    intensity_tophat_radius=8,
-
-    min_size=13,
-    max_size=60,
-    min_fill=0.5,
-    max_wh_ratio=4.0,
-)
-
-
-DEFAULT_PUNCTA_CFG_POST: dict = dict(
-    # Post markers (PSD-95, Homer1, Gephyrin) are smaller and tighter
-    # than pre, so a narrower scale range + smaller annulus.
-    log_min_sigma=1.3,
-    log_max_sigma=1.8,
-    log_num_sigma=3,
-    log_threshold=0.012,
-    log_overlap=0.5,
-    log_exclude_border=6,
-
-    use_zscore=True,
-    zscore_inner_radius=3,
+    zscore_inner_radius=4,
     zscore_outer_radius=8,
     zscore_threshold=4.0,
     zscore_bg_percentile=25,
     zscore_bg_robust_scale=True,
 
-    intensity_tophat_radius=6,
+    # max_blob_radius + 1.
+    intensity_tophat_radius=4,
 
-    min_size=11,
-    max_size=30,
+    min_size=15,
+    max_size=60,
     min_fill=0.5,
-    max_wh_ratio=3.0,
+    max_wh_ratio=2.5,
+)
+
+
+DEFAULT_PUNCTA_CFG_POST: dict = dict(
+    # Post markers (PSD-95/Homer/Gephyrin) are smaller and tighter.
+    log_min_sigma=1.0,
+    log_max_sigma=2.0,
+    log_num_sigma=4,
+    log_threshold=0.030,
+    log_overlap=0.5,
+    log_exclude_border=5,
+
+    use_zscore=True,
+    zscore_inner_radius=3,
+    zscore_outer_radius=6,
+    zscore_threshold=6.0,
+    zscore_bg_percentile=25,
+    zscore_bg_robust_scale=True,
+
+    intensity_tophat_radius=3,
+
+    min_size=13,
+    max_size=40,
+    min_fill=0.5,
+    max_wh_ratio=2.0,
 )
 
 
