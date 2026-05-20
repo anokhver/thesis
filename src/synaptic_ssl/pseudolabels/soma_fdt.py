@@ -1,7 +1,6 @@
 """Soma-only mask from a Saha-style pseudo-FDT field.
 
-Full-image (2D MIP) alternative to ``pseudolabels.puncta.make_soma_mask``.
-The pipeline:
+Full-image (2D MIP) soma detector for the live pipeline. The pipeline:
 
 1. Robust background + linear fuzzy membership (Zadeh 1965) on the
    structural channel.

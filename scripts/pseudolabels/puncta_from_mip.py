@@ -30,8 +30,8 @@ Defaults bake in the calibration from
 ``notebooks/pseudolabels/puncta_detection.ipynb`` (20251219 dataset,
 107 nm/px). Override any of them via JSON:
 
-  --cfg_pre   keys of DEFAULT_CFG_PRE  (LoG + z-score + tophat for pre)
-  --cfg_post  keys of DEFAULT_CFG_POST (same, for post)
+  --cfg_pre   keys of DEFAULT_PUNCTA_CFG_PRE  (LoG + z-score + tophat for pre)
+  --cfg_post  keys of DEFAULT_PUNCTA_CFG_POST (same, for post)
 
 Per-image absolute-intensity floors (sigma_bg, min_inner, min_contrast)
 are auto-derived from each image's tophatted background by default.
@@ -117,6 +117,10 @@ for _p in (_ROOT, _REPO):
 
 from synaptic_ssl.pseudolabels.puncta import (  # noqa: E402
     PunctaCfg,
+    DEFAULT_PUNCTA_CFG_PRE,
+    DEFAULT_PUNCTA_CFG_POST,
+    DEFAULT_NEAR_DILATE_PX,
+    resolve_cfg as resolve_puncta_cfg,
     puncta_to_mask,
     detect_puncta_channel,
     restrict_puncta_to_near,
@@ -129,59 +133,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Calibrated defaults from notebooks/pseudolabels/puncta_detection.ipynb
-# (cell 4, after the robust-annulus tuning of 2026-05-20).
-# Channel-role fields (pre/post/structural_channel) are intentionally
-# left at PunctaCfg defaults: detect_puncta_log / score_puncta_zscore
-# take a 2D array directly so the cfg field is unused at the detector
-# level. The script's --pre_channel / --post_channel flags drive the
-# actual channel selection.
-# ---------------------------------------------------------------------------
-
-DEFAULT_CFG_PRE: dict = dict(
-    log_min_sigma=1.4,
-    log_max_sigma=2.4,
-    log_num_sigma=4,
-    log_threshold=0.006,
-    log_overlap=0.5,
-    log_exclude_border=8,
-    use_zscore=True,
-    zscore_inner_radius=5,
-    zscore_outer_radius=12,
-    zscore_threshold=2.5,
-    zscore_bg_percentile=25,
-    zscore_bg_robust_scale=True,
-    intensity_tophat_radius=8,
-    min_size=13,
-    max_size=60,
-    min_fill=0.5,
-    max_wh_ratio=4.0,
-)
-
-DEFAULT_CFG_POST: dict = dict(
-    log_min_sigma=1.3,
-    log_max_sigma=1.8,
-    log_num_sigma=3,
-    log_threshold=0.007,
-    log_overlap=0.5,
-    log_exclude_border=6,
-    use_zscore=True,
-    zscore_inner_radius=3,
-    zscore_outer_radius=8,
-    zscore_threshold=3.0,
-    zscore_bg_percentile=25,
-    zscore_bg_robust_scale=True,
-    intensity_tophat_radius=6,
-    min_size=11,
-    max_size=30,
-    min_fill=0.5,
-    max_wh_ratio=3.0,
-)
-
-DEFAULT_NEAR_DILATE_PX: int = 4
 
 
 PUNCTA_INDEX_FIELDS: tuple[str, ...] = (
@@ -244,27 +195,6 @@ PATCH_PUNCTA_INDEX_FIELDS: tuple[str, ...] = (
 # ---------------------------------------------------------------------------
 # Cfg helpers
 # ---------------------------------------------------------------------------
-
-def _merge_cfg(base: dict, override: dict | None) -> dict:
-    out = dict(base)
-    out.update(override or {})
-    return out
-
-
-def _build_blob_cfg(merged: dict) -> PunctaCfg:
-    """Construct a PunctaCfg from a merged dict.
-
-    Filters to fields PunctaCfg actually declares so a user-supplied
-    JSON with extra keys produces a clean error rather than a silent miss.
-    """
-    valid = {f.name for f in dataclasses.fields(PunctaCfg)}
-    unknown = set(merged) - valid
-    if unknown:
-        raise ValueError(
-            f"unknown PunctaCfg field(s) in cfg JSON: {sorted(unknown)}"
-        )
-    return PunctaCfg(**merged)
-
 
 def _parse_json_cfg(s: str | None) -> dict:
     if not s:
@@ -1010,11 +940,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--cfg_pre", type=str, default=None,
-        help="JSON dict or path to .json with DEFAULT_CFG_PRE overrides.",
+        help="JSON dict or path to .json with DEFAULT_PUNCTA_CFG_PRE overrides.",
     )
     parser.add_argument(
         "--cfg_post", type=str, default=None,
-        help="JSON dict or path to .json with DEFAULT_CFG_POST overrides.",
+        help="JSON dict or path to .json with DEFAULT_PUNCTA_CFG_POST overrides.",
     )
     parser.add_argument(
         "--no_auto_floors", action="store_true",
@@ -1071,8 +1001,8 @@ def main() -> None:
         )
 
     try:
-        cfg_pre = _build_blob_cfg(_merge_cfg(DEFAULT_CFG_PRE, _parse_json_cfg(args.cfg_pre)))
-        cfg_post = _build_blob_cfg(_merge_cfg(DEFAULT_CFG_POST, _parse_json_cfg(args.cfg_post)))
+        cfg_pre = resolve_puncta_cfg(_parse_json_cfg(args.cfg_pre), channel="pre")
+        cfg_post = resolve_puncta_cfg(_parse_json_cfg(args.cfg_post), channel="post")
     except (json.JSONDecodeError, OSError, ValueError) as e:
         parser.error(f"cfg parse error: {e}")
 

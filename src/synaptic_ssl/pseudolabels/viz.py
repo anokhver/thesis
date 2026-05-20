@@ -39,6 +39,7 @@ def visualise_structural_overview(
     near_mask: np.ndarray | None = None,
     ax=None,
     vmax: float = 0.3,
+    image_alpha: float = 1.0,
     title: str = "",
 ):
     """Single-panel summary of the structural stage that gates puncta.
@@ -54,7 +55,7 @@ def visualise_structural_overview(
         fig, ax = plt.subplots(figsize=(10, 10))
     else:
         fig = ax.figure
-    ax.imshow(structural_image, cmap="gray", vmin=0, vmax=vmax)
+    ax.imshow(structural_image, cmap="gray", vmin=0, vmax=vmax, alpha=image_alpha)
     if near_mask is not None:
         rgba = np.zeros((*near_mask.shape, 4))
         rgba[..., 2] = 1.0
@@ -219,6 +220,7 @@ def visualise_puncta_full(
     color: str = "lime",
     ax=None,
     vmax: float = 0.3,
+    image_alpha: float = 1.0,
     figsize: Tuple[float, float] = (14, 14),
     linewidth: float = 0.5,
     title: str = "",
@@ -231,7 +233,7 @@ def visualise_puncta_full(
         fig, ax = plt.subplots(figsize=figsize)
     else:
         fig = ax.figure
-    ax.imshow(image, cmap="gray", vmin=0, vmax=vmax)
+    ax.imshow(image, cmap="gray", vmin=0, vmax=vmax, alpha=image_alpha)
     for r, c, s in blobs:
         ax.add_patch(Circle(
             (c, r), float(np.sqrt(2) * s),
