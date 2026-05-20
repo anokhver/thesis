@@ -55,6 +55,7 @@ def visualise_structural_overview(
         fig, ax = plt.subplots(figsize=(10, 10))
     else:
         fig = ax.figure
+    ax.set_facecolor("black")
     ax.imshow(structural_image, cmap="gray", vmin=0, vmax=vmax, alpha=image_alpha)
     if near_mask is not None:
         rgba = np.zeros((*near_mask.shape, 4))
@@ -233,6 +234,7 @@ def visualise_puncta_full(
         fig, ax = plt.subplots(figsize=figsize)
     else:
         fig = ax.figure
+    ax.set_facecolor("black")
     ax.imshow(image, cmap="gray", vmin=0, vmax=vmax, alpha=image_alpha)
     for r, c, s in blobs:
         ax.add_patch(Circle(
