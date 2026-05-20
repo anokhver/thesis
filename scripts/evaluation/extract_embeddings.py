@@ -5,7 +5,7 @@ Run once on GPU. Downstream clustering and statistical tests can then
 run on CPU from the cached ``.npy`` file.
 
 Usage:
-    python scripts/extract_embeddings.py \
+    python scripts/evaluation/extract_embeddings.py \
         --checkpoint outputs/my_run/best_model.pt \
         --data-root  data/patches_128 \
         --output     outputs/my_run/embeddings.npy
@@ -27,7 +27,7 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 
-_REPO = Path(__file__).resolve().parents[1]
+_REPO = Path(__file__).resolve().parents[2]
 _ROOT = _REPO / "src"
 for p in (_ROOT, _REPO):
     if str(p) not in sys.path:

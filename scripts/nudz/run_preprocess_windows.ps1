@@ -58,7 +58,7 @@ if (-not (Test-Path $targetOutput)) {
     New-Item -ItemType Directory -Path $targetOutput -Force | Out-Null
 }
 
-$batchScript = Join-Path $repoRoot "scripts\batch_preprocess.py"
+$batchScript = Join-Path $repoRoot "scripts\preprocess\batch_preprocess.py"
 if (-not (Test-Path $batchScript)) {
     throw "Batch script not found: $batchScript"
 }
@@ -66,7 +66,7 @@ if (-not (Test-Path $batchScript)) {
 $args = @(
     "run",
     "-n", $CondaEnv,
-    "python", "scripts/batch_preprocess.py",
+    "python", "scripts/preprocess/batch_preprocess.py",
     "--input_root", $InputRoot,
     "--output_root", $targetOutput,
     "--workers", $Workers

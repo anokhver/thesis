@@ -10,13 +10,13 @@ artifacts:
 - optional post_recon_fullimage.{png,npz}
 
 Usage:
-    python scripts/recover_post_training_viz.py \
+    python scripts/training/recover_post_training_viz.py \
         --output-root /auto/brno2/home/anokhver/thesis/data/training_outputs
 
-    python scripts/recover_post_training_viz.py \
+    python scripts/training/recover_post_training_viz.py \
         --run-dirs /auto/.../training_outputs/run_a /auto/.../training_outputs/run_b
 
-    python scripts/recover_post_training_viz.py \
+    python scripts/training/recover_post_training_viz.py \
         --output-root /auto/.../training_outputs --run-full-image
 """
 
@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import random_split
 
-_REPO = Path(__file__).resolve().parents[1]
+_REPO = Path(__file__).resolve().parents[2]
 _ROOT = _REPO / "src"
 for _p in (_ROOT, _REPO):
     if str(_p) not in sys.path:

@@ -65,7 +65,7 @@ if [[ -n "${TOP_PERCENTILE}" ]]; then
 fi
 
 # shellcheck disable=SC2086
-python "${PROJECT_DIR}/scripts/score_image_noise.py" \
+python "${PROJECT_DIR}/scripts/preprocess/score_image_noise.py" \
     --patch-root       "${PATCH_ROOT}" \
     --out-csv          "${OUT_CSV}" \
     --out-json         "${OUT_JSON}" \

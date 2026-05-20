@@ -2,9 +2,9 @@
 """SimMIM + VICReg pretraining script (headless equivalent of the notebook).
 
 Usage:
-    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json
-    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json --dry-run
-    python scripts/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json --resume ../data/training_outputs/my_run/last.pt
+    python scripts/training/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json
+    python scripts/training/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json --dry-run
+    python scripts/training/pretrain_simmim_vicreg.py --config configs/pretrain_moby/default.json --resume ../data/training_outputs/my_run/last.pt
 
 Relative paths in the config are resolved against ``root/``. An existing
 run's ``config.json`` can be reused as a starting point; missing keys
@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader, random_split
 
-_REPO = Path(__file__).resolve().parents[1]
+_REPO = Path(__file__).resolve().parents[2]
 _ROOT = _REPO / "src"
 for _p in (_ROOT, _REPO):
     if str(_p) not in sys.path:

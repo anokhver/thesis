@@ -54,7 +54,7 @@ if (-not (Test-Path $targetOutput)) {
     New-Item -ItemType Directory -Path $targetOutput -Force | Out-Null
 }
 
-$batchScript = Join-Path $repoRoot "scripts\batch_extract_metadata.py"
+$batchScript = Join-Path $repoRoot "scripts\metadata\batch_extract_metadata.py"
 if (-not (Test-Path $batchScript)) {
     throw "Batch script not found: $batchScript"
 }
@@ -62,7 +62,7 @@ if (-not (Test-Path $batchScript)) {
 $condaArgs = @(
     "run",
     "-n", $CondaEnv,
-    "python", "scripts/batch_extract_metadata.py",
+    "python", "scripts/metadata/batch_extract_metadata.py",
     "--input_root",  $InputRoot,
     "--output_root", $targetOutput
 )

@@ -3,7 +3,7 @@ r"""Batch preprocess microscopy folders from mounted disk to local output.
 
 Usage::
 
-    python scripts/batch_preprocess.py \\
+    python scripts/preprocess/batch_preprocess.py \\
         --input_root "Z:\<PI_FOLDER>\ActiveProjects\Microscopy" \\
         --output_root "Z:\YOUR_TEMP\Microscopy" \\
         --max_folders 1 \\
@@ -12,7 +12,7 @@ Usage::
         --workers 2
 
     # Or use a config file:
-    python scripts/batch_preprocess.py \\
+    python scripts/preprocess/batch_preprocess.py \\
         --input_root "Z:\<PI_FOLDER>\ActiveProjects\Microscopy" \\
         --output_root "Z:\YOUR_TEMP\Microscopy" \\
         --config configs/preprocess/patches_128.json \\
@@ -98,7 +98,7 @@ def process_folder(
     logger.info(f"  Input:  {input_folder}")
     logger.info(f"  Output: {output_dir}")
     
-    _repo = Path(__file__).resolve().parents[1]
+    _repo = Path(__file__).resolve().parents[2]
     script_path = _repo / "src" / "synaptic_ssl" / "utils_data" / "preprocess_training.py"
     
     cmd = [

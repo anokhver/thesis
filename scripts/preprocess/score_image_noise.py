@@ -10,7 +10,7 @@ Output:
 
 Usage::
 
-    python scripts/score_image_noise.py \\
+    python scripts/preprocess/score_image_noise.py \\
         --patch-root data/patches_128_from_zip \\
         --exclude-patterns KONTROLA \\
         --hp-thresh 0.55 --hf-thresh 0.50
@@ -28,7 +28,7 @@ from pathlib import Path
 
 # Make ``src/`` importable when running from a fresh checkout.
 _HERE = Path(__file__).resolve().parent
-_SRC  = _HERE.parent / "src"
+_SRC  = _HERE.parent.parent / "src"
 if _SRC.exists() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 

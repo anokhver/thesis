@@ -37,7 +37,7 @@ echo "Config:    ${CONFIG}"
 echo "Start:     $(date)"
 echo "================"
 
-python scripts/pretrain_simmim_vicreg.py \
+python scripts/training/pretrain_simmim_vicreg.py \
     --config "${CONFIG}" \
     2>&1
 

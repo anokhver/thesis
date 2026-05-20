@@ -48,7 +48,7 @@ echo "================"
 
 cd "${PROJECT_DIR}"
 
-python "${PROJECT_DIR}/scripts/tile_from_mip_zip.py" \
+python "${PROJECT_DIR}/scripts/preprocess/tile_from_mip.py" \
     --zip         "${ZIP_PATH}" \
     --output_root "${OUTPUT_ROOT}" \
     --patch_size  "${PATCH_SIZE}" \
