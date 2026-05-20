@@ -112,11 +112,12 @@ def show_pipeline_stages(
     axes[0, 0].imshow(composite, cmap="gray", vmin=0, vmax=vmax)
     axes[0, 0].set_title("composite (max over channels)")
 
-    # ``dendrite_response`` is set by both branches of make_structural_mask;
-    # ``density_response`` is set only by the density branch -- use it as
-    # the branch discriminator for the title.
+    # ``dendrite_response`` is set by every branch of make_structural_mask;
+    # ``density_response`` and ``coherence_map`` discriminate the branch.
     resp = intermediates["dendrite_response"]
-    if "density_response" in intermediates:
+    if "coherence_map" in intermediates:
+        resp_title = "coherence map (structural)"
+    elif "density_response" in intermediates:
         resp_title = "density response (structural)"
     else:
         resp_title = "Meijering response (structural)"

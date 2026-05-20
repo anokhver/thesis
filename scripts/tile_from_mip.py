@@ -163,8 +163,10 @@ def tile_one(
 
 def _tile_one_worker(args: tuple) -> list[dict]:
     """Worker function for parallel tiling (must be top-level for pickling)."""
-    npy_path, output_dir, patch_size, source_path = args
-    return tile_one(Path(npy_path), Path(output_dir), patch_size, source_path)
+    npy_path, output_dir, patch_size, source_path, image_index = args
+    return tile_one(
+        Path(npy_path), Path(output_dir), patch_size, source_path, image_index
+    )
 
 
 def process_dir(
@@ -191,11 +193,11 @@ def process_dir(
                 if fname and src:
                     source_map[fname] = src
 
-    # Build work items
+    # Build work items; image_index is stable per source image (sorted order).
     work_items = [
         (str(npy_path), str(output_dir), patch_size,
-         source_map.get(npy_path.name, str(npy_path.resolve())))
-        for npy_path in npy_files
+         source_map.get(npy_path.name, str(npy_path.resolve())), image_index)
+        for image_index, npy_path in enumerate(npy_files)
     ]
 
     all_records: list[dict] = []

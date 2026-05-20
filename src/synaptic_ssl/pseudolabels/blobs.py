@@ -2,16 +2,19 @@
 
 Channels: 0=pre, 1=post, 2=structural. Pipeline: LoG blobs on pre+post
 → optional annular z-score → render disks → union → restrict to
-dendrite (Meijering+Otsu) ∪ soma (intensity) mask → shape filter.
+dendrite (one of three detectors: Meijering ridge, density-skeleton, or
+structure-tensor coherence) ∪ soma (intensity) mask → shape filter.
 Does NOT enforce pre/post co-localisation; output represents synaptic
 *marker* puncta, not synapses.
 
 Annular z-score is a parametric Gaussian approximation of SynQuant's
 Wilcoxon SNR test (Wang et al., Bioinformatics 2020). Other building
-blocks: Meijering ridge (Meijering et al., Cytometry A 2004), Otsu
-threshold (IEEE Trans SMC 1979), scale-normalised LoG (Lindeberg, IJCV
-1998), neurite-mask gating (Fantuzzo et al., eNeuro 2017), white
-top-hat (Pathak et al., Front Cell Dev Biol 2025, §2.5.2).
+blocks: Meijering ridge (Meijering et al., Cytometry A 2004), structure
+tensor (Bigun & Granlund, ICCV 1987; Weickert, "Anisotropic Diffusion
+in Image Processing", 1998), Otsu threshold (IEEE Trans SMC 1979),
+scale-normalised LoG (Lindeberg, IJCV 1998), neurite-mask gating
+(Fantuzzo et al., eNeuro 2017), white top-hat (Pathak et al., Front
+Cell Dev Biol 2025, §2.5.2).
 
 Ref: https://github.com/yu-lab-vt/SynQuant
 """
@@ -23,7 +26,11 @@ from typing import Iterable, List, Sequence, Tuple
 import numpy as np
 from scipy.signal import convolve2d
 from skimage.draw import disk as draw_disk
-from skimage.feature import blob_log
+from skimage.feature import (
+    blob_log,
+    structure_tensor,
+    structure_tensor_eigenvalues,
+)
 from skimage.filters import gaussian, meijering, threshold_otsu
 from skimage.measure import label as cc_label, regionprops
 from skimage.morphology import (
@@ -125,8 +132,10 @@ class BlobPseudoCfg:
     zscore_threshold: float = 2.0
 
     # "meijering" = Hessian ridge filter; "density" = puncta-density
-    # pipeline for structural channels where the neurite signal is a
-    # chain of bright spots, not a continuous ridge.
+    # pipeline (smooth + threshold + skeletonise) for structural channels
+    # where the neurite signal is a chain of bright spots; "coherence" =
+    # structure-tensor orientation-coherence test on the same density field
+    # (rejects clusters whose puncta are not linearly arranged).
     dendrite_method: str = "meijering"
 
     # density-method parameters (only read when dendrite_method=="density")
@@ -161,6 +170,33 @@ class BlobPseudoCfg:
     # Set eta_min<=0 and fg_frac_max>=1 to disable.
     density_min_otsu_separability: float = 0.7
     density_max_fg_fraction: float = 0.35
+
+    # ---- coherence-method parameters (only read when dendrite_method=="coherence") ----
+    # The density-field builder (density_input, density_tophat_radius)
+    # is reused; coherence-specific knobs override only the smoothing
+    # scale and add the structure-tensor integration scale + threshold.
+    #
+    # coherence_density_sigma: small Gaussian on the (raw|tophat|puncta)
+    # field. Keep small (~ punctum radius) so per-spot gradients survive
+    # for the structure tensor; the density branch's default 6.0 over-
+    # smooths blobs into a single ridge and kills the discrimination.
+    coherence_density_sigma: float = 2.0
+    # coherence_integration_sigma: outer Gaussian inside
+    # ``skimage.feature.structure_tensor``. Set to ~2x inter-spot pitch
+    # so the tensor sees several consecutive puncta. At 107 nm/px with
+    # ~6 px pitch, 10 px integrates across ~3 spots.
+    coherence_integration_sigma: float = 10.0
+    # Minimum orientation coherence c = (lam1 - lam2) / (lam1 + lam2).
+    # c ~ 1 for a linear chain of puncta, c ~ 0 for an isotropic cluster.
+    # 0.55 is a balanced default; raise to 0.7+ for stricter linearity.
+    coherence_threshold: float = 0.55
+    # Drop CCs smaller than this many pixels after the AND of coherence
+    # and intensity gates (kills sub-spot noise the structure tensor
+    # occasionally accepts at low coherence).
+    coherence_min_cc_area: int = 30
+    # Post-dilation in pixels applied to the thin coherence-ridge mask
+    # before make_structural_mask adds the global structural_dilation.
+    coherence_dilate: int = 2
 
 
 # ---------------------------------------------------------------------------
@@ -302,29 +338,28 @@ def _otsu_with_separability(
     return t
 
 
-def density_response(
+def _build_structural_field(
     structural_image: np.ndarray,
     cfg: BlobPseudoCfg,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Build a smoothed density field from the structural channel.
+) -> np.ndarray:
+    """Unsmoothed input field shared by density and coherence branches.
 
-    Returns ``(input_field, smoothed_response)``. ``input_field`` is the
-    per-``cfg.density_input`` intermediate (raw / white top-hat / LoG-
-    puncta disk map); ``smoothed_response`` is its Gaussian.
+    Returns ``raw`` (cast to float32), ``white_tophat`` of radius
+    ``cfg.density_tophat_radius``, or a disk map of LoG-detected puncta,
+    depending on ``cfg.density_input``.
     """
     if structural_image.ndim != 2:
         raise ValueError(
-            f"density_response expects 2D, got {structural_image.shape}"
+            f"_build_structural_field expects 2D, got {structural_image.shape}"
         )
     method = cfg.density_input
     img = structural_image.astype(np.float32, copy=False)
     if method == "raw":
-        field = img
-    elif method == "tophat":
+        return img
+    if method == "tophat":
         radius = max(1, int(cfg.density_tophat_radius))
-        field = white_tophat(img, morph_disk(radius)).astype(np.float32)
-    elif method == "puncta":
-        # LoG-detect spots, render as disks of LoG radius (sqrt(2)*sigma).
+        return white_tophat(img, morph_disk(radius)).astype(np.float32)
+    if method == "puncta":
         blobs = blob_log(
             img,
             min_sigma=cfg.log_min_sigma,
@@ -339,13 +374,24 @@ def density_response(
             radius = max(1, int(round(np.sqrt(2.0) * sigma)))
             rr, cc = draw_disk((int(row), int(col)), radius, shape=img.shape)
             spot_map[rr, cc] = 1.0
-        field = spot_map
-    else:
-        raise ValueError(
-            f"unknown density_input: {method!r}; "
-            f"expected 'raw', 'tophat', or 'puncta'"
-        )
+        return spot_map
+    raise ValueError(
+        f"unknown density_input: {method!r}; "
+        f"expected 'raw', 'tophat', or 'puncta'"
+    )
 
+
+def density_response(
+    structural_image: np.ndarray,
+    cfg: BlobPseudoCfg,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Build a smoothed density field from the structural channel.
+
+    Returns ``(input_field, smoothed_response)``. ``input_field`` is the
+    per-``cfg.density_input`` intermediate (raw / white top-hat / LoG-
+    puncta disk map); ``smoothed_response`` is its Gaussian.
+    """
+    field = _build_structural_field(structural_image, cfg)
     sigma = max(1e-3, float(cfg.density_sigma))
     smoothed = gaussian(field, sigma=sigma, preserve_range=True).astype(
         np.float32
@@ -540,6 +586,114 @@ def make_density_dendrite_mask(
     }
 
 
+# ---------------------------------------------------------------------------
+# Coherence-based dendrite detection
+# ---------------------------------------------------------------------------
+# Discriminates "puncta arranged along a line" from "puncta clumped in a
+# blob" using the 2D structure tensor (Bigun & Granlund, ICCV 1987;
+# Weickert, "Anisotropic Diffusion in Image Processing", 1998). Same
+# input field as the density branch (raw / tophat / LoG-puncta disks),
+# but instead of smoothing into a blob and skeletonising, we read off
+# the local orientation coherence:
+#
+#     c(x) = (lam1 - lam2) / (lam1 + lam2)    in [0, 1]
+#
+# where lam1 >= lam2 are the eigenvalues of the Gaussian-windowed
+# gradient outer-product (the structure tensor). A linear chain of
+# puncta has a dominant gradient direction (perpendicular to the chain)
+# so c -> 1; an isotropic cluster has gradients in every direction so
+# c -> 0. The final mask is (c > coherence_threshold) AND (smoothed
+# field > guarded-Otsu intensity threshold), with small-CC removal and
+# a thin dilation. No skeletonisation: the coherence test already
+# concentrates response along dendrite axes.
+
+
+def coherence_response(
+    structural_image: np.ndarray,
+    cfg: BlobPseudoCfg,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Build the smoothed field + per-pixel orientation coherence map.
+
+    Returns ``(input_field, smoothed_field, coherence_map)``.
+
+    The smoothed field uses ``cfg.coherence_density_sigma`` (small, so
+    per-spot gradients survive) rather than ``cfg.density_sigma``. The
+    structure tensor is integrated with ``cfg.coherence_integration_sigma``.
+    """
+    field = _build_structural_field(structural_image, cfg)
+    sigma_in = max(1e-3, float(cfg.coherence_density_sigma))
+    smoothed = gaussian(field, sigma=sigma_in, preserve_range=True).astype(
+        np.float32
+    )
+
+    sigma_int = max(1e-3, float(cfg.coherence_integration_sigma))
+    arr, arc, acc = structure_tensor(
+        smoothed, sigma=sigma_int, mode="reflect", order="rc"
+    )
+    eigs = structure_tensor_eigenvalues([arr, arc, acc])
+    lam1, lam2 = eigs[0], eigs[1]
+    denom = lam1 + lam2
+    # c is well-defined only where the gradient energy is non-trivial.
+    # numpy.true_divide with where= avoids RuntimeWarning and yields 0
+    # at degenerate pixels (which the intensity gate will reject anyway).
+    coherence = np.zeros_like(denom, dtype=np.float32)
+    np.divide(
+        lam1 - lam2, denom + 1e-8, out=coherence,
+        where=denom > 0,
+    )
+    return field, smoothed, coherence
+
+
+def make_coherence_dendrite_mask(
+    structural_image: np.ndarray,
+    cfg: BlobPseudoCfg,
+) -> dict:
+    """Orientation-coherence dendrite mask for punctate structural channels.
+
+    Keeps pixels whose smoothed field exceeds a guarded-Otsu threshold
+    AND whose structure-tensor coherence exceeds ``cfg.coherence_threshold``;
+    drops sub-``cfg.coherence_min_cc_area`` components and optionally
+    dilates by ``cfg.coherence_dilate`` pixels. Returns a dict with keys
+    ``coherence_input_field``, ``coherence_smoothed``,
+    ``coherence_map``, ``coherence_intensity_threshold``,
+    ``coherence_intensity_mask``, ``raw_coherence_mask``,
+    ``dendrite_threshold`` (= ``cfg.coherence_threshold``) and
+    ``dendrite_mask`` (final). All intermediate masks are present even
+    when empty so callers can log where a collapse happens.
+    """
+    field, smoothed, coherence = coherence_response(structural_image, cfg)
+
+    intensity_thr = _otsu_with_separability(
+        smoothed,
+        eta_min=float(cfg.density_min_otsu_separability),
+        fg_frac_max=float(cfg.density_max_fg_fraction),
+    )
+    intensity_mask = smoothed > intensity_thr
+
+    raw_mask = intensity_mask & (coherence > float(cfg.coherence_threshold))
+    if raw_mask.any():
+        raw_mask = remove_small_objects(
+            raw_mask, max_size=max(0, int(cfg.coherence_min_cc_area) - 1)
+        )
+
+    dilate_r = max(0, int(cfg.coherence_dilate))
+    if dilate_r > 0 and raw_mask.any():
+        dendrite_mask = dilation(raw_mask, morph_disk(dilate_r))
+    else:
+        dendrite_mask = raw_mask
+
+    return {
+        "coherence_input_field": field,
+        "coherence_smoothed": smoothed,
+        "coherence_map": coherence,
+        "coherence_intensity_threshold": intensity_thr,
+        "coherence_intensity_mask": intensity_mask.astype(bool, copy=False),
+        "raw_coherence_mask": raw_mask.astype(bool, copy=False),
+        "dendrite_threshold": float(cfg.coherence_threshold),
+        "dendrite_mask": dendrite_mask.astype(bool, copy=False),
+    }
+
+
 def make_soma_mask(
     structural_image: np.ndarray,
     intensity_percentile: float = 99.0,
@@ -582,12 +736,17 @@ def make_structural_mask(
 ) -> dict:
     """Build dendrite ∪ soma mask plus dilated near-neuron zone from ``(C, H, W)``.
 
-    Dispatches on ``cfg.dendrite_method`` (``"meijering"`` or ``"density"``).
+    Dispatches on ``cfg.dendrite_method`` (``"meijering"``, ``"density"``,
+    or ``"coherence"``).
 
     The returned dict always contains ``dendrite_response``,
     ``dendrite_threshold``, ``dendrite_mask``, ``soma_mask``,
     ``structural_mask`` and ``near_structural``. The density branch also
-    exposes ``density_input_field`` and ``raw_density_mask``.
+    exposes ``density_input_field`` and ``raw_density_mask``; the
+    coherence branch exposes ``coherence_input_field``,
+    ``coherence_smoothed``, ``coherence_map``,
+    ``coherence_intensity_threshold``, ``coherence_intensity_mask`` and
+    ``raw_coherence_mask``.
     """
     struct_raw = image[cfg.structural_channel]
     method = cfg.dendrite_method
@@ -616,10 +775,26 @@ def make_structural_mask(
             "raw_density_mask": dens["raw_density_mask"],
             "dendrite_response": dens["density_response"],
         }
+    elif method == "coherence":
+        coh = make_coherence_dendrite_mask(struct_raw, cfg)
+        dendrite = coh["dendrite_mask"]
+        threshold = coh["dendrite_threshold"]
+        method_extras = {
+            "coherence_input_field": coh["coherence_input_field"],
+            "coherence_smoothed": coh["coherence_smoothed"],
+            "coherence_map": coh["coherence_map"],
+            "coherence_intensity_threshold": coh["coherence_intensity_threshold"],
+            "coherence_intensity_mask": coh["coherence_intensity_mask"],
+            "raw_coherence_mask": coh["raw_coherence_mask"],
+            # dendrite_response key is consumed by viz.show_pipeline_stages;
+            # surface the coherence map there so the diagnostic figure stays
+            # informative across all three branches.
+            "dendrite_response": coh["coherence_map"],
+        }
     else:
         raise ValueError(
             f"unknown dendrite_method: {method!r}; "
-            f"expected 'meijering' or 'density'"
+            f"expected 'meijering', 'density', or 'coherence'"
         )
 
     soma = make_soma_mask(
