@@ -1,9 +1,9 @@
 """Pseudo-label generators: soma (FDT), dendrite (Frangi), puncta (LoG).
 
-Live pipeline: ``soma_fdt`` -> ``dendrite_frangi`` -> blob detection
-(``blobs.detect_blobs_log`` + ``score_blobs_zscore``). The remaining
-exports from ``blobs`` (``make_structural_mask``, the meijering/density/
-coherence dendrite branches, ``generate_blob_pseudolabel``,
+Live pipeline: ``soma_fdt`` -> ``dendrite_frangi`` -> puncta detection
+(``puncta.detect_puncta_log`` + ``score_puncta_zscore``). The remaining
+exports from ``puncta`` (``make_structural_mask``, the meijering/density/
+coherence dendrite branches, ``generate_puncta_pseudolabel``,
 ``generate_pseudolabels_fullimage``, ``compute_global_meijering_threshold``,
 ``compute_fullimage_structural_mask``) and ``refine`` are legacy:
 consumed only by ``notebooks/segmentation/train_swinunetr_pseudolabels*``
@@ -13,19 +13,29 @@ Alternative soma detector: ``notebooks/pseudolabels/log_soma.ipynb``
 (scale-normalised LoG). Standalone, not wired into the CLI scripts.
 """
 
-from .blobs import (
-    BlobPseudoCfg,
-    detect_blobs_log, blobs_to_mask,
+from .puncta import (
+    PunctaCfg,
+    detect_puncta_log, puncta_to_mask,
     meijering_response, compute_global_meijering_threshold,
     density_response,
     make_density_dendrite_mask,
     coherence_response,
     make_coherence_dendrite_mask,
     make_soma_mask, make_structural_mask,
-    score_blobs_zscore,
+    score_puncta_zscore,
     filter_by_size_shape,
-    generate_blob_pseudolabel,
+    generate_puncta_pseudolabel,
     compute_fullimage_structural_mask, generate_pseudolabels_fullimage,
+    # puncta detection helpers (live pipeline)
+    derive_zscore_floors,
+    detect_puncta_channel,
+    restrict_puncta_to_near,
+)
+from .viz import (
+    visualise_structural_overview,
+    visualise_puncta_channel,
+    visualise_puncta_pair,
+    visualise_puncta_full,
 )
 from .refine import (
     RefineCfg,
@@ -54,17 +64,25 @@ from .dendrite_frangi import (
 from .dendrite_frangi import resolve_cfg as resolve_dendrite_cfg
 
 __all__ = [
-    # blobs -- live (used by scripts/{puncta,dendrite,soma}_from_mip.py)
-    "BlobPseudoCfg",
-    "detect_blobs_log", "blobs_to_mask",
-    "score_blobs_zscore",
+    # puncta -- live (used by scripts/{puncta,dendrite,soma}_from_mip.py)
+    "PunctaCfg",
+    "detect_puncta_log", "puncta_to_mask",
+    "score_puncta_zscore",
     "filter_by_size_shape",
-    # blobs -- legacy (training notebooks + segmentation.dataset only)
+    # puncta helpers + viz (live pipeline)
+    "derive_zscore_floors",
+    "detect_puncta_channel",
+    "restrict_puncta_to_near",
+    "visualise_structural_overview",
+    "visualise_puncta_channel",
+    "visualise_puncta_pair",
+    "visualise_puncta_full",
+    # puncta -- legacy (training notebooks + segmentation.dataset only)
     "meijering_response", "compute_global_meijering_threshold",
     "density_response", "make_density_dendrite_mask",
     "coherence_response", "make_coherence_dendrite_mask",
     "make_soma_mask", "make_structural_mask",
-    "generate_blob_pseudolabel",
+    "generate_puncta_pseudolabel",
     "compute_fullimage_structural_mask", "generate_pseudolabels_fullimage",
     # refine -- legacy (DDeep3M+ iterative training notebook only)
     "RefineCfg",

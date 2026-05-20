@@ -115,12 +115,12 @@ for _p in (_ROOT, _REPO):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from synaptic_ssl.pseudolabels.blobs import (  # noqa: E402
-    BlobPseudoCfg,
-    blobs_to_mask,
-    detect_blobs_log,
+from synaptic_ssl.pseudolabels.puncta import (  # noqa: E402
+    PunctaCfg,
+    puncta_to_mask,
+    detect_puncta_log,
     filter_by_size_shape,
-    score_blobs_zscore,
+    score_puncta_zscore,
 )
 
 logging.basicConfig(
@@ -135,7 +135,7 @@ logger = logging.getLogger(__name__)
 # Calibrated defaults from notebooks/pseudolabels/puncta_detection.ipynb
 # (cell 4, after the robust-annulus tuning of 2026-05-20).
 # Channel-role fields (pre/post/structural_channel) are intentionally
-# left at BlobPseudoCfg defaults: detect_blobs_log / score_blobs_zscore
+# left at PunctaCfg defaults: detect_puncta_log / score_puncta_zscore
 # take a 2D array directly so the cfg field is unused at the detector
 # level. The script's --pre_channel / --post_channel flags drive the
 # actual channel selection.
@@ -251,19 +251,19 @@ def _merge_cfg(base: dict, override: dict | None) -> dict:
     return out
 
 
-def _build_blob_cfg(merged: dict) -> BlobPseudoCfg:
-    """Construct a BlobPseudoCfg from a merged dict.
+def _build_blob_cfg(merged: dict) -> PunctaCfg:
+    """Construct a PunctaCfg from a merged dict.
 
-    Filters to fields BlobPseudoCfg actually declares so a user-supplied
+    Filters to fields PunctaCfg actually declares so a user-supplied
     JSON with extra keys produces a clean error rather than a silent miss.
     """
-    valid = {f.name for f in dataclasses.fields(BlobPseudoCfg)}
+    valid = {f.name for f in dataclasses.fields(PunctaCfg)}
     unknown = set(merged) - valid
     if unknown:
         raise ValueError(
-            f"unknown BlobPseudoCfg field(s) in cfg JSON: {sorted(unknown)}"
+            f"unknown PunctaCfg field(s) in cfg JSON: {sorted(unknown)}"
         )
-    return BlobPseudoCfg(**merged)
+    return PunctaCfg(**merged)
 
 
 def _parse_json_cfg(s: str | None) -> dict:
@@ -304,10 +304,10 @@ def _derive_floors(detected: np.ndarray) -> tuple[float, float, float]:
 
 def _detect_channel(
     img2d: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
     *,
     auto_floors: bool,
-) -> tuple[np.ndarray, BlobPseudoCfg, tuple[float, float, float]]:
+) -> tuple[np.ndarray, PunctaCfg, tuple[float, float, float]]:
     """Tophat -> (optionally derive floors) -> LoG -> z-score + floor gate.
 
     Returns ``(kept_blobs[N,3], effective_cfg, (sigma_bg_floor,
@@ -332,11 +332,11 @@ def _detect_channel(
         dlt_floor = cfg.zscore_min_contrast
         cfg_eff = cfg
 
-    raw = detect_blobs_log(det, cfg_eff)
+    raw = detect_puncta_log(det, cfg_eff)
     if not cfg_eff.use_zscore or raw.shape[0] == 0:
         kept = raw
     else:
-        scored = score_blobs_zscore(det, raw, cfg_eff)
+        scored = score_puncta_zscore(det, raw, cfg_eff)
         if scored:
             kept = np.array(
                 [[s["row"], s["col"], s["sigma"]] for s in scored if s["kept"]]
@@ -361,8 +361,8 @@ def _run_puncta(
     post_img: np.ndarray,
     soma_mask: np.ndarray,
     dend_mask: np.ndarray,
-    cfg_pre: BlobPseudoCfg,
-    cfg_post: BlobPseudoCfg,
+    cfg_pre: PunctaCfg,
+    cfg_post: PunctaCfg,
     *,
     near_dilate_px: int,
     auto_floors: bool,
@@ -400,8 +400,8 @@ def _run_puncta(
     on_post = _restrict_to_near(kept_post, near_mask)
 
     H, W = pre_img.shape
-    pre_mask = blobs_to_mask(on_pre, (H, W)).astype(bool)
-    post_mask = blobs_to_mask(on_post, (H, W)).astype(bool)
+    pre_mask = puncta_to_mask(on_pre, (H, W)).astype(bool)
+    post_mask = puncta_to_mask(on_post, (H, W)).astype(bool)
 
     if apply_shape_filter:
         pre_mask = filter_by_size_shape(pre_mask, cfg_pre).astype(bool)
@@ -445,8 +445,8 @@ def puncta_one(
     output_dir: Path,
     soma_dir: Path,
     dend_dir: Path,
-    cfg_pre: BlobPseudoCfg,
-    cfg_post: BlobPseudoCfg,
+    cfg_pre: PunctaCfg,
+    cfg_post: PunctaCfg,
     pre_channel: int,
     post_channel: int,
     near_dilate_px: int,
@@ -595,8 +595,8 @@ def process_dir(
     output_dir: Path,
     soma_dir: Path,
     dend_dir: Path,
-    cfg_pre: BlobPseudoCfg,
-    cfg_post: BlobPseudoCfg,
+    cfg_pre: PunctaCfg,
+    cfg_post: PunctaCfg,
     pre_channel: int,
     post_channel: int,
     near_dilate_px: int,
@@ -753,8 +753,8 @@ def puncta_for_source(
     dend_dir: Path,
     source_npy: str,
     rows: list[dict],
-    cfg_pre: BlobPseudoCfg,
-    cfg_post: BlobPseudoCfg,
+    cfg_pre: PunctaCfg,
+    cfg_post: PunctaCfg,
     pre_channel: int,
     post_channel: int,
     near_dilate_px: int,
@@ -901,8 +901,8 @@ def process_patches_dir(
     output_dir: Path,
     soma_dir: Path,
     dend_dir: Path,
-    cfg_pre: BlobPseudoCfg,
-    cfg_post: BlobPseudoCfg,
+    cfg_pre: PunctaCfg,
+    cfg_post: PunctaCfg,
     pre_channel: int,
     post_channel: int,
     near_dilate_px: int,

@@ -1,188 +1,250 @@
-"""Diagnostic plots for the blob pseudo-label pipeline.
+"""Matplotlib visualisation for the live puncta pipeline.
 
-Companion to ``pseudolabels.blobs``. Functions return matplotlib axes
-or figures so notebooks can compose them.
+Mirrors the per-channel + structural diagnostic plots used in
+``notebooks/pseudolabels/puncta_detection.ipynb`` so callers don't
+reimplement them.
+
+Soma and dendrite diagnostic figures live next to their detectors
+(``soma_fdt.visualise_soma_mask``, ``dendrite_frangi.visualise_dendrite_mask``);
+this module covers the puncta stage and the soma+dend structural gate
+that precedes it.
 """
+
 from __future__ import annotations
 
-from typing import Sequence
+from typing import List, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.patches import Circle
+
+from .puncta import PunctaCfg
 
 
-CHANNEL_NAMES = ("pre-synaptic", "post-synaptic", "structural")
-
-# Black-to-colour colormaps so the background is black (matching
-# fluorescence microscopy convention: dark = no signal).
-_BLACK_GREEN = LinearSegmentedColormap.from_list("black_green", ["black", "lime"])
-_BLACK_RED   = LinearSegmentedColormap.from_list("black_red",   ["black", "red"])
-_BLACK_BLUE  = LinearSegmentedColormap.from_list("black_blue",  ["black", "deepskyblue"])
-CHANNEL_CMAPS = (_BLACK_GREEN, _BLACK_RED, _BLACK_BLUE)
-
-
-def show_3channel_grid(
-    patch: np.ndarray,
-    titles: Sequence[str] = CHANNEL_NAMES,
-    figsize=(14, 4),
-    vmax=0.5,
-):
-    """Show the channel-max composite and each channel side by side."""
-    C, H, W = patch.shape
-    fig, axes = plt.subplots(1, C + 1, figsize=figsize)
-    composite = patch.max(axis=0)
-    axes[0].imshow(composite, cmap="gray", vmin=0, vmax=vmax)
-    axes[0].set_title("max-projection (composite)")
-    for i in range(C):
-        cmap = CHANNEL_CMAPS[i] if i < len(CHANNEL_CMAPS) else "gray"
-        axes[i + 1].imshow(patch[i], cmap=cmap, vmin=0, vmax=vmax)
-        name = titles[i] if i < len(titles) else f"ch{i}"
-        axes[i + 1].set_title(f"ch{i} - {name}")
-    for ax in axes:
-        ax.axis("off")
-    plt.tight_layout()
-    return fig, axes
-
-
-def show_blob_overlay(image, blobs, ax, color="lime", linewidth=0.8, vmax=0.5):
-    """Draw a circle (radius = ``sqrt(2) * sigma``) per blob over ``image``."""
-    ax.imshow(image, cmap="gray", vmin=0, vmax=vmax)
-    for row, col, sigma in blobs:
-        radius = float(np.sqrt(2.0) * sigma)
-        ax.add_patch(Circle((col, row), radius, fill=False,
-                            edgecolor=color, linewidth=linewidth))
-    ax.axis("off")
-    return ax
-
-
-def show_scored_blobs(
-    image,
-    scored,
-    ax,
-    vmax=0.5,
-    color_kept="lime",
-    color_rejected="red",
-    show_rejected=True,
-):
-    """Overlay blobs from ``score_blobs_zscore``, coloured by ``kept``.
-
-    Kept (``z >= threshold``) → ``color_kept``; rejected → ``color_rejected``.
-    """
-    ax.imshow(image, cmap="gray", vmin=0, vmax=vmax)
+def _on_near_flags(scored: List[dict], near_mask: np.ndarray | None) -> List[bool]:
+    if near_mask is None:
+        return [True] * len(scored)
+    H, W = near_mask.shape
+    out = []
     for s in scored:
-        radius = float(np.sqrt(2.0) * s["sigma"])
-        if s["kept"]:
-            color = color_kept
-        else:
-            if not show_rejected:
-                continue
-            color = color_rejected
-        ax.add_patch(Circle((s["col"], s["row"]), radius, fill=False,
-                            edgecolor=color, linewidth=0.8))
-    ax.axis("off")
-    return ax
+        rr = int(np.clip(round(s["row"]), 0, H - 1))
+        cc = int(np.clip(round(s["col"]), 0, W - 1))
+        out.append(bool(near_mask[rr, cc]))
+    return out
 
 
-def show_mask_overlay(image, mask, ax, color=(1, 0.2, 0.2), alpha=0.4, vmax=0.5):
-    """Semi-transparent coloured fill for ``mask`` over greyscale ``image``."""
-    ax.imshow(image, cmap="gray", vmin=0, vmax=vmax)
-    rgba = np.zeros((*mask.shape, 4))
-    rgba[..., 0] = color[0]
-    rgba[..., 1] = color[1]
-    rgba[..., 2] = color[2]
-    rgba[..., 3] = (mask > 0).astype(float) * alpha
-    ax.imshow(rgba)
-    ax.axis("off")
-    return ax
-
-
-def show_pipeline_stages(
-    patch,
-    intermediates,
-    label_mask,
-    figsize=(18, 12),
-    vmax=0.5,
+def visualise_structural_overview(
+    structural_image: np.ndarray,
+    soma_mask: np.ndarray,
+    dendrite_mask: np.ndarray,
+    *,
+    near_mask: np.ndarray | None = None,
+    ax=None,
+    vmax: float = 0.3,
+    title: str = "",
 ):
-    """3x3 diagnostic figure of every intermediate stage on one patch."""
-    fig, axes = plt.subplots(3, 3, figsize=figsize)
+    """Single-panel summary of the structural stage that gates puncta.
 
-    composite = patch.max(axis=0)
-    axes[0, 0].imshow(composite, cmap="gray", vmin=0, vmax=vmax)
-    axes[0, 0].set_title("composite (max over channels)")
+    Structural channel as grayscale with semi-transparent overlays:
+    soma red, dendrite green, optional near zone blue. The near zone
+    is what the puncta restrictor uses as the keep/reject boundary;
+    pass it to see the actual gate, omit it to see just soma ∪ dend.
+    """
+    import matplotlib.pyplot as plt
 
-    # ``dendrite_response`` is set by every branch of make_structural_mask;
-    # ``density_response`` and ``coherence_map`` discriminate the branch.
-    resp = intermediates["dendrite_response"]
-    if "coherence_map" in intermediates:
-        resp_title = "coherence map (structural)"
-    elif "density_response" in intermediates:
-        resp_title = "density response (structural)"
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 10))
     else:
-        resp_title = "Meijering response (structural)"
-    axes[0, 1].imshow(resp, cmap="hot")
-    axes[0, 1].set_title(resp_title)
+        fig = ax.figure
+    ax.imshow(structural_image, cmap="gray", vmin=0, vmax=vmax)
+    if near_mask is not None:
+        rgba = np.zeros((*near_mask.shape, 4))
+        rgba[..., 2] = 1.0
+        rgba[..., 3] = near_mask * 0.18
+        ax.imshow(rgba)
+    if soma_mask.any():
+        rgba = np.zeros((*soma_mask.shape, 4))
+        rgba[..., 0] = 1.0
+        rgba[..., 3] = soma_mask * 0.35
+        ax.imshow(rgba)
+    if dendrite_mask.any():
+        rgba = np.zeros((*dendrite_mask.shape, 4))
+        rgba[..., 1] = 1.0
+        rgba[..., 3] = dendrite_mask * 0.35
+        ax.imshow(rgba)
+    if not title:
+        parts = [
+            f"soma={soma_mask.mean():.2%}",
+            f"dend={dendrite_mask.mean():.2%}",
+        ]
+        if near_mask is not None:
+            parts.append(f"near={near_mask.mean():.2%}")
+        title = "structural  " + "  ".join(parts)
+    ax.set_title(title, fontsize=12)
+    ax.set_xticks([]); ax.set_yticks([])
+    return fig, ax
 
-    axes[0, 2].imshow(intermediates["near_structural"], cmap="gray")
-    axes[0, 2].set_title(
-        f"structural mask (dilated) | dendrite={intermediates['dendrite_mask'].mean():.2%}"
-        f"  soma={intermediates['soma_mask'].mean():.2%}"
-    )
 
-    show_blob_overlay(
-        patch[0], intermediates["pre_blobs_kept"],
-        axes[1, 0], color="lime", vmax=vmax,
-    )
-    axes[1, 0].set_title(f"pre LoG kept ({len(intermediates['pre_blobs_kept'])})")
+def visualise_puncta_channel(
+    image: np.ndarray,
+    raw: np.ndarray,
+    scored: List[dict],
+    kept: np.ndarray,
+    *,
+    near_mask: np.ndarray | None = None,
+    color: str = "lime",
+    cfg: PunctaCfg | None = None,
+    axes=None,
+    vmax: float = 0.3,
+    title_prefix: str = "",
+):
+    """3-panel per-channel diagnostic: raw / LoG candidates / kept-vs-rejected.
 
-    show_blob_overlay(
-        patch[1], intermediates["post_blobs_kept"],
-        axes[1, 1], color="lime", vmax=vmax,
-    )
-    axes[1, 1].set_title(f"post LoG kept ({len(intermediates['post_blobs_kept'])})")
+    Panels:
+      0. raw channel (with near_mask in blue if provided).
+      1. raw LoG candidates as yellow circles (radius = sqrt(2)*sigma).
+      2. scored blobs coloured ``color`` (kept on near_mask), orange
+         (kept off near_mask), or red (rejected). When ``scored`` is
+         empty (z-scoring off) every raw blob is drawn as ``color``.
 
-    axes[1, 2].imshow(intermediates["puncta_mask"], cmap="gray")
-    axes[1, 2].set_title(f"pre ∪ post puncta (px={int(intermediates['puncta_mask'].sum())})")
+    Pass a ``(3,)`` array of matplotlib axes to embed in a larger grid,
+    or omit ``axes`` for a standalone ``(1, 3)`` figure.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Circle
 
-    axes[2, 0].imshow(intermediates["shaped_mask"], cmap="gray")
-    axes[2, 0].set_title(f"after shape filter (px={int(intermediates['shaped_mask'].sum())})")
+    if axes is None:
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    else:
+        fig = axes[0].figure
+    if len(axes) < 3:
+        raise ValueError(f"visualise_puncta_channel needs 3 axes; got {len(axes)}")
 
-    show_mask_overlay(
-        composite, intermediates["near_structural"],
-        axes[2, 1], color=(0.2, 0.5, 1.0), alpha=0.4, vmax=vmax,
-    )
-    axes[2, 1].set_title("structural zone over composite")
+    axes[0].imshow(image, cmap="gray", vmin=0, vmax=vmax)
+    if near_mask is not None:
+        rgba = np.zeros((*near_mask.shape, 4))
+        rgba[..., 2] = 1.0
+        rgba[..., 3] = near_mask * 0.18
+        axes[0].imshow(rgba)
+    near_hint = "  (near=blue)" if near_mask is not None else ""
+    axes[0].set_title(f"{title_prefix}raw{near_hint}".strip())
 
-    show_mask_overlay(
-        composite, label_mask,
-        axes[2, 2], color=(1.0, 0.2, 0.2), alpha=0.5, vmax=vmax,
-    )
-    axes[2, 2].set_title(f"FINAL pseudo-label (px={int(label_mask.sum())})")
+    axes[1].imshow(image, cmap="gray", vmin=0, vmax=vmax)
+    for r, c, s in raw:
+        axes[1].add_patch(Circle(
+            (c, r), float(np.sqrt(2) * s),
+            fill=False, edgecolor="yellow", linewidth=0.6,
+        ))
+    axes[1].set_title(f"LoG candidates (n={len(raw)})")
 
-    for ax in axes.flat:
-        ax.axis("off")
-    plt.tight_layout()
+    axes[2].imshow(image, cmap="gray", vmin=0, vmax=vmax)
+    n_kept_on = n_kept_off = n_rej = 0
+    if scored:
+        on_flags = _on_near_flags(scored, near_mask)
+        for s, on in zip(scored, on_flags):
+            if s["kept"]:
+                if on:
+                    n_kept_on += 1; col = color
+                else:
+                    n_kept_off += 1; col = "orange"
+            else:
+                n_rej += 1; col = "red"
+            axes[2].add_patch(Circle(
+                (s["col"], s["row"]), float(np.sqrt(2) * s["sigma"]),
+                fill=False, edgecolor=col, linewidth=0.6,
+            ))
+    else:
+        for r, c, s in kept:
+            axes[2].add_patch(Circle(
+                (c, r), float(np.sqrt(2) * s),
+                fill=False, edgecolor=color, linewidth=0.6,
+            ))
+        n_kept_on = len(kept)
+    thr_txt = f"z>={cfg.zscore_threshold}" if cfg is not None else "kept"
+    if near_mask is not None and scored:
+        title2 = f"{thr_txt}  on={n_kept_on} off={n_kept_off} rej={n_rej}"
+    elif scored:
+        title2 = f"{thr_txt}  kept={n_kept_on + n_kept_off} rej={n_rej}"
+    else:
+        title2 = f"kept (n={n_kept_on})"
+    axes[2].set_title(title2)
+
+    for ax in axes:
+        ax.set_xticks([]); ax.set_yticks([])
     return fig, axes
 
 
-def plot_zscore_histogram(scored_pre, scored_post, threshold, ax=None, bins=50):
-    """Per-blob z-score histograms (pre, post) with the threshold line."""
-    if ax is None:
-        _, ax = plt.subplots(figsize=(8, 4))
-    pre_z = np.array([s["z"] for s in scored_pre if not np.isnan(s["z"])])
-    post_z = np.array([s["z"] for s in scored_post if not np.isnan(s["z"])])
-    zmax = max(
-        float(pre_z.max()) if pre_z.size else 1.0,
-        float(post_z.max()) if post_z.size else 1.0,
+def visualise_puncta_pair(
+    pre_image: np.ndarray,
+    post_image: np.ndarray,
+    raw_pre: np.ndarray,
+    scored_pre: List[dict],
+    kept_pre: np.ndarray,
+    raw_post: np.ndarray,
+    scored_post: List[dict],
+    kept_post: np.ndarray,
+    *,
+    near_mask: np.ndarray | None = None,
+    cfg_pre: PunctaCfg | None = None,
+    cfg_post: PunctaCfg | None = None,
+    vmax: float = 0.3,
+    title: str = "",
+):
+    """2x3 grid: top row pre (lime), bottom row post (magenta).
+
+    Convenience for tuning notebooks that compare both puncta channels
+    side by side; each row is ``visualise_puncta_channel``.
+    """
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    visualise_puncta_channel(
+        pre_image, raw_pre, scored_pre, kept_pre,
+        near_mask=near_mask, color="lime", cfg=cfg_pre,
+        axes=axes[0], vmax=vmax, title_prefix="pre ",
     )
-    edges = np.linspace(0, max(zmax, threshold * 1.2), bins)
-    ax.hist(pre_z, bins=edges, alpha=0.6, label=f"pre  (n={pre_z.size})")
-    ax.hist(post_z, bins=edges, alpha=0.6, label=f"post (n={post_z.size})")
-    ax.axvline(threshold, color="red", ls="--", label=f"threshold = {threshold}")
-    ax.set_xlabel("per-blob z-score")
-    ax.set_ylabel("count")
-    ax.set_yscale("log")
-    ax.set_title("Per-blob z-score distribution")
-    ax.legend(); ax.grid(True, alpha=0.3)
-    return ax
+    visualise_puncta_channel(
+        post_image, raw_post, scored_post, kept_post,
+        near_mask=near_mask, color="magenta", cfg=cfg_post,
+        axes=axes[1], vmax=vmax, title_prefix="post ",
+    )
+    if title:
+        fig.suptitle(title)
+    fig.tight_layout()
+    return fig, axes
+
+
+def visualise_puncta_full(
+    image: np.ndarray,
+    blobs: np.ndarray,
+    *,
+    color: str = "lime",
+    ax=None,
+    vmax: float = 0.3,
+    figsize: Tuple[float, float] = (14, 14),
+    linewidth: float = 0.5,
+    title: str = "",
+):
+    """Full-image overlay of one channel + blob circles. Stitched batches go here."""
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Circle
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
+    ax.imshow(image, cmap="gray", vmin=0, vmax=vmax)
+    for r, c, s in blobs:
+        ax.add_patch(Circle(
+            (c, r), float(np.sqrt(2) * s),
+            fill=False, edgecolor=color, linewidth=linewidth,
+        ))
+    ax.set_title(title or f"n={len(blobs)}", fontsize=12)
+    ax.set_xticks([]); ax.set_yticks([])
+    return fig, ax
+
+
+__all__ = [
+    "visualise_structural_overview",
+    "visualise_puncta_channel",
+    "visualise_puncta_pair",
+    "visualise_puncta_full",
+]

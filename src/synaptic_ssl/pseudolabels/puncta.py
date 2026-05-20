@@ -1,6 +1,6 @@
-"""Blob pseudo-labels for fluorescence-microscopy patches.
+"""Puncta pseudo-labels for fluorescence-microscopy patches.
 
-Channels: 0=pre, 1=post, 2=structural. Pipeline: LoG blobs on pre+post
+Channels: 0=pre, 1=post, 2=structural. Pipeline: LoG blob detection on pre+post
 → optional annular z-score → render disks → union → restrict to
 dendrite (one of three detectors: Meijering ridge, density-skeleton, or
 structure-tensor coherence) ∪ soma (intensity) mask → shape filter.
@@ -49,7 +49,7 @@ from skimage.morphology import (
 # ---------------------------------------------------------------------------
 
 @dataclass
-class BlobPseudoCfg:
+class PunctaCfg:
     """Pseudo-label pipeline configuration.
 
     Defaults calibrated for 107 nm/px confocal: puncta 2-5 px,
@@ -223,9 +223,9 @@ class BlobPseudoCfg:
 # LoG blob detection (per channel)
 # ---------------------------------------------------------------------------
 
-def detect_blobs_log(
+def detect_puncta_log(
     image: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> np.ndarray:
     """Scale-space LoG blob detection on a 2D channel.
 
@@ -233,7 +233,7 @@ def detect_blobs_log(
     (Lindeberg, IJCV 1998).
     """
     if image.ndim != 2:
-        raise ValueError(f"detect_blobs_log expects 2D, got shape {image.shape}")
+        raise ValueError(f"detect_puncta_log expects 2D, got shape {image.shape}")
     blobs = blob_log(
         image,
         min_sigma=cfg.log_min_sigma,
@@ -246,7 +246,7 @@ def detect_blobs_log(
     return blobs if blobs.size else np.zeros((0, 3), dtype=np.float64)
 
 
-def blobs_to_mask(blobs: np.ndarray, shape: Tuple[int, int]) -> np.ndarray:
+def puncta_to_mask(blobs: np.ndarray, shape: Tuple[int, int]) -> np.ndarray:
     """Render LoG blobs as a union of disks (radius = ``sqrt(2) * sigma``)."""
     mask = np.zeros(shape, dtype=np.uint8)
     for row, col, sigma in blobs:
@@ -360,7 +360,7 @@ def _otsu_with_separability(
 
 def _build_structural_field(
     structural_image: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> np.ndarray:
     """Unsmoothed input field shared by density and coherence branches.
 
@@ -403,7 +403,7 @@ def _build_structural_field(
 
 def density_response(
     structural_image: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Build a smoothed density field from the structural channel.
 
@@ -535,7 +535,7 @@ def _prune_skeleton_branches(
 
 def make_density_dendrite_mask(
     structural_image: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> dict:
     """Density-based dendrite mask for punctate structural channels.
 
@@ -630,7 +630,7 @@ def make_density_dendrite_mask(
 
 def coherence_response(
     structural_image: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Build the smoothed field + per-pixel orientation coherence map.
 
@@ -666,7 +666,7 @@ def coherence_response(
 
 def make_coherence_dendrite_mask(
     structural_image: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> dict:
     """Orientation-coherence dendrite mask for punctate structural channels.
 
@@ -752,7 +752,7 @@ def make_soma_mask(
 
 def make_structural_mask(
     image: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> dict:
     """Build dendrite ∪ soma mask plus dilated near-neuron zone from ``(C, H, W)``.
 
@@ -845,7 +845,7 @@ def _local_window(image: np.ndarray, row: int, col: int, half: int):
     return image[r0:r1, c0:c1], (r0, c0)
 
 
-def score_blob_zscore(
+def _score_one_puncta_zscore(
     image: np.ndarray,
     row: float,
     col: float,
@@ -913,10 +913,10 @@ def score_blob_zscore(
     }
 
 
-def score_blobs_zscore(
+def score_puncta_zscore(
     image: np.ndarray,
     blobs: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> List[dict]:
     """Score every blob and tag ``kept`` against ``cfg.zscore_threshold``.
 
@@ -928,7 +928,7 @@ def score_blobs_zscore(
     """
     out = []
     for row, col, sigma in blobs:
-        rec = score_blob_zscore(
+        rec = _score_one_puncta_zscore(
             image, row, col, sigma,
             cfg.zscore_inner_radius,
             cfg.zscore_outer_radius,
@@ -954,7 +954,7 @@ def score_blobs_zscore(
 
 def filter_by_size_shape(
     mask: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> np.ndarray:
     """Keep CCs passing area, bbox aspect ratio, and bbox fill bounds.
 
@@ -989,9 +989,9 @@ def filter_by_size_shape(
 # End-to-end orchestrator on a single (C, H, W) patch
 # ---------------------------------------------------------------------------
 
-def generate_blob_pseudolabel(
+def generate_puncta_pseudolabel(
     patch: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
     precomputed_struct: dict | None = None,
 ) -> Tuple[np.ndarray, dict, dict]:
     """Run the pseudo-label pipeline on one ``(C, H, W)`` patch.
@@ -1029,12 +1029,12 @@ def generate_blob_pseudolabel(
     else:
         struct = make_structural_mask(patch, cfg)
 
-    pre_blobs = detect_blobs_log(patch[cfg.pre_channel], cfg)
-    post_blobs = detect_blobs_log(patch[cfg.post_channel], cfg)
+    pre_puncta = detect_puncta_log(patch[cfg.pre_channel], cfg)
+    post_puncta = detect_puncta_log(patch[cfg.post_channel], cfg)
 
     if cfg.use_zscore:
-        pre_scored = score_blobs_zscore(patch[cfg.pre_channel], pre_blobs, cfg)
-        post_scored = score_blobs_zscore(patch[cfg.post_channel], post_blobs, cfg)
+        pre_scored = score_puncta_zscore(patch[cfg.pre_channel], pre_puncta, cfg)
+        post_scored = score_puncta_zscore(patch[cfg.post_channel], post_puncta, cfg)
         pre_kept = np.array(
             [[s["row"], s["col"], s["sigma"]] for s in pre_scored if s["kept"]]
         ).reshape(-1, 3)
@@ -1043,10 +1043,10 @@ def generate_blob_pseudolabel(
         ).reshape(-1, 3)
     else:
         pre_scored, post_scored = [], []
-        pre_kept, post_kept = pre_blobs, post_blobs
+        pre_kept, post_kept = pre_puncta, post_puncta
 
-    pre_mask = blobs_to_mask(pre_kept, (H, W))
-    post_mask = blobs_to_mask(post_kept, (H, W))
+    pre_mask = puncta_to_mask(pre_kept, (H, W))
+    post_mask = puncta_to_mask(post_kept, (H, W))
 
     # Union without co-localisation: output represents synaptic-marker
     # puncta, not strictly co-localised synapses.
@@ -1057,8 +1057,8 @@ def generate_blob_pseudolabel(
 
     intermediates = {
         **struct,
-        "pre_blobs_raw": pre_blobs,
-        "post_blobs_raw": post_blobs,
+        "pre_blobs_raw": pre_puncta,
+        "post_blobs_raw": post_puncta,
         "pre_blobs_kept": pre_kept,
         "post_blobs_kept": post_kept,
         "pre_scored": pre_scored,
@@ -1069,8 +1069,8 @@ def generate_blob_pseudolabel(
         "shaped_mask": shaped,
     }
     stats = {
-        "n_pre_log": int(len(pre_blobs)),
-        "n_post_log": int(len(post_blobs)),
+        "n_pre_log": int(len(pre_puncta)),
+        "n_post_log": int(len(post_puncta)),
         "n_pre_kept": int(len(pre_kept)),
         "n_post_kept": int(len(post_kept)),
         "px_puncta": int(puncta_mask.sum()),
@@ -1098,7 +1098,7 @@ def generate_blob_pseudolabel(
 
 def compute_fullimage_structural_mask(
     full_image: np.ndarray,
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
 ) -> dict:
     """Run the structural pipeline (cfg.dendrite_method) on a full ``(C, H, W)`` image.
 
@@ -1110,7 +1110,7 @@ def compute_fullimage_structural_mask(
 def generate_pseudolabels_fullimage(
     full_image: np.ndarray,
     records: list[dict],
-    cfg: BlobPseudoCfg,
+    cfg: PunctaCfg,
     patch_size: int | None = None,
 ) -> Tuple[dict[str, np.ndarray], dict[str, dict]]:
     """Full-image pipeline: LoG + z-score + render + shape + gate at full
@@ -1145,14 +1145,14 @@ def generate_pseudolabels_fullimage(
 
     # Full-image LoG: exclude_border now applies only at real image
     # edges, not at every tile seam.
-    pre_blobs = detect_blobs_log(full_image[cfg.pre_channel], cfg)
-    post_blobs = detect_blobs_log(full_image[cfg.post_channel], cfg)
+    pre_puncta = detect_puncta_log(full_image[cfg.pre_channel], cfg)
+    post_puncta = detect_puncta_log(full_image[cfg.post_channel], cfg)
 
     # Full-image z-score: the annular window stays local to each blob
     # and is cropped by ``_local_window`` at real image edges.
     if cfg.use_zscore:
-        pre_scored = score_blobs_zscore(full_image[cfg.pre_channel], pre_blobs, cfg)
-        post_scored = score_blobs_zscore(full_image[cfg.post_channel], post_blobs, cfg)
+        pre_scored = score_puncta_zscore(full_image[cfg.pre_channel], pre_puncta, cfg)
+        post_scored = score_puncta_zscore(full_image[cfg.post_channel], post_puncta, cfg)
         pre_kept = np.array(
             [[s["row"], s["col"], s["sigma"]] for s in pre_scored if s["kept"]]
         ).reshape(-1, 3)
@@ -1160,16 +1160,16 @@ def generate_pseudolabels_fullimage(
             [[s["row"], s["col"], s["sigma"]] for s in post_scored if s["kept"]]
         ).reshape(-1, 3)
     else:
-        pre_kept, post_kept = pre_blobs, post_blobs
+        pre_kept, post_kept = pre_puncta, post_puncta
 
     # Render, union, shape-filter, structural gate -- all at full scale.
-    pre_mask_full = blobs_to_mask(pre_kept, (H_full, W_full))
-    post_mask_full = blobs_to_mask(post_kept, (H_full, W_full))
+    pre_mask_full = puncta_to_mask(pre_kept, (H_full, W_full))
+    post_mask_full = puncta_to_mask(post_kept, (H_full, W_full))
     puncta_full = (pre_mask_full.astype(bool) | post_mask_full.astype(bool)).astype(np.uint8)
     shaped_full = filter_by_size_shape(puncta_full, cfg)
     label_full = (shaped_full.astype(bool) & struct["near_structural"]).astype(np.uint8)
 
-    def _blobs_in_patch(arr: np.ndarray, y0: int, x0: int, ps: int) -> int:
+    def _puncta_in_patch(arr: np.ndarray, y0: int, x0: int, ps: int) -> int:
         if arr.shape[0] == 0:
             return 0
         r = arr[:, 0]; c = arr[:, 1]
@@ -1196,8 +1196,8 @@ def generate_pseudolabels_fullimage(
         lbl = label_full[sl].copy()
         labels[rec["filename"]] = lbl
         stats[rec["filename"]] = {
-            "n_pre_kept": _blobs_in_patch(pre_kept, y0, x0, patch_size),
-            "n_post_kept": _blobs_in_patch(post_kept, y0, x0, patch_size),
+            "n_pre_kept": _puncta_in_patch(pre_kept, y0, x0, patch_size),
+            "n_post_kept": _puncta_in_patch(post_kept, y0, x0, patch_size),
             "px_puncta": int(puncta_full[sl].sum()),
             "px_shaped": int(shaped_full[sl].sum()),
             "px_label": int(lbl.sum()),
@@ -1208,3 +1208,90 @@ def generate_pseudolabels_fullimage(
         }
 
     return labels, stats
+
+
+# ---------------------------------------------------------------------------
+# Per-channel detection helpers for the live (puncta) pipeline.
+# Visualisation lives in ``pseudolabels.viz``.
+# ---------------------------------------------------------------------------
+
+
+def derive_zscore_floors(detected: np.ndarray) -> Tuple[float, float, float]:
+    """Per-image safety floors from the (already tophatted) image bg.
+
+    Returns ``(sigma_bg_floor, min_inner, min_contrast)``. ``bg`` = pixels
+    at or below the 30th percentile; ``sigma`` = ``1.4826 * MAD(bg)``;
+    floors = ``(sigma, median(bg) + 4*sigma, 4*sigma)``. Returns
+    ``(0, 0, 0)`` (floors disabled) on degenerate input.
+
+    Wire into a ``PunctaCfg`` via ``dataclasses.replace(cfg,
+    zscore_sigma_bg_floor=sg, zscore_min_inner=mi, zscore_min_contrast=mc)``.
+    """
+    finite = detected[np.isfinite(detected)]
+    if finite.size == 0:
+        return 0.0, 0.0, 0.0
+    p30 = np.percentile(finite, 30)
+    bg = finite[finite <= p30]
+    if bg.size == 0:
+        return 0.0, 0.0, 0.0
+    bg_med = float(np.median(bg))
+    bg_mad = float(np.median(np.abs(bg - bg_med)))
+    bg_sigma = 1.4826 * bg_mad
+    if not (np.isfinite(bg_med) and np.isfinite(bg_sigma)):
+        return 0.0, 0.0, 0.0
+    return bg_sigma, bg_med + 4.0 * bg_sigma, 4.0 * bg_sigma
+
+
+def detect_puncta_channel(
+    img2d: np.ndarray,
+    cfg: PunctaCfg,
+    *,
+    auto_floors: bool = True,
+) -> Tuple[np.ndarray, List[dict], np.ndarray, PunctaCfg]:
+    """Tophat -> (optional auto floors) -> LoG -> z-score on one 2D channel.
+
+    Returns ``(raw[N,3], scored, kept[M,3], cfg_eff)``:
+      * ``raw`` — every LoG candidate ``[row, col, sigma]``.
+      * ``scored`` — full ``score_puncta_zscore`` records (one per raw blob),
+        each carrying ``z, mu_in, mu_bg, sigma_bg, kept, ...``. Empty
+        list if z-scoring is off or no candidates.
+      * ``kept`` — subset of ``raw`` that survived z + floor gating.
+      * ``cfg_eff`` — cfg actually used (with per-image floors patched in
+        when ``auto_floors=True``); pass this to the viz helpers so
+        titles reflect the real thresholds.
+    """
+    import dataclasses
+
+    r = int(cfg.intensity_tophat_radius)
+    det = white_tophat(img2d, footprint=morph_disk(r)) if r > 0 else img2d
+    if auto_floors:
+        sg, mi, mc = derive_zscore_floors(det)
+        cfg_eff = dataclasses.replace(
+            cfg,
+            zscore_sigma_bg_floor=sg,
+            zscore_min_inner=mi,
+            zscore_min_contrast=mc,
+        )
+    else:
+        cfg_eff = cfg
+    raw = detect_puncta_log(det, cfg_eff)
+    if not cfg_eff.use_zscore or raw.shape[0] == 0:
+        return raw, [], raw, cfg_eff
+    scored = score_puncta_zscore(det, raw, cfg_eff)
+    kept = np.array(
+        [[s["row"], s["col"], s["sigma"]] for s in scored if s["kept"]]
+    ).reshape(-1, 3)
+    return raw, scored, kept, cfg_eff
+
+
+def restrict_puncta_to_near(
+    blobs: np.ndarray,
+    near_mask: np.ndarray,
+) -> np.ndarray:
+    """Keep ``[row, col, sigma]`` blobs whose rounded centre lies on ``near_mask``."""
+    if blobs.shape[0] == 0:
+        return blobs
+    H, W = near_mask.shape
+    rr = np.clip(np.round(blobs[:, 0]).astype(int), 0, H - 1)
+    cc = np.clip(np.round(blobs[:, 1]).astype(int), 0, W - 1)
+    return blobs[near_mask[rr, cc].astype(bool)]
