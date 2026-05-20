@@ -130,6 +130,26 @@ class BlobPseudoCfg:
     zscore_inner_radius: int = 3
     zscore_outer_radius: int = 8
     zscore_threshold: float = 2.0
+    # Annulus statistic. mean+std collapses in crowded fields where
+    # neighbouring puncta inflate both mu_bg and sigma_bg. A robust
+    # low-percentile + MAD (SExtractor / SynQuant style) ignores bright
+    # contaminants in the annulus and gives a real "background" estimate.
+    zscore_bg_percentile: int = 0        # 0 = mean; e.g. 25 = use 25th-percentile
+    zscore_bg_robust_scale: bool = False  # True = MAD*1.4826 instead of std
+    # Absolute-intensity safety floors for the local-SNR test. In dark
+    # regions sigma_bg collapses toward zero so any pixel noise gives a
+    # huge z; require the raw intensity to clear an absolute floor too.
+    # All default to 0.0 (off) for backward compatibility.
+    zscore_sigma_bg_floor: float = 0.0   # clamp sigma_bg from below before dividing
+    zscore_min_inner: float = 0.0        # require mu_in >= this absolute intensity
+    zscore_min_contrast: float = 0.0     # require mu_in - mu_bg >= this absolute delta
+    # White-tophat preprocessing radius (px). Flattens slow-varying
+    # background so puncta in dense clusters keep contrast against their
+    # local annulus -- without it the annulus picks up neighbouring
+    # puncta and z-score collapses for obviously bright spots. Choose
+    # disk radius >= sqrt(2) * log_max_sigma * 2 (i.e. ~2 puncta widths).
+    # 0 = off, otherwise applied to the channel before LoG + z-score.
+    intensity_tophat_radius: int = 0
 
     # "meijering" = Hessian ridge filter; "density" = puncta-density
     # pipeline (smooth + threshold + skeletonise) for structural channels
@@ -786,9 +806,6 @@ def make_structural_mask(
             "coherence_intensity_threshold": coh["coherence_intensity_threshold"],
             "coherence_intensity_mask": coh["coherence_intensity_mask"],
             "raw_coherence_mask": coh["raw_coherence_mask"],
-            # dendrite_response key is consumed by viz.show_pipeline_stages;
-            # surface the coherence map there so the diagnostic figure stays
-            # informative across all three branches.
             "dendrite_response": coh["coherence_map"],
         }
     else:
@@ -835,12 +852,24 @@ def score_blob_zscore(
     sigma: float,
     r_in: int,
     r_out: int,
+    *,
+    sigma_bg_floor: float = 0.0,
+    bg_percentile: int = 0,
+    bg_robust_scale: bool = False,
 ) -> dict:
     """Annular-background z-score for one LoG blob (local-SNR test).
 
     Same local-SNR principle as SynQuant (Wang et al. 2020) but parametric:
     ``z = (mu_in - mu_bg) / sigma_bg``. SynQuant itself uses a Wilcoxon
     rank-sum statistic against tabulated null moments.
+
+    ``sigma_bg_floor`` clamps ``sigma_bg`` from below before dividing, so
+    near-uniform dark regions can't blow z up by collapsing the denominator.
+
+    ``bg_percentile`` (0 = mean) and ``bg_robust_scale`` (False = std)
+    switch from mean+std to a robust percentile + MAD estimator.
+    Necessary in crowded fields where the annulus contains other puncta
+    and mean+std collapse z even for obviously bright spots.
     """
     rri, cci = int(round(row)), int(round(col))
     half = r_out
@@ -865,8 +894,16 @@ def score_blob_zscore(
     in_vals = win[inside]
     bg_vals = win[annulus]
     mu_in = float(in_vals.mean())
-    mu_bg = float(bg_vals.mean())
-    sigma_bg = float(bg_vals.std(ddof=1)) + 1e-8
+    if bg_percentile and bg_percentile > 0:
+        mu_bg = float(np.percentile(bg_vals, bg_percentile))
+    else:
+        mu_bg = float(bg_vals.mean())
+    if bg_robust_scale:
+        med_bg = float(np.median(bg_vals))
+        sigma_bg_raw = float(1.4826 * np.median(np.abs(bg_vals - med_bg)))
+    else:
+        sigma_bg_raw = float(bg_vals.std(ddof=1))
+    sigma_bg = max(sigma_bg_raw, float(sigma_bg_floor)) + 1e-8
     z = float((mu_in - mu_bg) / sigma_bg)
     return {
         "row": float(row), "col": float(col), "sigma": float(sigma),
@@ -881,15 +918,32 @@ def score_blobs_zscore(
     blobs: np.ndarray,
     cfg: BlobPseudoCfg,
 ) -> List[dict]:
-    """Score every blob and tag ``kept`` against ``cfg.zscore_threshold``."""
+    """Score every blob and tag ``kept`` against ``cfg.zscore_threshold``.
+
+    A blob is kept iff its z-score clears ``cfg.zscore_threshold`` AND
+    its absolute intensities clear the safety floors
+    (``zscore_min_inner``, ``zscore_min_contrast``). The floors default to
+    0.0 (off) and exist to stop the dark-void z-score blow-up where a
+    tiny ``sigma_bg`` would otherwise let any pixel noise pass.
+    """
     out = []
     for row, col, sigma in blobs:
         rec = score_blob_zscore(
             image, row, col, sigma,
             cfg.zscore_inner_radius,
             cfg.zscore_outer_radius,
+            sigma_bg_floor=cfg.zscore_sigma_bg_floor,
+            bg_percentile=cfg.zscore_bg_percentile,
+            bg_robust_scale=cfg.zscore_bg_robust_scale,
         )
-        rec["kept"] = bool(rec["z"] >= cfg.zscore_threshold) if not np.isnan(rec["z"]) else False
+        if np.isnan(rec["z"]):
+            rec["kept"] = False
+        else:
+            rec["kept"] = bool(
+                rec["z"] >= cfg.zscore_threshold
+                and rec["mu_in"] >= cfg.zscore_min_inner
+                and (rec["mu_in"] - rec["mu_bg"]) >= cfg.zscore_min_contrast
+            )
         out.append(rec)
     return out
 

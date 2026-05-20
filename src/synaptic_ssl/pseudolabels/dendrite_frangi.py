@@ -23,13 +23,15 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+from scipy.ndimage import convolve, distance_transform_edt
 from skimage.filters import apply_hysteresis_threshold, frangi
-from skimage.measure import label as cc_label
+from skimage.measure import label as cc_label, regionprops
 from skimage.morphology import (
     closing as morph_closing,
     dilation,
     disk,
     remove_small_objects,
+    skeletonize,
 )
 
 from .soma_fdt import (
@@ -91,8 +93,40 @@ DEFAULT_DENDRITE_CFG: dict = dict(
     # 0 = off (pure min_cc_area filter).
     small_cc_area=0,
     small_cc_proximity_px=0,
+    # Edge-of-FOV rescue: CCs touching the image border with size
+    # >= border_rescue_min_area are kept regardless of min_cc_area or
+    # proximity to a big CC. A dendrite clipped by the FOV is only
+    # seeing part of its true extent; relaxing the area floor at the
+    # border catches periphery branches without lowering the global
+    # noise floor (interior specks still need min_cc_area). Set to a
+    # value below min_cc_area (e.g. 300-600 px on this dataset) to
+    # opt in; 0 = off.
+    border_rescue_min_area=0,
+    # Optional elongation gate on border-rescued CCs: require
+    # regionprops.major_axis_length >= this many px. Drops rescued
+    # CCs that are blob-shaped (e.g. clipped soma fragments the soma
+    # carving missed). 0 = off.
+    border_rescue_min_axis=0,
+    # Border-pad (mirror) the FDT by this many px before Frangi, then
+    # crop the response back. Eliminates the Hessian corner artifact
+    # at the FOV edge: with the default 'reflect' mode, a dendrite
+    # continuing off-frame looks like a 180-degree corner, which
+    # Frangi's blob-vs-line discriminator suppresses, killing the
+    # response within ~sigma_max of the border. Suggested ~ 3 *
+    # max(frangi_sigmas). 0 = off.
+    border_pad=0,
     # Small closing to bridge 1-2 px pinholes inside the trace.
     closing_radius=2,
+    # Spur pruning -- skeleton-based removal of short lateral branches
+    # that grow off a real dendrite. spur_prune_px is the length floor
+    # (in skeleton pixels, ~= um*10 at 107 nm/px): segments shorter than
+    # this whose distal end is a true endpoint (degree-1 in 8-conn) are
+    # pruned. Interior bridges (two-junction segments) are always kept.
+    # Reconstruction is a Voronoi vote: each mask pixel keeps iff its
+    # nearest skeleton pixel survived -- this removes spur cross-sections
+    # cleanly without eroding main-trunk cross-sections.
+    # 0 = off. Suggested 30-60 px (3-6 um); >=80 only keeps major branches.
+    spur_prune_px=0,
     # Optional final dilation -- 0 keeps the 1-3 px ridge thickness.
     dilate_r=0,
 
@@ -120,19 +154,89 @@ def resolve_cfg(cfg: Optional[dict] = None) -> dict:
 # Pipeline
 # ---------------------------------------------------------------------------
 
+def prune_spurs(mask: np.ndarray, spur_max_px: int) -> dict:
+    """Remove short skeleton spurs from a binary trace.
+
+    A 'spur' is a skeleton branch shorter than ``spur_max_px`` whose
+    distal end is a true endpoint (degree-1 in 8-connectivity). Interior
+    bridges (segments connecting two junctions) are kept regardless of
+    length, so loops and trunks are never pruned. Reconstruction uses
+    a Voronoi vote: each mask pixel keeps iff its nearest skeleton
+    pixel survived. This deletes spur cross-sections cleanly without
+    eroding main-trunk cross-sections.
+
+    Returns ``{'mask', 'skeleton', 'kept_skeleton', 'n_pruned'}``.
+    """
+    mask = np.asarray(mask, dtype=bool)
+    out = dict(mask=mask, skeleton=None, kept_skeleton=None, n_pruned=0)
+    if spur_max_px <= 0 or not mask.any():
+        return out
+
+    sk = skeletonize(mask)
+    if not sk.any():
+        return out
+    out["skeleton"] = sk
+
+    kernel = np.array([[1, 1, 1], [1, 0, 1], [1, 1, 1]], dtype=np.uint8)
+    deg = convolve(sk.astype(np.uint8), kernel, mode="constant", cval=0) * sk
+
+    endpoints = sk & (deg == 1)
+    junctions = sk & (deg >= 3)
+    sk_open = sk & ~junctions
+    seg_lab, n_seg = cc_label(sk_open, return_num=True, connectivity=2)
+    if n_seg == 0:
+        out["kept_skeleton"] = sk
+        return out
+
+    seg_sizes = np.bincount(seg_lab.ravel())
+    seg_sizes[0] = 0
+    endpoint_seg_ids = np.unique(seg_lab[endpoints])
+    endpoint_seg_ids = endpoint_seg_ids[endpoint_seg_ids != 0]
+    has_endpoint = np.zeros(n_seg + 1, dtype=bool)
+    has_endpoint[endpoint_seg_ids] = True
+
+    drop = has_endpoint & (seg_sizes < int(spur_max_px))
+    drop[0] = False
+    keep = ~drop
+    keep[0] = False
+
+    kept_sk = np.isin(seg_lab, np.nonzero(keep)[0]) | junctions
+    out["kept_skeleton"] = kept_sk
+    out["n_pruned"] = int(drop.sum())
+
+    # Voronoi vote: nearest-skeleton-pixel partition of the mask.
+    _, (iy, ix) = distance_transform_edt(~sk, return_indices=True)
+    out["mask"] = mask & kept_sk[iy, ix]
+    return out
+
+
 def compute_frangi_response(
     fdt: np.ndarray,
     cfg: Optional[dict] = None,
 ) -> np.ndarray:
-    """Frangi vesselness on a precomputed pseudo-FDT field."""
+    """Frangi vesselness on a precomputed pseudo-FDT field.
+
+    If ``border_pad`` (cfg) is > 0, mirror-pad the FDT before Frangi
+    and crop the response back, so the Hessian does not see a 180-deg
+    corner at the FOV edge (which Frangi would suppress as a junction).
+    """
     cfg = resolve_cfg(cfg)
-    return frangi(
-        np.asarray(fdt, dtype=np.float32),
+    fdt = np.asarray(fdt, dtype=np.float32)
+    pad = int(cfg.get("border_pad", 0))
+    if pad > 0:
+        fdt_in = np.pad(fdt, pad, mode="reflect")
+    else:
+        fdt_in = fdt
+    resp = frangi(
+        fdt_in,
         sigmas=tuple(cfg["frangi_sigmas"]),
         alpha=float(cfg["frangi_alpha"]),
         beta=float(cfg["frangi_beta"]),
         black_ridges=bool(cfg["frangi_black_ridges"]),
     )
+    if pad > 0:
+        resp = resp[pad:-pad, pad:-pad]
+    return resp
 
 
 def extract_dendrite_mask(
@@ -157,6 +261,7 @@ def extract_dendrite_mask(
         return dict(
             raw_mask=zero, trace=zero, soma_buffer=np.asarray(soma_mask, dtype=bool),
             threshold=float("inf"), threshold_kind="degenerate",
+            prune_info=None,
         )
 
     if cfg["use_hysteresis"]:
@@ -181,31 +286,66 @@ def extract_dendrite_mask(
         big_floor = max(0, int(cfg["min_cc_area"]) - 1)
         small_floor = int(cfg.get("small_cc_area", 0))
         prox = int(cfg.get("small_cc_proximity_px", 0))
-        if small_floor > 0 and prox > 0 and small_floor < cfg["min_cc_area"]:
-            # Two-stage: keep big CCs, then rescue small CCs within
-            # prox px of a big CC (dim periphery branches), drop the
-            # rest (isolated noise).
+        border_floor = int(cfg.get("border_rescue_min_area", 0))
+        border_axis = int(cfg.get("border_rescue_min_axis", 0))
+        do_small_rescue = (
+            small_floor > 0 and prox > 0 and small_floor < cfg["min_cc_area"]
+        )
+        do_border_rescue = border_floor > 0 and border_floor < cfg["min_cc_area"]
+        if do_small_rescue or do_border_rescue:
             lab, n = cc_label(trace, return_num=True)
             if n > 0:
                 sizes = np.bincount(lab.ravel())
                 sizes[0] = 0
                 big_ids = np.where(sizes >= int(cfg["min_cc_area"]))[0]
-                small_keep_ids = np.where(
-                    (sizes >= small_floor) & (sizes < int(cfg["min_cc_area"]))
-                )[0]
                 big_mask = np.isin(lab, big_ids)
-                neighborhood = dilation(big_mask, disk(prox)) if big_mask.any() else big_mask
-                kept_small = np.zeros_like(trace)
-                if small_keep_ids.size and neighborhood.any():
-                    for cid in small_keep_ids:
-                        cc = lab == cid
-                        if (cc & neighborhood).any():
-                            kept_small |= cc
-                trace = big_mask | kept_small
+                kept = big_mask.copy()
+                if do_small_rescue:
+                    small_keep_ids = np.where(
+                        (sizes >= small_floor) & (sizes < int(cfg["min_cc_area"]))
+                    )[0]
+                    neighborhood = (
+                        dilation(big_mask, disk(prox)) if big_mask.any() else big_mask
+                    )
+                    if small_keep_ids.size and neighborhood.any():
+                        for cid in small_keep_ids:
+                            cc = lab == cid
+                            if (cc & neighborhood).any():
+                                kept |= cc
+                if do_border_rescue:
+                    H, W = trace.shape
+                    border_ids = set(np.unique(lab[0, :]).tolist())
+                    border_ids.update(np.unique(lab[-1, :]).tolist())
+                    border_ids.update(np.unique(lab[:, 0]).tolist())
+                    border_ids.update(np.unique(lab[:, -1]).tolist())
+                    border_ids.discard(0)
+                    candidates = [
+                        cid for cid in border_ids
+                        if border_floor <= sizes[cid] < int(cfg["min_cc_area"])
+                    ]
+                    if candidates:
+                        if border_axis > 0:
+                            axis_ok = {
+                                int(rp.label): rp.axis_major_length >= border_axis
+                                for rp in regionprops(lab)
+                                if int(rp.label) in set(candidates)
+                            }
+                        else:
+                            axis_ok = None
+                        for cid in candidates:
+                            if axis_ok is not None and not axis_ok.get(cid, False):
+                                continue
+                            kept |= lab == cid
+                trace = kept
         else:
             trace = remove_small_objects(trace, max_size=big_floor)
     if cfg["closing_radius"] > 0 and trace.any():
         trace = morph_closing(trace, disk(int(cfg["closing_radius"])))
+    spur_px = int(cfg.get("spur_prune_px", 0))
+    prune_info = None
+    if spur_px > 0 and trace.any():
+        prune_info = prune_spurs(trace, spur_px)
+        trace = prune_info["mask"]
     if cfg["dilate_r"] > 0 and trace.any():
         trace = dilation(trace, disk(int(cfg["dilate_r"])))
 
@@ -215,6 +355,7 @@ def extract_dendrite_mask(
         soma_buffer=soma_buffer.astype(bool, copy=False),
         threshold=threshold,
         threshold_kind=kind,
+        prune_info=prune_info,
     )
 
 
@@ -284,8 +425,16 @@ def visualise_dendrite_mask(
     *,
     axes=None,
     title_prefix: str = "",
+    overlay_trace_contour: bool = True,
 ):
     """4-panel: structural / FDT field / Frangi response / trace overlay.
+
+    With ``overlay_trace_contour=True`` (default), the final trace is
+    drawn as a thin red contour on top of the FDT and Frangi panels, so
+    the source of any spurious branch can be diagnosed: if a bright
+    ridge in the FDT runs into a spur, it is an FDT artifact; if the
+    FDT is dark there but the Frangi response is bright, Frangi is
+    over-responding; if both are dark, hysteresis-low is too permissive.
 
     Pass a ``(4,)`` array of axes to embed (e.g. one row in a batch
     grid), or omit ``axes`` for a standalone ``(1, 4)`` figure.
@@ -337,16 +486,26 @@ def visualise_dendrite_mask(
     axes[1].imshow(fdt, cmap="magma", vmin=0, vmax=fdt_vmax)
     axes[1].set_title(f"pseudo-FDT  (vmax={fdt_vmax:.2f})")
     axes[2].imshow(response, cmap="magma", vmin=0, vmax=resp_vmax)
-    axes[2].set_title(
-        f"Frangi(FDT) response  "
+    thr_txt = (
         f"thr[{dendrite_info['threshold_kind']}]={dendrite_info['threshold']:.4f}"
     )
+    pi = dendrite_info.get("prune_info") or {}
+    spur_txt = (
+        f"  pruned={pi.get('n_pruned', 0)}"
+        if pi.get("n_pruned") else ""
+    )
+    axes[2].set_title(f"Frangi(FDT) response  {thr_txt}{spur_txt}")
     axes[3].imshow(overlay)
     axes[3].set_title(
         f"DENDRITE trace "
         f"({dendrite_info.get('n_trace_cc', '?')} CCs, "
         f"cov={trace.mean():.2%})"
     )
+    if overlay_trace_contour and trace.any():
+        # Thin lime contour: visible on the magma colour-maps but does
+        # not flood the panels (1-pixel width).
+        axes[1].contour(trace, levels=[0.5], colors="#00ff66", linewidths=0.4)
+        axes[2].contour(trace, levels=[0.5], colors="#00ff66", linewidths=0.4)
     for ax in axes:
         ax.set_xticks([]); ax.set_yticks([])
     return fig, axes
@@ -355,6 +514,7 @@ def visualise_dendrite_mask(
 __all__ = [
     "DEFAULT_DENDRITE_CFG",
     "resolve_cfg",
+    "prune_spurs",
     "compute_frangi_response",
     "extract_dendrite_mask",
     "run_dendrite_on_image",
