@@ -31,8 +31,11 @@ _BASE = Path(settings.BASE_DIR)
 
 _CANDIDATE_PATHS: tuple[Path, ...] = (
     _BASE / "notebooks" / "training" / "checkpoints" / "pretrain_ae_config.json",
+    _BASE / "configs" / "pretrain_moby" / "128_default.json",
     _BASE / "configs" / "pretrain_moby" / "default.json",
+    _BASE / "configs" / "pretrain_scratch" / "128_default.json",
     _BASE / "configs" / "pretrain_scratch" / "default.json",
+    _BASE / "configs" / "pretrain_tinny" / "128_default.json",
 )
 
 
