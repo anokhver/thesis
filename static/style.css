@@ -51,11 +51,23 @@ body {
 
 /* ── Container ── */
 .container {
-    max-width: 960px;
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 0 1rem;
+    padding: 0 1.5rem;
 }
 main.container { padding-top: 2rem; padding-bottom: 2rem; flex: 1; }
+
+/* ── Page header (title + actions on one row) ── */
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+.page-header h1 { margin: 0; }
+.page-header .actions { display: flex; gap: 0.5rem; }
 
 /* ── Card ── */
 .card {

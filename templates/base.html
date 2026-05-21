@@ -5,13 +5,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}SynAPSeg{% endblock %}</title>
+    <title>{% block title %}Synaptic Cluster Explorer{% endblock %}</title>
     <link rel="stylesheet" href="{% versioned_static 'style.css' %}">
 </head>
 <body>
     <nav class="navbar">
         <div class="container" style="display:flex; align-items:center; justify-content:space-between;">
-            <a href="{% url 'home:index' %}" class="navbar-brand">SynAPSeg</a>
+            <a href="{% url 'home:index' %}" class="navbar-brand">Synaptic Cluster Explorer</a>
             <div class="navbar-links">
                 <a href="{% url 'synapse_web:results' %}">Results</a>
                 <a href="{% url 'synapse_web:checkpoints' %}">Checkpoints</a>

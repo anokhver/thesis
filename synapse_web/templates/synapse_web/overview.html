@@ -1,18 +1,22 @@
 {% extends "base.html" %}
 {% load ui %}
 
-{% block title %}Overview — SynAPSeg{% endblock %}
+{% block title %}Overview — Synaptic Cluster Explorer{% endblock %}
 
 {% block content %}
 <h1>Overview</h1>
 
 {% card title="Pipeline" %}
 <p>
-    SynAPSeg ingests 3D confocal fluorescence Z-stacks, projects them to
-    2D via Maximum Intensity Projection, normalizes per channel, and
-    tiles the result into 128 × 128 patches. A self-supervised
-    Swin-based autoencoder is pretrained on those patches; the encoder
-    is then used to detect and segment synaptic puncta.
+    The SynAPSeg thesis pipeline ingests 3D confocal fluorescence
+    Z-stacks, projects them to 2D via Maximum Intensity Projection,
+    normalises per channel, and tiles the result into 128 × 128
+    patches. A self-supervised Swin-based autoencoder is pretrained
+    on those patches. This web front-end then runs the
+    <strong>clustering analysis</strong> on top of the trained
+    encoder: it extracts patch embeddings and groups them with
+    Leiden, producing per-image cluster summaries and statistical
+    comparisons across treatment groups.
 </p>
 {% thesis_link chapter="Methods" %}
 {% endcard %}
