@@ -62,7 +62,7 @@ def do_work(
             analysis_run_id=run_id,
             source_image=item["source_image"],
             defaults={
-                "treatment_group": item.get("treatment_group", ""),
+                "treatment_group": item.get("treatment_group") or "UNKNOWN",
                 "n_patches": int(item.get("n_patches", 0)),
                 "cluster_counts": {},
                 "dominant_cluster": None,

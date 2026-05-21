@@ -125,3 +125,12 @@ RUNS_DIR = Path(
 MAX_CHECKPOINT_UPLOAD_BYTES = int(
     os.environ.get("MAX_CHECKPOINT_UPLOAD_BYTES", str(500 * 1024 * 1024))
 )
+
+# Run-creation ZIP upload limits.
+MAX_ZIP_UPLOAD_BYTES = int(
+    os.environ.get("MAX_ZIP_UPLOAD_BYTES", str(2 * 1024 * 1024 * 1024))
+)
+MAX_ZIP_UNCOMPRESSED_BYTES = int(
+    os.environ.get("MAX_ZIP_UNCOMPRESSED_BYTES", str(20 * 1024 * 1024 * 1024))
+)
+MAX_ZIP_MEMBERS = int(os.environ.get("MAX_ZIP_MEMBERS", "200000"))

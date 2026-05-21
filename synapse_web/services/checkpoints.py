@@ -180,6 +180,21 @@ def save_uploaded_checkpoint(uploaded_file) -> Path:
     return final_path
 
 
+def resolve_checkpoint(name: str) -> Path | None:
+    """Return the absolute path for a checkpoint by name, or None.
+
+    Validates the name against the *current* listing (so a checkpoint
+    that was deleted between page render and form submission is
+    rejected rather than producing a stale path).
+    """
+    if not name:
+        return None
+    valid = {entry["name"] for entry in list_checkpoints()}
+    if name not in valid:
+        return None
+    return (_root() / name).resolve()
+
+
 def delete_checkpoint(name: str) -> bool:
     """Delete a checkpoint by name. Returns True on success.
 

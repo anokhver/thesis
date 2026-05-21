@@ -1,19 +1,28 @@
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
-from .forms import CheckpointUploadForm
+from .forms import CheckpointUploadForm, NewRunForm
 from .models import AnalysisRun
+from .services import jobs
 from .services.checkpoints import (
     delete_checkpoint as delete_checkpoint_file,
     list_checkpoints,
+    resolve_checkpoint,
     save_uploaded_checkpoint,
 )
 from .services.naming import GROUP_TREATMENTS, KNOWN_GROUPS
+from .services.run_artifacts import ensure_run_dirs
+from .services.run_uploads import (
+    inspect_bundle,
+    inspect_patches,
+    safe_extract_zip,
+)
 from .services.training_config import (
     PREPROCESSING_DEFAULTS,
     PRETRAIN_CONFIG_PATH,
@@ -140,3 +149,99 @@ def delete_checkpoint(request):
     else:
         messages.error(request, f"Could not delete checkpoint {name!r}.")
     return redirect("synapse_web:checkpoints")
+
+
+def _create_run_from_form(form: NewRunForm, archive) -> tuple[AnalysisRun, list[str]]:
+    """Create the AnalysisRun, extract + inspect, populate manifest.
+
+    Returns (run, unknown_source_images). Raises ValidationError on
+    any inspection failure; the caller is responsible for deleting the
+    half-built run row so the pre_delete signal cleans the dir.
+    """
+    run_kind = form.cleaned_data["run_kind"]
+    ckpt_name = form.cleaned_data.get("checkpoint") or ""
+    ckpt_path = ""
+    if ckpt_name:
+        resolved = resolve_checkpoint(ckpt_name)
+        if resolved is None:
+            raise ValidationError(
+                "Selected checkpoint disappeared between page load and submit."
+            )
+        ckpt_path = str(resolved)
+
+    with transaction.atomic():
+        run = AnalysisRun.objects.create(
+            status="pending",
+            run_kind=run_kind,
+            checkpoint_path=ckpt_path,
+            config_snapshot={
+                "checkpoint_name": ckpt_name,
+                "checkpoint_path": ckpt_path,
+                "source": "new_run_form",
+            },
+        )
+        input_dir, bundle_dir, output_dir = ensure_run_dirs(run)
+        safe_extract_zip(archive, input_dir)
+
+        if run_kind == "extract_and_cluster":
+            manifest = inspect_patches(input_dir)
+            persisted_bundle_dir = str(bundle_dir)
+        else:
+            manifest, bundle_root = inspect_bundle(input_dir)
+            persisted_bundle_dir = str(bundle_root)
+
+        run.input_manifest = manifest
+        run.n_patches = sum(int(item["n_patches"]) for item in manifest)
+        run.n_source_images = len(manifest)
+        run.input_dir = str(input_dir)
+        run.bundle_dir = persisted_bundle_dir
+        run.output_dir = str(output_dir)
+        run.save(update_fields=[
+            "input_manifest",
+            "n_patches",
+            "n_source_images",
+            "input_dir",
+            "bundle_dir",
+            "output_dir",
+        ])
+
+    unknown = [m["source_image"] for m in manifest if not m["treatment_group"]]
+    return run, unknown
+
+
+def new_run(request):
+    if request.method == "POST":
+        form = NewRunForm(request.POST, request.FILES)
+        if form.is_valid():
+            archive = form.cleaned_data["archive"]
+            run: AnalysisRun | None = None
+            try:
+                run, unknown = _create_run_from_form(form, archive)
+            except ValidationError as exc:
+                if run is not None:
+                    run.delete()
+                for msg in exc.messages:
+                    form.add_error(None, msg)
+            else:
+                if unknown:
+                    messages.warning(
+                        request,
+                        f"No treatment-group token recognised in "
+                        f"{len(unknown)} source image(s); they will appear "
+                        "as 'UNKNOWN' in summaries.",
+                    )
+                jobs.submit_run(str(run.id))
+                messages.success(request, "Run created and queued.")
+                return redirect("synapse_web:run_detail", run_id=run.id)
+    else:
+        form = NewRunForm()
+
+    return render(
+        request,
+        "synapse_web/new_run.html",
+        {
+            "form": form,
+            "checkpoints": list_checkpoints(),
+            "max_zip_bytes": int(settings.MAX_ZIP_UPLOAD_BYTES),
+        },
+    )
