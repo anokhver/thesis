@@ -56,6 +56,97 @@
 {% endcard %}
 {% endif %}
 
+{% if run.status == "completed" and plots_by_name.umap_clusters.url %}
+{% card title="Cluster space" margin="1.5rem" %}
+<figure style="margin: 0; text-align: center;">
+    <img src="{{ plots_by_name.umap_clusters.url }}"
+         alt="UMAP projection of patch embeddings, coloured by Leiden cluster id"
+         style="max-width: 720px; width: 100%; height: auto;">
+    <figcaption style="color: var(--text-secondary); font-size: 0.9em;
+                       margin-top: 0.5rem;">
+        UMAP coloured by cluster
+    </figcaption>
+</figure>
+{% endcard %}
+{% endif %}
+
+{% if run.status == "completed" and plots_by_name.resolution_stability.url %}
+{% graph_box title="Resolution stability" caption="Mean ARI across bootstrap subsamples vs Leiden resolution." %}
+<img src="{{ plots_by_name.resolution_stability.url }}"
+     alt="Bootstrap ARI as a function of Leiden resolution"
+     style="max-width: 100%; height: auto;">
+{% endgraph_box %}
+{% endif %}
+
+{% if run.status == "completed" and has_group_plots %}
+{% card title="Group analysis" margin="1.5rem" %}
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+    {% if plots_by_name.umap_groups.url %}
+    <figure style="margin: 0;">
+        <img src="{{ plots_by_name.umap_groups.url }}"
+             alt="UMAP coloured by treatment group"
+             style="width: 100%; height: auto;">
+        <figcaption style="color: var(--text-secondary); font-size: 0.85em;">
+            UMAP by treatment group
+        </figcaption>
+    </figure>
+    {% endif %}
+    {% if plots_by_name.group_heatmap.url %}
+    <figure style="margin: 0;">
+        <img src="{{ plots_by_name.group_heatmap.url }}"
+             alt="Heatmap of patch share per (cluster, treatment group)"
+             style="width: 100%; height: auto;">
+        <figcaption style="color: var(--text-secondary); font-size: 0.85em;">
+            Cluster × group heatmap
+        </figcaption>
+    </figure>
+    {% endif %}
+    {% if plots_by_name.group_boxplots.url %}
+    <figure style="margin: 0;">
+        <img src="{{ plots_by_name.group_boxplots.url }}"
+             alt="Per-cluster boxplots split by treatment group"
+             style="width: 100%; height: auto;">
+        <figcaption style="color: var(--text-secondary); font-size: 0.85em;">
+            Per-cluster boxplots by group
+        </figcaption>
+    </figure>
+    {% endif %}
+</div>
+{% endcard %}
+{% endif %}
+
+{% if run.status == "completed" and unserved_count and not served_count %}
+<div class="alert alert-warning" style="margin-top: 1.5rem;">
+    Plot files were generated but are not web-served. Configure
+    <code>RUNS_DIR</code> under <code>MEDIA_ROOT</code>, or enable
+    production media serving, to view them in the browser.
+    {% if debug %}<br><small>(DEBUG-only) Disk path: <code>{{ run.output_dir }}</code></small>{% endif %}
+</div>
+{% endif %}
+
+{% if run.status == "completed" and not plots and not output_dir_present %}
+<div class="alert alert-error" style="margin-top: 1.5rem;">
+    Output directory missing — artifacts may have been deleted.
+</div>
+{% endif %}
+
+{% if run.status == "failed" and plots %}
+{% card title="Partial artifacts from failed run" margin="1.5rem" %}
+<p style="color: var(--text-secondary);">
+    This run failed; the plots below are partial and may not represent
+    a complete analysis. Treat the results as diagnostic, not final.
+</p>
+<ul>
+    {% for p in plots %}
+    <li>
+        {% if p.url %}<a href="{{ p.url }}">{{ p.label }}</a>
+        {% else %}{{ p.label }} (on disk only){% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% endcard %}
+{% endif %}
+
 {% if source_stats %}
 {% card title="Per-source-image stats" margin="1.5rem" %}
 <table class="data-table">
@@ -73,11 +164,25 @@
             <td>{{ s.source_image }}</td>
             <td>{{ s.treatment_group|default:"—" }}</td>
             <td>{{ s.n_patches }}</td>
-            <td>{% if s.dominant_cluster is None %}—{% else %}<code>{{ s.dominant_cluster }}</code>{% endif %}</td>
+            <td>
+                {% if s.dominant_cluster is None %}—{% else %}
+                <span aria-hidden="true"
+                      style="display:inline-block; width:0.8em; height:0.8em;
+                             border-radius:2px; vertical-align:middle;
+                             margin-right:0.4em;
+                             background:{{ s.dominant_cluster_color }};"
+                      title="Table-only cluster marker (does not necessarily match plot colours)"></span>
+                <code>{{ s.dominant_cluster }}</code>
+                {% endif %}
+            </td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
+<p style="color: var(--text-secondary); font-size: 0.85em; margin-top: 0.5rem;">
+    Chip colour is a stable marker per cluster id in this table and
+    does not necessarily match the matplotlib palette in the plots.
+</p>
 {% endcard %}
 {% endif %}
 

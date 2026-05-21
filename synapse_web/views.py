@@ -18,6 +18,12 @@ from .services.checkpoints import (
 )
 from .services.naming import GROUP_TREATMENTS, KNOWN_GROUPS
 from .services.run_artifacts import ensure_run_dirs
+from .services.artifacts import (
+    categorize_plots,
+    cluster_color_map,
+    list_plots,
+    output_dir_present,
+)
 from .services.run_uploads import (
     inspect_bundle,
     inspect_patches,
@@ -33,14 +39,45 @@ from .services.training_config import (
 def run_detail(request, run_id):
     run = get_object_or_404(AnalysisRun, id=run_id)
     source_stats = list(run.source_stats.all())
+
+    plots = list_plots(run)
+    color_map = cluster_color_map(source_stats)
+    annotated_stats = []
+    for s in source_stats:
+        cid = s.dominant_cluster
+        annotated_stats.append({
+            "source_image": s.source_image,
+            "treatment_group": s.treatment_group,
+            "n_patches": s.n_patches,
+            "dominant_cluster": cid,
+            "dominant_cluster_color": (
+                color_map.get(cid) if cid is not None else None
+            ),
+        })
+
+    served = [p for p in plots if p["url"] is not None]
+    unserved = [p for p in plots if p["url"] is None]
+    plots_by_name = categorize_plots(plots)
+    has_group_plots = any(
+        plots_by_name[k] is not None and plots_by_name[k].get("url")
+        for k in ("umap_groups", "group_heatmap", "group_boxplots")
+    )
+
     return render(
         request,
         "synapse_web/run_detail.html",
         {
             "run": run,
-            "source_stats": source_stats,
+            "source_stats": annotated_stats,
             "expected_count": run.expected_image_count,
             "thesis_pdf_url": settings.THESIS_PDF_URL,
+            "plots": plots,
+            "served_count": len(served),
+            "unserved_count": len(unserved),
+            "plots_by_name": plots_by_name,
+            "has_group_plots": has_group_plots,
+            "output_dir_present": output_dir_present(run),
+            "debug": settings.DEBUG,
         },
     )
 
