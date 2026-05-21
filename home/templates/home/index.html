@@ -24,9 +24,11 @@
         microscopy images using self-supervised deep learning.
     </p>
     <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
-        <a href="{% url 'synapse_web:upload' %}" class="btn">Upload Images</a>
-        <a href="{% url 'synapse_web:results' %}" class="btn" style="background: var(--secondary);">
+        <a href="{% url 'synapse_web:results' %}" class="btn">
             View Results
+        </a>
+        <a href="{% url 'synapse_web:overview' %}" class="btn" style="background: var(--secondary);">
+            Project Overview
         </a>
     </div>
 </div>

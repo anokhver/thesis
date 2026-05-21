@@ -1,41 +1,44 @@
 """Placeholder ML pipeline.
 
-Real inference lives in the ML package that will be merged later. The
-contract that the future real `do_work` must respect:
+Real extract+cluster runs land in Phase E (ml_jobs.do_work). Until then
+the runner falls back to this stub so the schema, run lifecycle and
+progress UI can be exercised without torch.
+
+The contract that the real `do_work` must respect:
 
     def do_work(
         *,
         run_id: str,
-        inputs: list[dict],          # one dict per image; see below
-        checkpoint_path: str,        # may be empty
+        inputs: list[dict],          # one per source image; see below
+        checkpoint_path: str,        # may be empty for cluster_only
         output_dir: str,             # absolute path, already created
         config: dict,                # AnalysisRun.config_snapshot
         reporter,                    # services.jobs.ProgressReporter
     ) -> None:
         ...
 
-`inputs` items shape:
+`inputs` items shape (post-Phase-B):
     {
-        "image_id": "<uuid>",
-        "original_filename": "...",
-        "treatment_group": "...",
-        "path": "uploads/microscopy/.../foo.vsi"   # relative to MEDIA_ROOT
+        "source_image": "1_3_PSYHARMIN.vsi",
+        "treatment_group": "PSYHARMIN",
+        "n_patches": 42,
     }
 
 Must:
-  * Persist outputs (MIP/mask/overlay PNGs) under `output_dir` and
-    register them on the matching ImageResult.
-  * Use update_or_create keyed by (analysis_run, image) so reruns/resumes
-    are idempotent — there's a UniqueConstraint on the model.
+  * Write artifacts under ``output_dir`` (clustering produces ``labels.npy``,
+    ``patch_labels.csv``, ``Z2.npy``, ``summary.json``, ``plots/*.png``).
+  * Populate ``SourceImageStats`` keyed by (analysis_run, source_image).
+    Use ``update_or_create`` — the UniqueConstraint guarantees idempotency
+    so reruns/resumes don't blow up.
   * Raise on unrecoverable errors; the runner catches and records.
   * Call reporter.update(progress=..., message=...) often enough that the
-    UI feels alive; do NOT hammer (the reporter throttles regardless).
+    UI feels alive; the reporter throttles internally.
 """
 from __future__ import annotations
 
 import time
 
-from synapse_web.models import ImageResult
+from synapse_web.models import SourceImageStats
 
 
 def do_work(
@@ -51,16 +54,18 @@ def do_work(
     for i, item in enumerate(inputs):
         reporter.update(
             progress=int(100 * i / total),
-            message=f"Processing {item['original_filename']} ({i + 1}/{total})",
+            message=f"Processing {item['source_image']} ({i + 1}/{total})",
         )
         time.sleep(0.05)
 
-        ImageResult.objects.update_or_create(
+        SourceImageStats.objects.update_or_create(
             analysis_run_id=run_id,
-            image_id=item["image_id"],
+            source_image=item["source_image"],
             defaults={
-                "puncta_count": 0,
-                "puncta_density": 0.0,
+                "treatment_group": item.get("treatment_group", ""),
+                "n_patches": int(item.get("n_patches", 0)),
+                "cluster_counts": {},
+                "dominant_cluster": None,
             },
         )
 

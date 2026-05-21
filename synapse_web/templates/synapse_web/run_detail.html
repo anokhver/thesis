@@ -19,7 +19,7 @@
     <span id="progress-text">{{ run.progress }}%</span>
     <span id="progress-message">{% if run.progress_message %} — {{ run.progress_message }}{% endif %}</span>
     <br>
-    <span id="result-counts">{{ results|length }} / {{ expected_count }} image(s) processed</span>
+    <span id="result-counts">{{ source_stats|length }} / {{ expected_count }} image(s) processed</span>
 </p>
 {% if run.error_message %}
 <div class="alert alert-error" style="margin-top: 1rem;">
@@ -31,65 +31,49 @@
 {% card title="Configuration" margin="1.5rem" %}
 <table class="data-table">
     <tbody>
-        <tr><th style="width: 30%;">Checkpoint</th><td><code>{{ run.checkpoint_path|default:"—" }}</code></td></tr>
+        <tr><th style="width: 30%;">Run kind</th><td>{{ run.get_run_kind_display }}</td></tr>
+        <tr><th>Checkpoint</th><td><code>{{ run.checkpoint_path|default:"—" }}</code></td></tr>
         <tr><th>Work function</th><td><code>{{ run.config_snapshot.work_fn|default:"—" }}</code></td></tr>
         <tr><th>Git commit</th><td><code>{{ run.commit_sha|default:"—" }}</code></td></tr>
-        <tr><th>Images in manifest</th><td>{{ expected_count }}</td></tr>
+        <tr><th>Source images in manifest</th><td>{{ expected_count }}</td></tr>
     </tbody>
 </table>
 {% endcard %}
 
-{% if group_stats %}
-{% card title="Summary by treatment group" margin="1.5rem" %}
+{% if run.status == "completed" and run.n_clusters %}
+{% card title="Clustering summary" margin="1.5rem" %}
 <table class="data-table">
-    <thead>
-        <tr>
-            <th>Treatment Group</th>
-            <th>N</th>
-            <th>Mean Density</th>
-            <th>Std Dev</th>
-        </tr>
-    </thead>
     <tbody>
-        {% for g in group_stats %}
-        <tr>
-            <td>{{ g.treatment_group }}</td>
-            <td>{{ g.n }}</td>
-            <td>{{ g.mean_density }}</td>
-            <td>{{ g.std_density }}</td>
-        </tr>
-        {% endfor %}
+        <tr><th style="width: 30%;">Patches</th><td>{{ run.n_patches }}</td></tr>
+        <tr><th>Source images</th><td>{{ run.n_source_images }}</td></tr>
+        <tr><th>Clusters</th><td>{{ run.n_clusters }}</td></tr>
+        <tr><th>Embedding dim</th><td>{{ run.embedding_dim|default:"—" }}</td></tr>
+        <tr><th>PCA dim</th><td>{{ run.pca_dim|default:"—" }}</td></tr>
+        <tr><th>Picked Leiden resolution</th><td>{{ run.picked_resolution|default:"—" }}</td></tr>
+        <tr><th>Bootstrap mean ARI</th><td>{{ run.mean_ari|default:"—" }}</td></tr>
     </tbody>
 </table>
 {% endcard %}
-
-{% graph_box title="Density by group" caption="One bar per treatment group; error bars are sample standard deviation." %}{% endgraph_box %}
 {% endif %}
 
-{% if results %}
-{% card title="Per-image results" margin="1.5rem" %}
+{% if source_stats %}
+{% card title="Per-source-image stats" margin="1.5rem" %}
 <table class="data-table">
     <thead>
         <tr>
-            <th>Filename</th>
-            <th>Group</th>
-            <th>Puncta</th>
-            <th>Density</th>
-            <th>MIP</th>
-            <th>Mask</th>
-            <th>Overlay</th>
+            <th>Source image</th>
+            <th>Treatment</th>
+            <th>Patches</th>
+            <th>Dominant cluster</th>
         </tr>
     </thead>
     <tbody>
-        {% for r in results %}
+        {% for s in source_stats %}
         <tr>
-            <td>{{ r.image.original_filename }}</td>
-            <td>{{ r.image.treatment_group|default:"—" }}</td>
-            <td>{{ r.puncta_count|default:"—" }}</td>
-            <td>{{ r.puncta_density|default:"—" }}</td>
-            <td>{% file_thumb r.mip_image label="MIP" %}</td>
-            <td>{% file_thumb r.segmentation_mask label="Mask" %}</td>
-            <td>{% file_thumb r.overlay_image label="Overlay" %}</td>
+            <td>{{ s.source_image }}</td>
+            <td>{{ s.treatment_group|default:"—" }}</td>
+            <td>{{ s.n_patches }}</td>
+            <td>{% if s.dominant_cluster is None %}—{% else %}<code>{{ s.dominant_cluster }}</code>{% endif %}</td>
         </tr>
         {% endfor %}
     </tbody>

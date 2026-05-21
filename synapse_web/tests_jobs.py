@@ -1,49 +1,44 @@
-"""Tests for the background-job runner, run_detail page, and stub work."""
+"""Tests for the background-job runner, run_detail page, stub work,
+and the run-artifacts cleanup signal."""
 from __future__ import annotations
 
 import time
+import uuid as _uuid
 from io import StringIO
 
-from django.core.files.uploadedfile import SimpleUploadedFile
+from django.conf import settings
 from django.core.management import call_command
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from synapse_web.models import AnalysisRun, ImageResult, MicroscopyImage
+from synapse_web.models import AnalysisRun, SourceImageStats
 from synapse_web.services import jobs
 
 
-def _image(name="2_5_BAEO_1.vsi", group="BAEO") -> MicroscopyImage:
-    f = SimpleUploadedFile(name, b"fake", content_type="application/octet-stream")
-    img = MicroscopyImage(original_filename=name, treatment_group=group)
-    img.file.save(name, f, save=True)
-    return img
+def _manifest_item(source_image="2_5_BAEO_1.vsi", group="BAEO", n_patches=4) -> dict:
+    return {
+        "source_image": source_image,
+        "treatment_group": group,
+        "n_patches": n_patches,
+    }
 
 
-def _make_run(images, checkpoint="ckpt/x.pt") -> AnalysisRun:
-    manifest = [
-        {
-            "image_id": str(img.id),
-            "original_filename": img.original_filename,
-            "treatment_group": img.treatment_group,
-            "path": img.file.name,
-        }
-        for img in images
-    ]
+def _make_run(items, *, checkpoint="ckpt/x.pt", kind="extract_and_cluster") -> AnalysisRun:
     return AnalysisRun.objects.create(
         status="pending",
+        run_kind=kind,
         checkpoint_path=checkpoint,
-        config_snapshot={"checkpoint_path": checkpoint, "image_count": len(manifest)},
-        image_manifest=manifest,
+        config_snapshot={"checkpoint_path": checkpoint, "image_count": len(items)},
+        input_manifest=items,
     )
 
 
 @override_settings(ANALYSIS_JOBS_SYNC=True)
 class JobRunnerSyncTests(TestCase):
-    def test_stub_run_completes_and_creates_results(self):
-        imgs = [_image("a.vsi", "BAEO"), _image("b.vsi", "PSI")]
-        run = _make_run(imgs)
+    def test_stub_run_completes_and_creates_source_stats(self):
+        items = [_manifest_item("a.vsi", "BAEO"), _manifest_item("b.vsi", "PSI", 7)]
+        run = _make_run(items)
         jobs.submit_run(str(run.id))
 
         run.refresh_from_db()
@@ -51,23 +46,22 @@ class JobRunnerSyncTests(TestCase):
         self.assertEqual(run.progress, 100)
         self.assertIsNotNone(run.started_at)
         self.assertIsNotNone(run.finished_at)
-        self.assertEqual(run.results.count(), 2)
-        for r in run.results.all():
-            self.assertEqual(r.puncta_count, 0)
-            self.assertEqual(r.puncta_density, 0.0)
+        self.assertEqual(run.source_stats.count(), 2)
+        by_name = {s.source_image: s for s in run.source_stats.all()}
+        self.assertEqual(by_name["a.vsi"].treatment_group, "BAEO")
+        self.assertEqual(by_name["b.vsi"].n_patches, 7)
 
-    def test_idempotent_rerun_does_not_duplicate_results(self):
-        imgs = [_image("a.vsi")]
-        run = _make_run(imgs)
+    def test_idempotent_rerun_does_not_duplicate_stats(self):
+        run = _make_run([_manifest_item("a.vsi")])
         jobs.submit_run(str(run.id))
         jobs.submit_run(str(run.id))
-        self.assertEqual(ImageResult.objects.filter(analysis_run=run).count(), 1)
+        self.assertEqual(SourceImageStats.objects.filter(analysis_run=run).count(), 1)
 
     @override_settings(
         ANALYSIS_WORK_FN="synapse_web.tests_jobs._raising_work"
     )
     def test_failure_records_short_message_and_traceback(self):
-        run = _make_run([_image("a.vsi")])
+        run = _make_run([_manifest_item("a.vsi")])
         jobs.submit_run(str(run.id))
         run.refresh_from_db()
         self.assertEqual(run.status, "failed")
@@ -84,8 +78,7 @@ def _raising_work(**kwargs):
 
 class ProgressReporterTests(TestCase):
     def test_throttles_no_op_writes(self):
-        img = _image()
-        run = _make_run([img])
+        run = _make_run([_manifest_item()])
         reporter = jobs.ProgressReporter(str(run.id))
 
         reporter.update(progress=10, message="hi")
@@ -100,7 +93,7 @@ class ProgressReporterTests(TestCase):
         self.assertEqual(run.progress_message, "hi")
 
     def test_clamps_progress_to_0_100(self):
-        run = _make_run([_image()])
+        run = _make_run([_manifest_item()])
         reporter = jobs.ProgressReporter(str(run.id))
         reporter.update(progress=-5)
         run.refresh_from_db()
@@ -113,23 +106,21 @@ class ProgressReporterTests(TestCase):
 @override_settings(ANALYSIS_JOBS_SYNC=True)
 class RunDetailViewTests(TestCase):
     def test_run_detail_renders_for_completed_run(self):
-        run = _make_run([_image("a.vsi"), _image("b.vsi")])
+        run = _make_run([_manifest_item("a.vsi"), _manifest_item("b.vsi", "PSI")])
         jobs.submit_run(str(run.id))
         resp = self.client.get(reverse("synapse_web:run_detail", args=[run.id]))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Per-image results")
+        self.assertContains(resp, "Per-source-image stats")
         self.assertContains(resp, "a.vsi")
         self.assertContains(resp, "b.vsi")
-        self.assertContains(resp, "Summary by treatment group")
 
     def test_run_detail_renders_for_pending_run(self):
-        run = _make_run([_image()])
+        run = _make_run([_manifest_item()])
         resp = self.client.get(reverse("synapse_web:run_detail", args=[run.id]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "poll()")
 
     def test_run_detail_404_for_unknown_id(self):
-        import uuid as _uuid
         resp = self.client.get(
             reverse("synapse_web:run_detail", args=[_uuid.uuid4()])
         )
@@ -138,7 +129,7 @@ class RunDetailViewTests(TestCase):
 
 class RunStatusJsonTests(TestCase):
     def test_status_shape_and_no_cache(self):
-        run = _make_run([_image(), _image("b.vsi")])
+        run = _make_run([_manifest_item(), _manifest_item("b.vsi")])
         resp = self.client.get(reverse("synapse_web:run_status", args=[run.id]))
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -159,7 +150,7 @@ class RunStatusJsonTests(TestCase):
 
     @override_settings(ANALYSIS_JOBS_SYNC=True)
     def test_finished_flag_flips_after_completion(self):
-        run = _make_run([_image()])
+        run = _make_run([_manifest_item()])
         jobs.submit_run(str(run.id))
         data = self.client.get(
             reverse("synapse_web:run_status", args=[run.id])
@@ -167,48 +158,6 @@ class RunStatusJsonTests(TestCase):
         self.assertEqual(data["status"], "completed")
         self.assertTrue(data["finished"])
         self.assertEqual(data["result_count"], data["expected_count"])
-
-
-@override_settings(ANALYSIS_JOBS_SYNC=True)
-class RunInferenceSubmissionTests(TestCase):
-    def test_submission_creates_run_with_manifest_and_redirects_to_detail(self):
-        img = _image("a.vsi", "PSI")
-        resp = self.client.post(
-            reverse("synapse_web:run_inference"),
-            data={
-                "image_ids": [str(img.id)],
-                "checkpoint_path": "ckpt/best.pt",
-            },
-        )
-        self.assertEqual(resp.status_code, 302)
-        self.assertIn("/analysis/runs/", resp.url)
-
-        run = AnalysisRun.objects.get()
-        self.assertEqual(len(run.image_manifest), 1)
-        self.assertEqual(run.image_manifest[0]["original_filename"], "a.vsi")
-        self.assertEqual(run.image_manifest[0]["treatment_group"], "PSI")
-        self.assertEqual(run.checkpoint_path, "ckpt/best.pt")
-        self.assertEqual(run.status, "completed")
-
-    def test_submission_rejects_unknown_image_ids(self):
-        import uuid as _uuid
-        resp = self.client.post(
-            reverse("synapse_web:run_inference"),
-            data={"image_ids": [str(_uuid.uuid4())]},
-            follow=True,
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(AnalysisRun.objects.count(), 0)
-        self.assertContains(resp, "no longer exist")
-
-    def test_submission_warns_when_no_image_selected(self):
-        resp = self.client.post(
-            reverse("synapse_web:run_inference"),
-            data={},
-            follow=True,
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "No images selected.")
 
 
 class RecoverStaleRunsCommandTests(TestCase):
@@ -249,11 +198,31 @@ class RecoverStaleRunsCommandTests(TestCase):
 
 class RunHistoryClickableTests(TestCase):
     def test_history_links_to_run_detail(self):
-        img = _image()
-        run = _make_run([img])
+        run = _make_run([_manifest_item()])
         resp = self.client.get(reverse("synapse_web:results"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, reverse("synapse_web:run_detail", args=[run.id]))
+
+
+class RunArtifactsCleanupTests(TestCase):
+    def test_delete_run_removes_filesystem_artifacts(self):
+        from synapse_web.services import run_artifacts as ra
+
+        run = _make_run([_manifest_item()])
+        input_dir, bundle_dir, output_dir = ra.ensure_run_dirs(run)
+        (output_dir / "marker.txt").write_text("hi", encoding="utf-8")
+        self.assertTrue(ra.run_root(run).exists())
+
+        run.delete()
+        self.assertFalse(ra.run_root(run).exists())
+
+    def test_runs_root_path_traversal_guard(self):
+        from synapse_web.services import run_artifacts as ra
+
+        class FakeRun:
+            id = "../../etc"
+
+        self.assertFalse(ra.delete_run_artifacts(FakeRun()))
 
 
 class ThreadedSubmitSmokeTest(TransactionTestCase):
@@ -265,8 +234,7 @@ class ThreadedSubmitSmokeTest(TransactionTestCase):
     """
 
     def test_threaded_run_completes(self):
-        img = _image()
-        run = _make_run([img])
+        run = _make_run([_manifest_item()])
         future = jobs.submit_run(str(run.id))
         self.assertIsNotNone(future, "expected a Future in async mode")
 
@@ -277,4 +245,4 @@ class ThreadedSubmitSmokeTest(TransactionTestCase):
                 break
             time.sleep(0.05)
         self.assertEqual(run.status, "completed")
-        self.assertEqual(run.results.count(), 1)
+        self.assertEqual(run.source_stats.count(), 1)

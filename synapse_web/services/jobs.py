@@ -112,7 +112,7 @@ def _execute(run_id: str) -> None:
 
         work_fn(
             run_id=str(run.id),
-            inputs=run.image_manifest or [],
+            inputs=run.input_manifest or [],
             checkpoint_path=run.checkpoint_path,
             output_dir=output_dir,
             config=run.config_snapshot or {},

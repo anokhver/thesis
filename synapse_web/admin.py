@@ -1,7 +1,6 @@
 from django.contrib import admin
 
-from .models import AnalysisRun, ImageResult, MicroscopyImage
+from .models import AnalysisRun, SourceImageStats
 
-admin.site.register(MicroscopyImage)
 admin.site.register(AnalysisRun)
-admin.site.register(ImageResult)
+admin.site.register(SourceImageStats)

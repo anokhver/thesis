@@ -8,6 +8,8 @@ class SynapseWebConfig(AppConfig):
     def ready(self) -> None:
         from django.conf import settings
 
+        from . import signals  # noqa: F401  (registers the signal handlers)
+
         for attr in ("CHECKPOINT_DIR", "PATCHES_UPLOAD_DIR",
                      "BUNDLES_DIR", "RUNS_DIR"):
             path = getattr(settings, attr, None)
