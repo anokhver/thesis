@@ -95,3 +95,95 @@ def predict_full_image(
         device, overlap=overlap, batch_size=batch_size,
     )
     return full_image, prob_map
+
+
+def sliding_window_predict_multichannel(
+    model: nn.Module,
+    full_image: np.ndarray,
+    patch_size: int,
+    ch_mean: torch.Tensor,
+    ch_std: torch.Tensor,
+    device: torch.device,
+    overlap: float = 0.5,
+    batch_size: int = 16,
+    n_out_channels: int = 2,
+) -> np.ndarray:
+    """Multi-channel sliding-window inference on ``(C, H, W)``.
+
+    Identical to :func:`sliding_window_predict` but keeps **all** output
+    channels. Returns ``(n_out_channels, H, W)`` float32 in ``[0, 1]``.
+    """
+    C, H, W = full_image.shape
+    stride = max(1, int(patch_size * (1 - overlap)))
+
+    ch_mean_np = ch_mean.view(-1, 1, 1).numpy()
+    ch_std_np = ch_std.view(-1, 1, 1).numpy()
+
+    pad_h = (stride - (H - patch_size) % stride) % stride if H > patch_size else patch_size - H
+    pad_w = (stride - (W - patch_size) % stride) % stride if W > patch_size else patch_size - W
+    padded = np.pad(
+        full_image,
+        ((0, 0), (0, pad_h), (0, pad_w)),
+        mode="reflect",
+    )
+    pH, pW = padded.shape[1], padded.shape[2]
+
+    acc = np.zeros((n_out_channels, pH, pW), dtype=np.float64)
+    count = np.zeros((pH, pW), dtype=np.float64)
+
+    positions = []
+    for y in range(0, pH - patch_size + 1, stride):
+        for x in range(0, pW - patch_size + 1, stride):
+            positions.append((y, x))
+
+    model.eval()
+    with torch.no_grad():
+        for i in range(0, len(positions), batch_size):
+            batch_pos = positions[i : i + batch_size]
+            patches = []
+            for y, x in batch_pos:
+                p = padded[:, y : y + patch_size, x : x + patch_size].copy()
+                p = (p - ch_mean_np) / ch_std_np
+                patches.append(p)
+            batch_t = torch.from_numpy(np.stack(patches)).float().to(device)
+            logits = model(batch_t)
+            if logits.size(1) < n_out_channels:
+                raise ValueError(
+                    f"model produced {logits.size(1)} channels, requested {n_out_channels}"
+                )
+            probs = torch.sigmoid(logits[:, :n_out_channels]).cpu().numpy()  # (B, C, H, W)
+            for j, (y, x) in enumerate(batch_pos):
+                acc[:, y : y + patch_size, x : x + patch_size] += probs[j]
+                count[y : y + patch_size, x : x + patch_size] += 1.0
+
+    count = np.maximum(count, 1.0)
+    prob_map = (acc / count[None, :, :])[:, :H, :W]
+    return prob_map.astype(np.float32)
+
+
+def predict_full_image_multichannel(
+    model: nn.Module,
+    patch_root: str | Path,
+    image_index: int,
+    patch_size: int,
+    ch_mean: torch.Tensor,
+    ch_std: torch.Tensor,
+    device: torch.device,
+    overlap: float = 0.5,
+    batch_size: int = 16,
+    n_out_channels: int = 2,
+    exclude_patterns: list[str] | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Reassemble a full image and run multi-channel sliding-window prediction.
+
+    Returns ``(full_image (C, H, W), prob_map (n_out_channels, H, W))``.
+    """
+    full_image, _records = reassemble_image(
+        patch_root, image_index, exclude_patterns=exclude_patterns,
+    )
+    prob_map = sliding_window_predict_multichannel(
+        model, full_image, patch_size, ch_mean, ch_std,
+        device, overlap=overlap, batch_size=batch_size,
+        n_out_channels=n_out_channels,
+    )
+    return full_image, prob_map

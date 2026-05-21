@@ -41,13 +41,6 @@ from .viz import (
     visualise_puncta_channel_spotiflow,
     visualise_puncta_pair_spotiflow,
 )
-from .refine import (
-    RefineCfg,
-    region_grow_from_prob,
-    fuse_image_with_prob,
-    compute_mask_iou,
-    compute_positive_fraction,
-)
 from .soma_fdt import (
     DEFAULT_SOMA_CFG,
     derive_size_params,
@@ -106,10 +99,6 @@ __all__ = [
     "visualise_puncta_full",
     "visualise_puncta_channel_spotiflow",
     "visualise_puncta_pair_spotiflow",
-    # refine
-    "RefineCfg",
-    "region_grow_from_prob", "fuse_image_with_prob",
-    "compute_mask_iou", "compute_positive_fraction",
     # soma-fdt
     "DEFAULT_SOMA_CFG",
     "derive_size_params", "resolve_cfg",

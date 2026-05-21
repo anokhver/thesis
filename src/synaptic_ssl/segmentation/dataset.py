@@ -248,3 +248,203 @@ class PseudoLabelSegDataset(Dataset):
         if loss_mask is None:
             return image, mask
         return image, mask, loss_mask
+
+
+class JointChannelSegDataset(Dataset):
+    """Two-channel (PRE, POST) binary-mask pseudo-label dataset.
+
+    Returns ``(image (C, H, W) float32, mask (2, H, W) float32)`` where
+    ``mask[0]`` is the PRE puncta mask and ``mask[1]`` is the POST puncta
+    mask. Both come from the Spotiflow MIP-mode pseudolabel pipeline
+    (``scripts/pseudolabels/puncta_spotiflow_from_mip.py``).
+
+    Two on-disk mask layouts are supported (per-patch is checked first):
+
+    1. **Per-patch** (plan ``§3`` format)::
+
+           <per_patch_mask_dir>/<patch_stem>_pre.npy   (H, W) uint8
+           <per_patch_mask_dir>/<patch_stem>_post.npy  (H, W) uint8
+
+       Activated by passing ``per_patch_mask_dir``.
+
+    2. **Full-image MIP** (what currently exists on disk)::
+
+           <full_image_mask_dir>/<session>/<source_stem>_pre.npy   (fH, fW) uint8
+           <full_image_mask_dir>/<session>/<source_stem>_post.npy  (fH, fW) uint8
+
+       Activated by passing ``full_image_mask_dir``. The patch tile is
+       sliced via ``grid_row``/``grid_col``/``patch_size`` from the
+       ``PatchDataset`` record. Full-image arrays are opened with
+       ``np.load(mmap_mode='r')`` and cached per source stem so repeated
+       accesses to the same source share one mmap handle.
+
+    When *both* are passed the per-patch dir is tried first and the
+    full-image dir is the fallback (this is the auto-detect behaviour
+    requested for the joint pipeline).
+
+    The session key is derived from the *first* path component of
+    ``rec["filename"]`` (i.e. the nested-layout subdir written by
+    ``PatchDataset``). The source stem is ``Path(rec["source_npy"]).stem``.
+
+    A ``precomputed_loss_masks`` dict can supervise PRE/POST only inside
+    a region of interest (e.g. ``soma ∪ dendrite``); when set,
+    ``__getitem__`` returns the 3-tuple ``(image, mask, loss_mask)`` with
+    ``loss_mask`` broadcast to ``(2, H, W)``.
+    """
+
+    def __init__(
+        self,
+        patch_dataset: PatchDataset,
+        *,
+        per_patch_mask_dir: str | Path | None = None,
+        full_image_mask_dir: str | Path | None = None,
+        transform=None,
+        pre_suffix: str = "_pre.npy",
+        post_suffix: str = "_post.npy",
+        precomputed_loss_masks: dict[str, np.ndarray] | None = None,
+    ):
+        if per_patch_mask_dir is None and full_image_mask_dir is None:
+            raise ValueError(
+                "JointChannelSegDataset requires per_patch_mask_dir or "
+                "full_image_mask_dir (or both)."
+            )
+        self.patch_ds = patch_dataset
+        self.per_patch_mask_dir = (
+            Path(per_patch_mask_dir) if per_patch_mask_dir is not None else None
+        )
+        self.full_image_mask_dir = (
+            Path(full_image_mask_dir) if full_image_mask_dir is not None else None
+        )
+        self.transform = transform
+        self.pre_suffix = pre_suffix
+        self.post_suffix = post_suffix
+        self.precomputed_loss_masks = precomputed_loss_masks
+        # cache of source_key -> (pre_mmap, post_mmap); built lazily
+        self._fullimg_cache: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+
+    def __len__(self) -> int:
+        return len(self.patch_ds)
+
+    # ------------------------------------------------------------------ image
+
+    def _load_image(self, rec) -> np.ndarray:
+        name = rec["filename"]
+        img = np.load(self.patch_ds.root / name)
+        if self.patch_ds.channels is not None:
+            img = img[self.patch_ds.channels]
+        return img.astype(np.float32)
+
+    # ------------------------------------------------------------------ masks
+
+    def _load_per_patch(self, rec) -> np.ndarray | None:
+        if self.per_patch_mask_dir is None:
+            return None
+        stem = Path(rec["filename"]).stem
+        pre_p = self.per_patch_mask_dir / f"{stem}{self.pre_suffix}"
+        post_p = self.per_patch_mask_dir / f"{stem}{self.post_suffix}"
+        if not (pre_p.exists() and post_p.exists()):
+            return None
+        pre = np.load(pre_p)
+        post = np.load(post_p)
+        return np.stack([pre, post], axis=0).astype(np.float32)
+
+    def _get_fullimg_mmaps(self, rec) -> tuple[np.ndarray, np.ndarray]:
+        if self.full_image_mask_dir is None:
+            raise FileNotFoundError(
+                f"no per-patch mask for {rec['filename']!r} and no "
+                f"full_image_mask_dir configured"
+            )
+        # session is the first path component of the nested-layout filename
+        parts = Path(rec["filename"]).parts
+        session = parts[0] if len(parts) > 1 else ""
+        source_stem = Path(rec["source_npy"]).stem
+        key = f"{session}/{source_stem}"
+        cached = self._fullimg_cache.get(key)
+        if cached is not None:
+            return cached
+        sess_dir = self.full_image_mask_dir / session if session else self.full_image_mask_dir
+        pre_p = sess_dir / f"{source_stem}{self.pre_suffix}"
+        post_p = sess_dir / f"{source_stem}{self.post_suffix}"
+        if not pre_p.exists() or not post_p.exists():
+            raise FileNotFoundError(
+                f"full-image mask missing for {key!r}: "
+                f"pre={pre_p} (exists={pre_p.exists()}) "
+                f"post={post_p} (exists={post_p.exists()})"
+            )
+        pre = np.load(pre_p, mmap_mode="r")
+        post = np.load(post_p, mmap_mode="r")
+        self._fullimg_cache[key] = (pre, post)
+        return pre, post
+
+    def _load_full_image_tile(self, rec) -> np.ndarray:
+        pre_full, post_full = self._get_fullimg_mmaps(rec)
+        r = int(rec["grid_row"])
+        c = int(rec["grid_col"])
+        ps = int(rec["patch_size"])
+        y0, x0 = r * ps, c * ps
+        pre = np.asarray(pre_full[y0 : y0 + ps, x0 : x0 + ps])
+        post = np.asarray(post_full[y0 : y0 + ps, x0 : x0 + ps])
+        if pre.shape != (ps, ps) or post.shape != (ps, ps):
+            raise ValueError(
+                f"sliced mask tile has wrong shape for {rec['filename']!r}: "
+                f"pre={pre.shape} post={post.shape} expected=({ps},{ps})"
+            )
+        return np.stack([pre, post], axis=0).astype(np.float32)
+
+    def _load_mask(self, rec) -> np.ndarray:
+        # 1. per-patch dir, if any
+        m = self._load_per_patch(rec)
+        if m is not None:
+            return m
+        # 2. fall back to full-image slice
+        return self._load_full_image_tile(rec)
+
+    # ------------------------------------------------------------------ loss mask
+
+    def _load_loss_mask(self, rec, expected_hw) -> np.ndarray | None:
+        if self.precomputed_loss_masks is None:
+            return None
+        name = rec["filename"]
+        if name not in self.precomputed_loss_masks:
+            raise KeyError(f"precomputed_loss_masks missing entry for {name!r}")
+        lm = np.asarray(self.precomputed_loss_masks[name])
+        if lm.shape != expected_hw:
+            raise ValueError(
+                f"loss mask for {name!r} has shape {lm.shape}, "
+                f"expected {expected_hw}"
+            )
+        return lm.astype(np.float32)
+
+    # ------------------------------------------------------------------ getitem
+
+    def __getitem__(self, idx: int):
+        rec = self.patch_ds.records[idx]
+        img_np = self._load_image(rec)              # (C, H, W) float32
+        mask_np = self._load_mask(rec)              # (2, H, W) float32
+        H, W = img_np.shape[-2:]
+        if mask_np.shape != (2, H, W):
+            raise ValueError(
+                f"mask shape mismatch for {rec['filename']!r}: "
+                f"mask={mask_np.shape} image={img_np.shape}"
+            )
+        loss_mask_np = self._load_loss_mask(rec, (H, W))
+
+        image = torch.from_numpy(img_np).float()
+        mask = torch.from_numpy(mask_np).float()    # (2, H, W)
+
+        loss_mask = None
+        if loss_mask_np is not None:
+            # broadcast (H, W) -> (2, H, W) so SegTrainTransform applies
+            # identical geometry to both channels
+            base = ((loss_mask_np > 0) | (mask_np.sum(axis=0) > 0)).astype(np.float32)
+            loss_mask = torch.from_numpy(np.stack([base, base], axis=0)).float()
+
+        if self.transform is not None:
+            if loss_mask is None:
+                image, mask = self.transform(image, mask)
+            else:
+                image, mask, loss_mask = self.transform(image, mask, loss_mask)
+
+        if loss_mask is None:
+            return image, mask
+        return image, mask, loss_mask
