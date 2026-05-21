@@ -85,7 +85,7 @@ def load_checkpoint(
     return ckpt
 
 
-_EPOCH_RE = re.compile(r"epoch[_-]?(\d+)", re.IGNORECASE)
+_EPOCH_RE = re.compile(r"(?:epoch|step)[_-]?(\d+)", re.IGNORECASE)
 
 
 def find_latest_checkpoint(
