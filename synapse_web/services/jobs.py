@@ -105,9 +105,14 @@ def _execute(run_id: str) -> None:
         )
 
         work_fn = import_string(settings.ANALYSIS_WORK_FN)
-        output_dir = os.path.join(
-            str(settings.MEDIA_ROOT), "results", str(run.id)
-        )
+        # Prefer run.output_dir when the creation flow set it (Phase D+);
+        # fall back to a legacy path for runs created before that.
+        if run.output_dir:
+            output_dir = run.output_dir
+        else:
+            output_dir = os.path.join(
+                str(settings.MEDIA_ROOT), "results", str(run.id)
+            )
         os.makedirs(output_dir, exist_ok=True)
 
         work_fn(

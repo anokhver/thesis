@@ -40,6 +40,66 @@ _STUB_WORK = "synapse_web.services.work_stub.do_work"
 @override_settings(
     ANALYSIS_JOBS_SYNC=True, ANALYSIS_WORK_FN=_STUB_WORK,
 )
+class JobRunnerOutputDirTests(TestCase):
+    """Regression: jobs._execute must respect AnalysisRun.output_dir.
+
+    Phase D persists the run-creation output_dir to
+    MEDIA_ROOT/runs/<id>/output/, but jobs.py used to hard-code a
+    legacy MEDIA_ROOT/results/<id>/ path. The mismatch silently
+    routed ML artefacts to a path the run-detail page never looks
+    at, so plots disappeared from the UI.
+    """
+
+    def test_uses_run_output_dir_when_set(self):
+        captured = {}
+
+        def _capture(**kwargs):
+            captured.update(kwargs)
+
+        run = AnalysisRun.objects.create(
+            status="pending",
+            run_kind="cluster_only",
+            output_dir="/tmp/synapseg-test-output",
+            input_manifest=[_manifest_item("a.vsi")],
+        )
+        with override_settings(
+            ANALYSIS_WORK_FN="synapse_web.tests_jobs._capture_work"
+        ):
+            globals()["_capture_work"] = _capture
+            try:
+                jobs.submit_run(str(run.id))
+            finally:
+                del globals()["_capture_work"]
+
+        self.assertEqual(captured.get("output_dir"), "/tmp/synapseg-test-output")
+
+    def test_falls_back_to_legacy_path_when_unset(self):
+        captured = {}
+
+        def _capture(**kwargs):
+            captured.update(kwargs)
+
+        run = AnalysisRun.objects.create(
+            status="pending",
+            run_kind="cluster_only",
+            input_manifest=[_manifest_item("a.vsi")],
+        )
+        with override_settings(
+            ANALYSIS_WORK_FN="synapse_web.tests_jobs._capture_work"
+        ):
+            globals()["_capture_work"] = _capture
+            try:
+                jobs.submit_run(str(run.id))
+            finally:
+                del globals()["_capture_work"]
+
+        self.assertIn(str(run.id), captured.get("output_dir", ""))
+        self.assertIn("results", captured.get("output_dir", ""))
+
+
+@override_settings(
+    ANALYSIS_JOBS_SYNC=True, ANALYSIS_WORK_FN=_STUB_WORK,
+)
 class JobRunnerSyncTests(TestCase):
     def test_stub_run_completes_and_creates_source_stats(self):
         items = [_manifest_item("a.vsi", "BAEO"), _manifest_item("b.vsi", "PSI", 7)]
