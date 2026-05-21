@@ -57,6 +57,7 @@ from .graph import (
     leiden_partition,
     leiden_sweep,
     fit_umap_2d,
+    fit_umap_3d,
 )
 
 # --- 5. Stability + resolution selection ------------------------------------
@@ -84,6 +85,11 @@ from .frequencies import (
 # --- 8. Treatment-group classification --------------------------------------
 from .groups import (
     load_group_patterns,
+    load_group_modifiers,
+    load_concentration_patterns,
+    load_time_patterns,
+    load_washout_patterns,
+    load_group_rules,
     classify_image_by_patterns,
     build_group_map_from_patterns,
 )
@@ -123,6 +129,7 @@ __all__ = [
     "subtract_control_mean", "l2_then_pca_whiten",
     # graph
     "knn_igraph", "leiden_partition", "leiden_sweep", "fit_umap_2d",
+    "fit_umap_3d",
     # stability
     "bootstrap_stability", "pick_resolution",
     # sanity
@@ -133,8 +140,10 @@ __all__ = [
     "per_image_cluster_frequencies", "chi2_independence",
     "cluster_purity_by_image", "per_image_mean_embeddings",
     # groups
-    "load_group_patterns", "classify_image_by_patterns",
-    "build_group_map_from_patterns",
+    "load_group_patterns", "load_group_modifiers",
+    "load_concentration_patterns", "load_time_patterns",
+    "load_washout_patterns", "load_group_rules",
+    "classify_image_by_patterns", "build_group_map_from_patterns",
     # stats_group
     "GroupTestResult", "PERMANOVAResult", "PerClusterTestResult",
     "PairwisePERMANOVAResult",

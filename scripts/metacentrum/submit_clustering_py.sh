@@ -35,7 +35,11 @@ RUN_NAME="${RUN_NAME:-}"                   # override bundle folder name
 DATA_ROOT="${DATA_ROOT:-}"                 # default: data/patches_128_from_zip
 CONTROL_PATTERN="${CONTROL_PATTERN:-}"     # e.g. DMSO; empty = disabled
 EXCLUDE_DATES="${EXCLUDE_DATES:-}"         # space-separated date folders to skip
-EXCLUDE_PATTERNS_FILE="${EXCLUDE_PATTERNS_FILE:-${PROJECT_DIR}/data/data_analysis/exclude.json}"  # JSON; set to '' to disable
+# Default to the clustering-only exclude list (keeps every KONTROLA / control
+# tag so the bundle has a real negative-control group). Use
+# data/data_analysis/exclude.json instead to mirror SSL pretraining (drops
+# KONTROLA + protocol variants). Set EXCLUDE_PATTERNS_FILE='' to disable.
+EXCLUDE_PATTERNS_FILE="${EXCLUDE_PATTERNS_FILE:-${PROJECT_DIR}/data/data_analysis/exclude_clustering.json}"
 EXTRACT_OVERWRITE="${EXTRACT_OVERWRITE:-}" # set to 1 to re-extract
 EXTRACT_BATCH_SIZE="${EXTRACT_BATCH_SIZE:-128}"
 EXTRACT_NUM_WORKERS="${EXTRACT_NUM_WORKERS:-4}"

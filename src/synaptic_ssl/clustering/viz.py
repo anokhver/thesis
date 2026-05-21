@@ -89,6 +89,141 @@ def plot_2d_clusters(Z2: np.ndarray, labels: np.ndarray, *,
     return ax
 
 
+def plot_3d_clusters(
+    Z3: np.ndarray,
+    labels: np.ndarray,
+    *,
+    fig=None,
+    title: str = "UMAP-3D  (visualisation only)",
+    point_size: float = 2.0,
+    elev: float = 20.0,
+    azim: float = 30.0,
+    rasterized: bool = True,
+):
+    """3D scatter coloured by cluster id. Noise (-1) shown as grey.
+
+    Static rendering at a single viewing angle (``elev`` / ``azim``).
+    Returns the ``Axes3D`` so the caller can save / close the figure.
+    Pass ``fig`` to render into an existing figure.
+    """
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 — registers 3d proj
+
+    if fig is None:
+        fig = plt.figure(figsize=(8, 7))
+    ax = fig.add_subplot(111, projection="3d")
+
+    uniq = sorted(set(int(c) for c in labels))
+    cmap = plt.get_cmap("tab20")
+    noise_drawn = False
+    for i, c in enumerate(uniq):
+        m = labels == c
+        if c == -1:
+            label = "noise" if not noise_drawn else None
+            ax.scatter(
+                Z3[m, 0], Z3[m, 1], Z3[m, 2],
+                s=point_size, color="lightgray", alpha=0.4,
+                label=label, rasterized=rasterized, linewidths=0,
+            )
+            noise_drawn = True
+            continue
+        ax.scatter(
+            Z3[m, 0], Z3[m, 1], Z3[m, 2],
+            s=point_size, color=cmap(i % 20), alpha=0.7,
+            label=f"c{c}", rasterized=rasterized, linewidths=0,
+        )
+    ax.set_xlabel("UMAP-1"); ax.set_ylabel("UMAP-2"); ax.set_zlabel("UMAP-3")
+    ax.set_title(title)
+    ax.view_init(elev=elev, azim=azim)
+    if len(uniq) <= 20:
+        ax.legend(loc="best", fontsize=7, markerscale=2)
+    return ax
+
+
+def plot_3d_groups(
+    Z3: np.ndarray,
+    source_images: np.ndarray,
+    group_map: dict[str, str],
+    *,
+    fig=None,
+    title: str = "UMAP-3D coloured by group",
+    point_size: float = 1.5,
+    alpha: float = 0.35,
+    rng_seed: int = 0,
+    max_points_per_group: int | None = 20000,
+    elev: float = 20.0,
+    azim: float = 30.0,
+    rasterized: bool = True,
+):
+    """3D scatter of patches coloured by biological group.
+
+    Mirrors :func:`plot_2d_groups`'s single-panel mode: shuffles per-group
+    plotting order, optionally subsamples each group to
+    ``max_points_per_group`` for the scatter only, renders unmapped
+    patches as a light-grey backdrop.
+    """
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 — registers 3d proj
+
+    rng = np.random.default_rng(rng_seed)
+    src = np.asarray([str(s) for s in source_images])
+    group_arr = np.asarray([group_map.get(s) for s in src], dtype=object)
+    groups = sorted({g for g in group_arr.tolist() if g is not None})
+
+    palette: list = []
+    for cmap_name, n_take in (("tab10", 10), ("tab20", 20), ("Set3", 12)):
+        cmap = plt.get_cmap(cmap_name)
+        for i in range(n_take):
+            palette.append(cmap(i))
+    while len(palette) < len(groups):
+        palette.extend(palette)
+    colour = {g: palette[i] for i, g in enumerate(groups)}
+
+    def _subsample(mask: np.ndarray) -> np.ndarray:
+        idx = np.flatnonzero(mask)
+        if max_points_per_group is not None and idx.size > max_points_per_group:
+            idx = rng.choice(idx, size=max_points_per_group, replace=False)
+        return idx
+
+    if fig is None:
+        fig = plt.figure(figsize=(8, 7))
+    ax = fig.add_subplot(111, projection="3d")
+
+    unmapped = group_arr == None  # noqa: E711
+    if unmapped.any():
+        idx = _subsample(unmapped)
+        ax.scatter(
+            Z3[idx, 0], Z3[idx, 1], Z3[idx, 2],
+            s=point_size * 0.6, color="lightgray", alpha=0.10,
+            rasterized=rasterized, linewidths=0, label="unmapped",
+        )
+
+    shuffled_groups = list(groups)
+    rng.shuffle(shuffled_groups)
+    handles: dict = {}
+    for g in shuffled_groups:
+        idx = _subsample(group_arr == g)
+        ax.scatter(
+            Z3[idx, 0], Z3[idx, 1], Z3[idx, 2],
+            s=point_size, color=colour[g], alpha=alpha,
+            rasterized=rasterized, linewidths=0,
+        )
+        handles[g] = plt.Line2D(
+            [0], [0], marker="o", color="none",
+            markerfacecolor=colour[g], markeredgecolor="none",
+            markersize=6, label=g,
+        )
+
+    ax.set_xlabel("UMAP-1"); ax.set_ylabel("UMAP-2"); ax.set_zlabel("UMAP-3")
+    ax.set_title(title)
+    ax.view_init(elev=elev, azim=azim)
+    ax.legend(
+        handles=[handles[g] for g in groups],
+        loc="best", fontsize=8, framealpha=0.85,
+    )
+    return ax
+
+
 def plot_cluster_grid(
     raw_dataset, medoids: dict, *, channel: int = 0, ncols: int | None = None,
     figsize_per_cell=(1.5, 1.5),
@@ -229,28 +364,144 @@ def plot_2d_groups(
     *,
     ax=None,
     title: str = "UMAP-2D coloured by group",
-    point_size: float = 3.0,
+    point_size: float = 1.5,
+    alpha: float = 0.15,
+    rng_seed: int = 0,
+    max_points_per_group: int | None = 20000,
+    facet: bool = False,
+    facet_ncols: int = 3,
 ):
-    """Scatter coloured by biological group. Unmapped images shown in grey."""
+    """Scatter of patches in UMAP space coloured by biological group.
+
+    Notes
+    -----
+    With ~200k patches a single overlaid scatter is unreadable: the last
+    group drawn covers everything beneath it, marker alpha saturates, and
+    the largest group (Psilocin) hides every smaller one. This function
+    therefore (a) shuffles plotting order so no group sits on top, (b)
+    optionally subsamples each group to ``max_points_per_group`` for
+    plotting only (the underlying data is unchanged), and (c) supports
+    a faceted mode that gives each group its own panel against an
+    all-other-patches grey backdrop — by far the most informative view
+    of overlapping group distributions.
+
+    Parameters
+    ----------
+    point_size, alpha
+        Tuned for ~200k-point UMAPs. Smaller / more transparent than the
+        old defaults (3.0 / 0.6).
+    max_points_per_group
+        If set, randomly subsample each group to this many points for
+        the scatter only. ``None`` disables subsampling.
+    facet
+        If ``True``, return a ``(fig, axes)`` tuple with one subplot per
+        group; ignores ``ax``.
+    """
     import matplotlib.pyplot as plt
 
+    rng = np.random.default_rng(rng_seed)
+
+    src = np.asarray([str(s) for s in source_images])
+    group_arr = np.asarray([group_map.get(s) for s in src], dtype=object)
+    groups = sorted({g for g in group_arr.tolist() if g is not None})
+
+    # ----- a categorical colour palette that scales beyond Set1's 9 hues ----
+    palette: list = []
+    for cmap_name, n_take in (("tab10", 10), ("tab20", 20), ("Set3", 12)):
+        cmap = plt.get_cmap(cmap_name)
+        for i in range(n_take):
+            palette.append(cmap(i))
+    while len(palette) < len(groups):
+        palette.extend(palette)
+    colour = {g: palette[i] for i, g in enumerate(groups)}
+
+    def _subsample(mask: np.ndarray) -> np.ndarray:
+        idx = np.flatnonzero(mask)
+        if max_points_per_group is not None and idx.size > max_points_per_group:
+            idx = rng.choice(idx, size=max_points_per_group, replace=False)
+        return idx
+
+    # ---------------- faceted view (one panel per group) -------------------
+    if facet:
+        n = len(groups)
+        ncols = min(facet_ncols, n)
+        nrows = int(np.ceil(n / ncols))
+        fig, axes = plt.subplots(
+            nrows, ncols,
+            figsize=(4.0 * ncols, 3.5 * nrows),
+            sharex=True, sharey=True,
+        )
+        axes = np.atleast_1d(axes).ravel()
+        # global axis limits so all facets share the same frame
+        xlim = (Z2[:, 0].min(), Z2[:, 0].max())
+        ylim = (Z2[:, 1].min(), Z2[:, 1].max())
+        # background = every patch in light grey
+        bg_idx = rng.choice(
+            np.arange(len(Z2)),
+            size=min(len(Z2), 60000),
+            replace=False,
+        )
+        for ax_i, g in zip(axes, groups):
+            ax_i.scatter(
+                Z2[bg_idx, 0], Z2[bg_idx, 1],
+                s=point_size * 0.6, color="lightgray", alpha=0.10,
+                rasterized=True, linewidths=0,
+            )
+            idx = _subsample(group_arr == g)
+            ax_i.scatter(
+                Z2[idx, 0], Z2[idx, 1],
+                s=point_size, color=colour[g], alpha=min(0.6, alpha * 3),
+                rasterized=True, linewidths=0,
+            )
+            ax_i.set_title(f"{g}\nN={int((group_arr == g).sum())}", fontsize=9)
+            ax_i.set_xlim(xlim); ax_i.set_ylim(ylim)
+            ax_i.set_xticks([]); ax_i.set_yticks([])
+        for ax_i in axes[len(groups):]:
+            ax_i.set_visible(False)
+        fig.suptitle(title, y=1.0)
+        fig.tight_layout()
+        return fig, axes
+
+    # ---------------- single overlaid panel (improved defaults) ------------
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 6))
-    groups = sorted(set(group_map.values()))
-    cmap = plt.get_cmap("Set1")
-    unmapped = np.array(
-        [group_map.get(str(s)) is None for s in source_images]
-    )
+
+    # 1) unmapped patches first (so they sit at the bottom)
+    unmapped = group_arr == None  # noqa: E711
     if unmapped.any():
-        ax.scatter(Z2[unmapped, 0], Z2[unmapped, 1],
-                   s=point_size, color="lightgray", alpha=0.3, label="unmapped")
-    for i, g in enumerate(groups):
-        m = np.array([group_map.get(str(s)) == g for s in source_images])
-        ax.scatter(Z2[m, 0], Z2[m, 1], s=point_size,
-                   color=cmap(i % 9), alpha=0.6, label=g)
+        idx = _subsample(unmapped)
+        ax.scatter(
+            Z2[idx, 0], Z2[idx, 1],
+            s=point_size * 0.6, color="lightgray", alpha=0.10,
+            rasterized=True, linewidths=0, label="unmapped",
+        )
+
+    # 2) shuffle group draw order to avoid systematic Z-stacking
+    shuffled_groups = list(groups)
+    rng.shuffle(shuffled_groups)
+
+    # 3) per-group scatter — collect handles in stable (alphabetical) order
+    handles: dict = {}
+    for g in shuffled_groups:
+        idx = _subsample(group_arr == g)
+        ax.scatter(
+            Z2[idx, 0], Z2[idx, 1],
+            s=point_size, color=colour[g], alpha=alpha,
+            rasterized=True, linewidths=0,
+        )
+        # marker for legend with full opacity
+        handles[g] = plt.Line2D(
+            [0], [0], marker="o", color="none",
+            markerfacecolor=colour[g], markeredgecolor="none",
+            markersize=6, label=g,
+        )
+
     ax.set_xlabel("UMAP-1"); ax.set_ylabel("UMAP-2")
     ax.set_title(title)
-    ax.legend(loc="best", fontsize=8, markerscale=3)
+    ax.legend(
+        handles=[handles[g] for g in groups],
+        loc="best", fontsize=8, framealpha=0.85,
+    )
     return ax
 
 

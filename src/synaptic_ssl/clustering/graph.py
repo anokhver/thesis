@@ -59,3 +59,26 @@ def fit_umap_2d(P: np.ndarray, *, cfg: ClusterCfg, seed: int | None = None) -> n
         random_state=seed if seed is not None else cfg.seed,
         n_jobs=1,
     ).fit_transform(P)
+
+
+def fit_umap_3d(P: np.ndarray, *, cfg: ClusterCfg, seed: int | None = None) -> np.ndarray:
+    """3D UMAP for visualisation (alternative to the 2D layout).
+
+    Uses ``cfg.umap3_n_neighbors`` / ``cfg.umap3_min_dist`` so the 3D
+    embedding can be tuned independently of the 2D one. Same caveat:
+    clustering is **not** run on this layout — it is for plotting only.
+    """
+    import umap
+    init = cfg.umap_init
+    if init == "pca" and P.shape[1] < 3:
+        init = "spectral"
+    return umap.UMAP(
+        n_components=3,
+        n_neighbors=cfg.umap3_n_neighbors,
+        min_dist=cfg.umap3_min_dist,
+        metric=cfg.umap_metric,
+        init=init,
+        n_epochs=cfg.umap_n_epochs,
+        random_state=seed if seed is not None else cfg.seed,
+        n_jobs=1,
+    ).fit_transform(P)

@@ -21,6 +21,10 @@ Outputs are written to ``<bundle>/clustering/`` (or ``--output-dir``):
 * ``image_names.npy``             — row order of freq / counts
 * ``cluster_ids.npy``             — column order of freq / counts
 * ``Z2.npy``                      — UMAP-2D layout (visualisation only)
+* ``Z3.npy``                      — UMAP-3D layout (visualisation only)
+* ``Z2_image.npy``                — image-level UMAP-2D (one row per source image)
+* ``Z3_image.npy``                — image-level UMAP-3D (one row per source image)
+* ``Z2_image_names.npy``          — row order of ``Z2_image.npy`` / ``Z3_image.npy``
 * ``summary.json``                — full statistical results
 * ``README.md``                   — human-readable summary
 * ``plots/*.png``                 — figures (suppress with ``--no-plots``)
@@ -62,16 +66,13 @@ from synaptic_ssl.clustering.pipeline import (  # noqa: E402
     auto_pca_dim,
     bootstrap_stability,
     build_group_map_from_patterns,
-    chi2_independence,
     cluster_medoids,
     cluster_purity_by_image,
     cluster_size_stats,
     fit_umap_2d,
-    group_cluster_test,
-    image_level_cv,
-    internal_validity_indices,
+    fit_umap_3d,
     l2_then_pca_whiten,
-    load_group_patterns,
+    load_group_rules,
     pairwise_mmd_groups,
     pairwise_permanova_groups,
     per_cluster_kruskal_wallis,
@@ -161,8 +162,10 @@ def build_group_map(
 
     for p in candidates:
         if p.is_file():
-            patterns = load_group_patterns(p)
-            gm = build_group_map_from_patterns(df["source_image"].tolist(), patterns)
+            rules = load_group_rules(p)
+            gm = build_group_map_from_patterns(
+                df["source_image"].tolist(), **rules,
+            )
             return gm, f"patterns:{p}"
 
     log.warning("No treatment_group column and no group_patterns.json found — "
@@ -189,6 +192,14 @@ def render_plots(
     freq,
     image_names,
     kw_q,
+    Z2_image=None,
+    image_names_for_Z2_image=None,
+    Z3=None,
+    Z3_image=None,
+    medoids=None,
+    filenames=None,
+    patches_root: Path | None = None,
+    n_examples: int = 3,
 ) -> None:
     import matplotlib
     matplotlib.use("Agg")
@@ -196,6 +207,8 @@ def render_plots(
     from synaptic_ssl.clustering.viz import (
         plot_2d_clusters,
         plot_2d_groups,
+        plot_3d_clusters,
+        plot_3d_groups,
         plot_group_cluster_heatmap,
         plot_group_frequency_boxplots,
         plot_resolution_stability,
@@ -222,6 +235,9 @@ def render_plots(
             plt.close(fig)
 
         if group_map:
+            # Single overlaid panel — improved defaults (alpha 0.15, shuffled
+            # draw order, equal-N subsample per group) so the largest group
+            # does not paint over everything else.
             fig, ax = plt.subplots(figsize=(7, 6))
             try:
                 plot_2d_groups(Z2, source_images, group_map, ax=ax)
@@ -229,6 +245,104 @@ def render_plots(
                 fig.savefig(plots_dir / "umap_groups.png", dpi=150)
             finally:
                 plt.close(fig)
+
+            # Faceted view — one small panel per biological group with the
+            # rest of the cloud in light grey. Far more readable than the
+            # overlaid version when group counts are imbalanced.
+            try:
+                fig, _ = plot_2d_groups(
+                    Z2, source_images, group_map,
+                    facet=True, facet_ncols=4,
+                )
+                fig.savefig(plots_dir / "umap_groups_facet.png", dpi=150)
+                plt.close(fig)
+            except Exception as exc:  # pragma: no cover — defensive
+                log.warning("umap_groups_facet failed: %s", exc)
+
+        # ----- IMAGE-LEVEL UMAP -------------------------------------------
+        # Each point = one source image (mean of its patch embeddings),
+        # which is the statistical unit used by MMD / PERMANOVA. With
+        # ~800 points instead of ~200k the colour separation is finally
+        # readable. Independent of `group_map` (cluster colouring still
+        # useful even without group labels).
+        if (
+            Z2_image is not None
+            and image_names_for_Z2_image is not None
+        ):
+            if group_map:
+                fig, ax = plt.subplots(figsize=(7, 6))
+                try:
+                    plot_2d_groups(
+                        Z2_image, image_names_for_Z2_image, group_map,
+                        ax=ax,
+                        title="UMAP-2D — one point per image (mean embedding)",
+                        point_size=30.0, alpha=0.85,
+                        max_points_per_group=None,
+                    )
+                    fig.tight_layout()
+                    fig.savefig(plots_dir / "umap_groups_image_level.png", dpi=150)
+                finally:
+                    plt.close(fig)
+
+                try:
+                    fig, _ = plot_2d_groups(
+                        Z2_image, image_names_for_Z2_image, group_map,
+                        facet=True, facet_ncols=4,
+                        point_size=30.0, alpha=0.85,
+                        max_points_per_group=None,
+                        title="UMAP-2D (image-level) — faceted by group",
+                    )
+                    fig.savefig(
+                        plots_dir / "umap_groups_image_level_facet.png", dpi=150,
+                    )
+                    plt.close(fig)
+                except Exception as exc:  # pragma: no cover — defensive
+                    log.warning("umap_groups_image_level_facet failed: %s", exc)
+
+    # ----- UMAP-3D (alternative visualisation) ----------------------------
+    # Static PNG renderings at a single viewing angle. The underlying
+    # ``Z3.npy`` / ``Z3_image.npy`` arrays are saved so a notebook can
+    # rotate them interactively.
+    if Z3 is not None:
+        try:
+            fig = plt.figure(figsize=(8, 7))
+            plot_3d_clusters(Z3, labels, fig=fig)
+            fig.tight_layout()
+            fig.savefig(plots_dir / "umap3d_clusters.png", dpi=150)
+            plt.close(fig)
+        except Exception as exc:  # pragma: no cover — defensive
+            log.warning("umap3d_clusters failed: %s", exc)
+
+        if group_map:
+            try:
+                fig = plt.figure(figsize=(8, 7))
+                plot_3d_groups(Z3, source_images, group_map, fig=fig)
+                fig.tight_layout()
+                fig.savefig(plots_dir / "umap3d_groups.png", dpi=150)
+                plt.close(fig)
+            except Exception as exc:  # pragma: no cover — defensive
+                log.warning("umap3d_groups failed: %s", exc)
+
+        if (
+            Z3_image is not None
+            and image_names_for_Z2_image is not None
+            and group_map
+        ):
+            try:
+                fig = plt.figure(figsize=(8, 7))
+                plot_3d_groups(
+                    Z3_image, image_names_for_Z2_image, group_map, fig=fig,
+                    title="UMAP-3D — one point per image (mean embedding)",
+                    point_size=30.0, alpha=0.85,
+                    max_points_per_group=None,
+                )
+                fig.tight_layout()
+                fig.savefig(
+                    plots_dir / "umap3d_groups_image_level.png", dpi=150,
+                )
+                plt.close(fig)
+            except Exception as exc:  # pragma: no cover — defensive
+                log.warning("umap3d_groups_image_level failed: %s", exc)
 
     if group_names and group_counts is not None and group_counts.size > 0:
         fig, ax = plt.subplots()
@@ -249,6 +363,167 @@ def render_plots(
             plt.close(fig)
         except Exception as exc:  # pragma: no cover — defensive
             log.warning("group_boxplots failed: %s", exc)
+
+    # ---- Cluster example patches (RGB overlay) --------------------------
+    # K rows × n_examples cols. Each row shows ``n_examples`` patches drawn
+    # from a single cluster (medoid first, then random samples), rendered as
+    # an RGB composite (channels mapped directly to R/G/B; per-channel 1–99 %
+    # percentile rescale so dim channels remain visible).
+    if medoids and filenames is not None and patches_root is not None:
+        try:
+            _plot_cluster_example_patches(
+                plots_dir=plots_dir,
+                medoids=medoids,
+                filenames=filenames,
+                patches_root=Path(patches_root),
+                n_examples=int(n_examples),
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            log.warning("cluster_example_patches failed: %s", exc)
+
+
+def _resolve_patch_path(filename: str, patches_root: Path) -> Path | None:
+    """Resolve a metadata ``filename`` to its ``.npy`` patch file.
+
+    Patch storage convention (see ``data/patches_128_from_zip/<date>/``):
+    files are named like ``..._<YYYYMMDD>_..._r##_c##.npy``. We grep the
+    filename for an 8-digit date token, then look up
+    ``patches_root / <date> / <filename>``. Returns ``None`` if no candidate
+    is found, so callers can skip silently.
+    """
+    import re
+
+    name = filename if filename.endswith(".npy") else f"{filename}.npy"
+    # First try: 8-digit token anywhere in the filename.
+    m = re.search(r"(?<!\d)(20\d{6})(?!\d)", name)
+    if m is not None:
+        cand = patches_root / m.group(1) / name
+        if cand.is_file():
+            return cand
+    # Fallback: scan all date subfolders.
+    for sub in patches_root.iterdir():
+        if not sub.is_dir():
+            continue
+        cand = sub / name
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _rgb_from_patch(arr: np.ndarray) -> np.ndarray:
+    """Return an ``(H, W, 3)`` uint8 RGB image from a patch tensor.
+
+    Accepts ``(C, H, W)`` or ``(H, W, C)`` layouts. Channels are mapped to
+    R/G/B (first three; 1 channel replicated, >3 channels uses the first
+    three). Each channel is rescaled to [0, 1] via its 1st–99th percentile
+    so dim channels stay visible.
+    """
+    a = np.asarray(arr, dtype=np.float32)
+    if a.ndim == 2:
+        a = a[None, ...]
+    if a.ndim != 3:
+        raise ValueError(f"unexpected patch shape {a.shape}")
+    # Force channel-first.
+    if a.shape[0] not in (1, 2, 3) and a.shape[-1] in (1, 2, 3, 4):
+        a = np.transpose(a, (2, 0, 1))
+    C = a.shape[0]
+    if C == 1:
+        a = np.repeat(a, 3, axis=0)
+    elif C == 2:
+        a = np.concatenate([a, np.zeros_like(a[:1])], axis=0)
+    elif C > 3:
+        a = a[:3]
+    out = np.zeros_like(a)
+    for i in range(3):
+        ch = a[i]
+        lo, hi = np.percentile(ch, [1.0, 99.0])
+        if hi <= lo:
+            lo, hi = float(ch.min()), float(ch.max())
+        if hi <= lo:
+            out[i] = 0.0
+        else:
+            out[i] = np.clip((ch - lo) / (hi - lo), 0.0, 1.0)
+    rgb = np.transpose(out, (1, 2, 0))  # (H, W, 3)
+    return (rgb * 255.0).astype(np.uint8)
+
+
+def _plot_cluster_example_patches(
+    *,
+    plots_dir: Path,
+    medoids: dict,
+    filenames: np.ndarray,
+    patches_root: Path,
+    n_examples: int = 3,
+) -> None:
+    """Save ``cluster_example_patches.png`` — K rows × ``n_examples`` cols.
+
+    Row order is sorted cluster id (noise label -1 skipped). For each cluster
+    we take its medoid first, then up to ``n_examples - 1`` additional
+    ``samples`` from :func:`cluster_medoids`. Missing files are skipped (blank
+    cell) so a partial visualisation still gets written.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    cluster_ids = sorted(int(c) for c in medoids.keys() if int(c) >= 0)
+    if not cluster_ids:
+        return
+    K = len(cluster_ids)
+    n_examples = max(1, int(n_examples))
+
+    fig, axes = plt.subplots(
+        K, n_examples,
+        figsize=(2.2 * n_examples, 2.2 * K),
+        squeeze=False,
+    )
+    for r, c in enumerate(cluster_ids):
+        info = medoids[c] if c in medoids else medoids.get(str(c), {})
+        size = int(info.get("size", 0))
+        medoid_idx = info.get("medoid")
+        sample_idx = list(info.get("samples", []) or [])
+        # Build picks: medoid first, then samples (skip duplicates).
+        picks: list[int] = []
+        if isinstance(medoid_idx, (int, np.integer)):
+            picks.append(int(medoid_idx))
+        for s in sample_idx:
+            if int(s) not in picks:
+                picks.append(int(s))
+            if len(picks) >= n_examples:
+                break
+        # Pad with -1 placeholders if not enough.
+        while len(picks) < n_examples:
+            picks.append(-1)
+
+        for col, idx in enumerate(picks[:n_examples]):
+            ax = axes[r][col]
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if idx < 0 or idx >= len(filenames):
+                ax.set_axis_off()
+                continue
+            fp = _resolve_patch_path(str(filenames[idx]), patches_root)
+            if fp is None:
+                ax.text(0.5, 0.5, "missing", ha="center", va="center",
+                        fontsize=8, color="grey", transform=ax.transAxes)
+                continue
+            try:
+                arr = np.load(fp)
+                rgb = _rgb_from_patch(arr)
+                ax.imshow(rgb)
+            except Exception:
+                ax.text(0.5, 0.5, "load err", ha="center", va="center",
+                        fontsize=8, color="red", transform=ax.transAxes)
+                continue
+            if col == 0:
+                ax.set_ylabel(f"c{c}\n(n={size})", fontsize=9, rotation=0,
+                              labelpad=22, va="center")
+
+    fig.suptitle("Cluster example patches (RGB overlay, 1–99 % rescale)",
+                 fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.savefig(plots_dir / "cluster_example_patches.png", dpi=150)
+    plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
@@ -472,12 +747,49 @@ def run(args: argparse.Namespace) -> int:
     log.info("picked resolution=%.3f mean_ari=%.3f (±%.3f) K=%d",
              res_pick, mean_ari, std_ari, n_clust)
 
-    # ---- 8. UMAP-2D (visualisation only) --------------------------------
+    # ---- 8. UMAP-2D + UMAP-3D (visualisation only) ----------------------
     Z2 = None
+    Z3 = None
+    Z2_image = None
+    Z3_image = None
+    image_names_for_Z2_image = None
     if not args.no_umap or not args.no_plots:
         log.info("fit UMAP-2D for visualisation")
         Z2 = fit_umap_2d(P, cfg=cfg, seed=cfg.seed)
         np.save(out_dir / "Z2.npy", Z2)
+
+        try:
+            log.info("fit UMAP-3D for visualisation")
+            Z3 = fit_umap_3d(P, cfg=cfg, seed=cfg.seed)
+            np.save(out_dir / "Z3.npy", Z3)
+        except Exception as exc:  # pragma: no cover — defensive
+            log.warning("UMAP-3D failed: %s", exc)
+            Z3 = None
+
+        # Image-level UMAP — one point per source image (mean of its patch
+        # embeddings). This matches the statistical unit used by the
+        # group-level tests (MMD, PERMANOVA) and is far more readable
+        # than the ~200k-point patch scatter.
+        try:
+            M_image, image_names_for_Z2_image = per_image_mean_embeddings(
+                P, source_images,
+            )
+            log.info("fit UMAP-2D (image-level) on %d image means", len(M_image))
+            Z2_image = fit_umap_2d(M_image, cfg=cfg, seed=cfg.seed)
+            np.save(out_dir / "Z2_image.npy", Z2_image)
+            np.save(out_dir / "Z2_image_names.npy", image_names_for_Z2_image)
+            try:
+                log.info("fit UMAP-3D (image-level) on %d image means", len(M_image))
+                Z3_image = fit_umap_3d(M_image, cfg=cfg, seed=cfg.seed)
+                np.save(out_dir / "Z3_image.npy", Z3_image)
+            except Exception as exc:  # pragma: no cover — defensive
+                log.warning("image-level UMAP-3D failed: %s", exc)
+                Z3_image = None
+        except Exception as exc:  # pragma: no cover — defensive
+            log.warning("image-level UMAP failed: %s", exc)
+            Z2_image = None
+            Z3_image = None
+            image_names_for_Z2_image = None
 
     # ---- 9. Sanity ------------------------------------------------------
     size_stats = cluster_size_stats(labels)
@@ -487,15 +799,6 @@ def run(args: argparse.Namespace) -> int:
     perm_mean, perm_std, perm_max = permutation_null_ari(
         P, labels, cfg=cfg, resolution=res_pick, k=k,
         source_images=source_images,
-    )
-
-    log.info("internal validity indices")
-    iv = internal_validity_indices(P, labels, seed=cfg.seed)
-
-    log.info("image-level CV (repeats=%d)", cfg.cv_n_repeats)
-    cv_med, cv_q25, cv_q75, cv_per = image_level_cv(
-        P, source_images, labels, cfg=cfg,
-        group_map=group_map if group_map else None,
     )
 
     log.info("cluster medoids (samples_per_cluster=%d)", cfg.samples_per_cluster)
@@ -510,17 +813,10 @@ def run(args: argparse.Namespace) -> int:
     log.info("freq matrix: shape=%s (images=%d, clusters=%d)",
              freq.shape, len(image_names), len(cluster_ids))
 
-    chi2_res = chi2_independence(
-        counts, cfg.chi2_min_image_patches,
-        n_permutations=cfg.chi2_n_permutations, seed=cfg.seed,
-    )
-    log.info("chi2 independence: stat=%.3f p=%.4g dof=%s dropped=%s method=%s",
-             chi2_res[0], chi2_res[1], chi2_res[2], chi2_res[3], chi2_res[4])
 
     purity_rows = cluster_purity_by_image(labels, source_images)
 
     # ---- 11. Group-level tests ------------------------------------------
-    group_test = None
     permanova = None
     pair_permanova = None
     kw = None
@@ -530,14 +826,17 @@ def run(args: argparse.Namespace) -> int:
     kw_q = None
 
     if group_map and len(set(group_map.values())) >= 2:
-        log.info("group_cluster_test (image-level permutation chi²)")
-        group_test = group_cluster_test(
-            counts, image_names, cluster_ids, group_map,
-            n_permutations=max(cfg.permanova_n_permutations * 10, 9999),
-            seed=cfg.seed,
+        # Aggregate image-level counts into (n_groups, n_clusters) for the
+        # group_heatmap plot. Same logic as stats_group._build_group_counts.
+        group_names_list = sorted(set(group_map.values()))
+        _g2i = {g: i for i, g in enumerate(group_names_list)}
+        group_counts_arr = np.zeros(
+            (len(group_names_list), counts.shape[1]), dtype=np.int64,
         )
-        group_counts_arr = group_test.group_counts
-        group_names_list = list(group_test.group_names)
+        for _r, _img in enumerate(image_names):
+            _g = group_map.get(str(_img))
+            if _g is not None:
+                group_counts_arr[_g2i[_g]] += counts[_r]
 
         log.info("permanova_frequencies (metric=%s n=%d)",
                  cfg.permanova_metric, cfg.permanova_n_permutations)
@@ -643,21 +942,16 @@ def run(args: argparse.Namespace) -> int:
             "mean": perm_mean, "std": perm_std, "max": perm_max,
             "n_permutations": cfg.permutation_p,
         },
-        "internal_validity": iv,
-        "image_level_cv": {
-            "median_ari": cv_med, "q25": cv_q25, "q75": cv_q75,
-            "n_splits": len(cv_per),
-        },
         "medoids": medoids,
-        "chi2_independence": {
-            "stat": chi2_res[0], "p": chi2_res[1], "dof": chi2_res[2],
-            "n_dropped": chi2_res[3], "method": chi2_res[4],
-        },
         "cluster_purity": purity_rows,
-        "group_cluster_test": group_test,
         "permanova": permanova,
         "pairwise_permanova": pair_permanova,
         "per_cluster_kw": kw,
+        "per_cluster_kw_n_significant": (
+            int(np.sum(np.asarray(kw.p_values_corrected,
+                                  dtype=np.float64) < 0.05))
+            if kw is not None else None
+        ),
         "pairwise_mmd": mmd,
         "wall_time_seconds": time.time() - t_start,
     }
@@ -675,10 +969,6 @@ def run(args: argparse.Namespace) -> int:
         f"- K = {n_clust} clusters; bootstrap ARI = "
         f"{mean_ari:.3f} ± {std_ari:.3f}",
         f"- permutation-null ARI: mean = {perm_mean:.3f}, max = {perm_max:.3f}",
-        f"- image-level CV ARI (median): {cv_med:.3f}",
-        f"- silhouette = {iv.silhouette:.3f}, "
-        f"Davies-Bouldin = {iv.davies_bouldin:.3f}, "
-        f"Calinski-Harabasz = {iv.calinski_harabasz:.1f}",
         "",
         "## Files",
         "- `labels.npy` — int64 cluster id per patch (-1 = noise)",
@@ -686,23 +976,26 @@ def run(args: argparse.Namespace) -> int:
         "- `freq.npy`, `counts.npy` — (image × cluster) matrices",
         "- `image_names.npy`, `cluster_ids.npy` — row / column order",
         "- `Z2.npy` — UMAP-2D layout (visualisation only)",
+        "- `Z2_image.npy`, `Z2_image_names.npy` — image-level UMAP "
+        "(one row per source image, mean-pooled patches)",
         "- `summary.json` — all statistical results",
         "- `run_clustering.log` — runtime log",
         "- `plots/` — figures (omit with --no-plots)",
         "",
     ]
-    if group_test is not None:
+    if permanova is not None:
         readme_lines += [
             "## Group-level tests",
             f"- groups: {', '.join(group_names_list)}",
-            f"- group_cluster_test (image-perm χ²): stat = "
-            f"{group_test.statistic:.3f}, p = {group_test.p_value:.4g}",
+            f"- PERMANOVA pseudo-F = {permanova.f_statistic:.3f}, "
+            f"p = {permanova.p_value:.4g} "
+            f"(R² = {permanova.r_squared:.3f})",
         ]
-        if permanova is not None:
+        if kw is not None and kw_q is not None and kw_q.size > 0:
+            n_sig = int(np.sum(kw_q < 0.05))
             readme_lines.append(
-                f"- PERMANOVA pseudo-F = {permanova.f_statistic:.3f}, "
-                f"p = {permanova.p_value:.4g} "
-                f"(R² = {permanova.r_squared:.3f})"
+                f"- per-cluster Kruskal-Wallis: {n_sig}/{len(kw_q)} "
+                f"clusters differ across treatments at q<0.05 (BH-FDR)"
             )
         readme_lines.append("")
     (out_dir / "README.md").write_text("\n".join(readme_lines))
@@ -721,6 +1014,15 @@ def run(args: argparse.Namespace) -> int:
                 cluster_ids=cluster_ids,
                 freq=freq, image_names=image_names,
                 kw_q=kw_q,
+                Z2_image=Z2_image,
+                image_names_for_Z2_image=image_names_for_Z2_image,
+                Z3=Z3,
+                Z3_image=Z3_image,
+                medoids=medoids,
+                filenames=filenames,
+                patches_root=(Path(args.data_root) if args.data_root
+                              else _REPO / "data" / "patches_128_from_zip"),
+                n_examples=3,
             )
         except Exception as exc:  # pragma: no cover — never block writeback
             log.exception("plot rendering failed: %s", exc)

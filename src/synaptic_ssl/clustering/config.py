@@ -17,8 +17,9 @@ class ClusterCfg:
 
     # Preprocessing
     l2_normalise: bool = True
-    pca_dim: int | None = None         # None -> auto via RankMe-style
-                                       # 95% cumulative explained variance
+    pca_dim: int | None = None         # None -> auto: smallest d such that
+                                       # cumulative explained variance >=
+                                       # pca_dim_target_var
     pca_dim_target_var: float = 0.95   # auto: smallest d capturing this
     pca_dim_max: int = 200             # auto: hard cap
     control_reference_pattern: str | None = None  # substring matched against
@@ -26,12 +27,17 @@ class ClusterCfg:
                                               # mean of those patches is
                                               # subtracted before PCA
 
-    # UMAP (2D visualisation only; clustering happens directly in PCA)
+    # UMAP (visualisation only; clustering happens directly in PCA)
     umap_metric: str = "cosine"
     umap_init: str = "pca"
     umap_n_epochs: int = 500
     umap2_n_neighbors: int = 30
     umap2_min_dist: float = 0.1
+    # 3D layout (alternative visualisation; same neighbours/min_dist defaults
+    # as the 2D layout — override per run if you want a denser or sparser
+    # global structure).
+    umap3_n_neighbors: int = 30
+    umap3_min_dist: float = 0.1
 
     # Leiden (primary)
     leiden_k: int = 30

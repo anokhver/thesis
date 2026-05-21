@@ -1,21 +1,39 @@
 {
-  "_comment": "Maps source_image filename substrings (upper-cased) to display names of treatment groups. Order matters: first-match-wins, so place more specific patterns before more general ones (e.g. PSYHARMIN before PSY, NORPSIHARMIN before NORPSI). Loaded via synaptic_ssl.clustering.pipeline.load_group_patterns.",
+  "_comment": "Treatment-group classification rules. Stage 1 (patterns): the first matching entry in 'patterns' (substring on UPPER-cased filename) decides the base treatment. Stage 2 (modifiers): every entry in 'modifiers' is then scanned over the *whole* filename and, when present, appended as ' + <label>' to the base — this lets NORBAEO_HARMIN be classified as 'Norbaeocystin + harmine' without enumerating every BASE+MODIFIER combination. Stage 3 (concentrations / time_points / washouts): each list is a sequence of [regex, label] rules; the first regex in each list whose .search() hits the UPPER-cased filename contributes ONE qualifier, appended to the label with ' | <qualifier>'. Final order: base[+ modifiers][ | concentration][ | time_point][ | washout]. Loaded via synaptic_ssl.clustering.groups.load_group_patterns / load_group_modifiers / load_concentration_patterns / load_time_patterns / load_washout_patterns.",
+  "_ordering": "Order of 'patterns' is significant — place more specific patterns before more general ones (NORPSI before PSI, NORBAEO/NORBAO before BAEO). Order within each regex list (concentrations / time_points / washouts) is also first-match-wins, so place more specific regexes first.",
+  "_typo_aliases": "Filename typos observed in the data are mapped to their canonical group: NORBAO (missing E in NORBAEO) and HRMIN (missing A in HARMIN). Keep them adjacent to the canonical entries so audit diffs stay readable.",
+  "_modifier_self_match": "A modifier pattern that is identical to the base pattern that matched (e.g. base HARMIN matched a HARMIN-only filename) is *not* re-appended, so HARMIN-only files stay 'Harmine' rather than 'Harmine + harmine'.",
+  "_qualifier_regex_notes": "Regexes run against UPPER-cased filename. Concentration: (?<![0-9]) prevents '1UM' matching inside '01UM'/'10UM'; (?![A-Z0-9]) prevents matching inside longer tokens. Time: (?<![0-9]) prevents matching inside dates (e.g. '20251024HOD' would be excluded if it existed); [_ ]? allows both '24HOD' and '24_HOD'; (?=[^A-Z]|$) requires the char after HOD to be non-letter (or end). Washout: '1H10UM' (1-hour pulse with 10 uM) followed by optional separator then 'WO' → flag '1h pulse' (the concentration regex independently picks '10 uM' and the time regex independently picks the time after WO).",
   "patterns": [
-    ["NORPSIHARMIN",  "Norpsilocin + harmine"],
-    ["PSIHARMIN",     "Psilocin + harmine"],
-    ["PSYHARMIN",     "Psilocybin + harmine"],
-    ["NORBAEOHARMIN", "Norbaeocystin + harmine"],
-    ["BAEOHARMIN",    "Baeocystin + harmine"],
-    ["AERUGHARMIN",   "Aeruginascin + harmine"],
-    ["NORPSI",        "Norpsilocin"],
-    ["NORBAEO",       "Norbaeocystin"],
-    ["BAEO",          "Baeocystin"],
-    ["AERUG",         "Aeruginascin"],
-    ["PSY",           "Psilocybin"],
-    ["PSI",           "Psilocin"],
-    ["HARMIN",        "Harmine"],
-    ["LITHIUM",       "Lithium"],
-    ["KONTROLA",      "Control"],
-    ["NC",            "Negative Control"]
+    ["NORPSI",   "Norpsilocin"],
+    ["NORBAEO",  "Norbaeocystin"],
+    ["NORBAO",   "Norbaeocystin"],
+    ["BAEO",     "Baeocystin"],
+    ["AERUG",    "Aeruginascin"],
+    ["PSY",      "Psilocybin"],
+    ["PSI",      "Psilocin"],
+    ["HARMIN",   "Harmine"],
+    ["HRMIN",    "Harmine"],
+    ["LITHIUM",  "Lithium"],
+    ["KONTROLA", "Control"],
+    ["NC",       "Negative Control"]
+  ],
+  "modifiers": [
+    ["HARMIN", "harmine"],
+    ["HRMIN",  "harmine"]
+  ],
+  "concentrations": [
+    ["(?<![0-9])01UM(?![A-Z0-9])", "0.1 uM"],
+    ["(?<![0-9])10UM(?![A-Z0-9])", "10 uM"],
+    ["(?<![0-9])1UM(?![A-Z0-9])",  "1 uM"]
+  ],
+  "time_points": [
+    ["(?<![0-9])24[_ ]?HOD(?=[^A-Z]|$)", "24h"],
+    ["(?<![0-9])48[_ ]?HOD(?=[^A-Z]|$)", "48h"],
+    ["(?<![0-9])72[_ ]?HOD(?=[^A-Z]|$)", "72h"]
+  ],
+  "washouts": [
+    ["1H10UM[_ ]?WO", "1h pulse"],
+    ["1H1UM[_ ]?WO",  "1h pulse"]
   ]
 }

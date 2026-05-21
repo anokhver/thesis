@@ -28,12 +28,15 @@ def auto_pca_dim(Z: np.ndarray, target_var: float = 0.95, hard_cap: int = 200) -
 
     Lower-bounded by 5, upper-bounded by ``hard_cap`` and ``min(N-1, D)``.
 
-    For pooled CNN / transformer features the effective rank is typically
-    far below the nominal dimension; fixed defaults inherited from
-    scRNA-seq pipelines (e.g. Scanpy's ``n_comps=50``; Wolf et al.,
-    Genome Biol 2018) over-allocate here, so noise PCs get rescaled to
-    unit variance by ``PCA(whiten=True)`` and dominate Euclidean kNN
-    distances.
+    Rationale: ``PCA(whiten=True)`` rescales every retained PC to unit
+    variance, so keeping PCs that explain near-zero variance would
+    promote pure noise to the same scale as informative directions and
+    dominate Euclidean kNN distances. The cumulative-variance rule keeps
+    only the directions that account for ``target_var`` of the total
+    variance (default 95%); the hard cap bounds runtime / memory and
+    avoids picking implausibly large ``d`` from a slow-decaying spectrum.
+    Both ``target_var`` and ``hard_cap`` are engineering defaults of this
+    repo, not values inherited from a specific publication.
     """
     from sklearn.decomposition import PCA
     n_max = int(min(Z.shape[0] - 1, Z.shape[1], hard_cap))
