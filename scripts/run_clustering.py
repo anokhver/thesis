@@ -321,6 +321,11 @@ def _ensure_bundle_from_checkpoint(args: argparse.Namespace) -> Path:
         cmd += ["--data-root", str(Path(args.data_root).resolve())]
     if args.exclude_dates:
         cmd += ["--exclude-dates", *args.exclude_dates]
+    if args.exclude_patterns_file:
+        cmd += [
+            "--exclude-patterns-file",
+            str(Path(args.exclude_patterns_file).resolve()),
+        ]
     if args.extract_device:
         cmd += ["--device", args.extract_device]
     if args.extract_overwrite:
@@ -759,6 +764,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="(extraction) DataLoader workers")
     p.add_argument("--exclude-dates", nargs="*", default=[],
                    help="(extraction) skip these date subfolders by name")
+    p.add_argument("--exclude-patterns-file", default=None,
+                   help="(extraction) JSON file with case-insensitive substring "
+                        "patterns to drop from the patch index (matched against "
+                        "source_image / source_path / source_npy). Accepts a "
+                        "JSON list or an object with key 'exclude_patterns'. "
+                        "Pass data/data_analysis/exclude.json to match the "
+                        "pretrain configs.")
     p.add_argument("--extract-device", default=None,
                    help="(extraction) cuda / cpu; default: cuda if available")
     p.add_argument("--extract-overwrite", action="store_true",

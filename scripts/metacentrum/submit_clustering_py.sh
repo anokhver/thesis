@@ -35,6 +35,7 @@ RUN_NAME="${RUN_NAME:-}"                   # override bundle folder name
 DATA_ROOT="${DATA_ROOT:-}"                 # default: data/patches_128_from_zip
 CONTROL_PATTERN="${CONTROL_PATTERN:-}"     # e.g. DMSO; empty = disabled
 EXCLUDE_DATES="${EXCLUDE_DATES:-}"         # space-separated date folders to skip
+EXCLUDE_PATTERNS_FILE="${EXCLUDE_PATTERNS_FILE:-${PROJECT_DIR}/data/data_analysis/exclude.json}"  # JSON; set to '' to disable
 EXTRACT_OVERWRITE="${EXTRACT_OVERWRITE:-}" # set to 1 to re-extract
 EXTRACT_BATCH_SIZE="${EXTRACT_BATCH_SIZE:-128}"
 EXTRACT_NUM_WORKERS="${EXTRACT_NUM_WORKERS:-4}"
@@ -64,6 +65,7 @@ echo "Bundle:     ${BUNDLE_DIR:-<derive from checkpoint>}"
 echo "Output:     ${OUTPUT_DIR:-<bundle>/clustering}"
 echo "Control:    ${CONTROL_PATTERN:-<none>}"
 echo "Exclude:    ${EXCLUDE_DATES:-<none>}"
+echo "ExcludePat: ${EXCLUDE_PATTERNS_FILE:-<none>}"
 echo "Extra:      ${EXTRA_FLAGS:-<none>}"
 echo "Start:      $(date)"
 echo "================"
@@ -94,6 +96,13 @@ if [[ -n "${CHECKPOINT}" ]]; then
         # shellcheck disable=SC2206
         EXCL_ARR=( ${EXCLUDE_DATES} )
         CMD+=( --exclude-dates "${EXCL_ARR[@]}" )
+    fi
+    if [[ -n "${EXCLUDE_PATTERNS_FILE}" ]]; then
+        if [[ ! -f "${EXCLUDE_PATTERNS_FILE}" ]]; then
+            echo "ERROR: EXCLUDE_PATTERNS_FILE not found: ${EXCLUDE_PATTERNS_FILE}" >&2
+            exit 2
+        fi
+        CMD+=( --exclude-patterns-file "${EXCLUDE_PATTERNS_FILE}" )
     fi
     [[ -n "${EXTRACT_OVERWRITE}" ]] && CMD+=( --extract-overwrite )
 else

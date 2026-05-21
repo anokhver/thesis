@@ -10,6 +10,15 @@ __pycache__/
 data/*
 !data/imaging_outputs/
 !data/data_analysis/
+*.pth
+*.pt
+*.ckpt
+*.npy
+*.zip
+*.tar*
+*.npz
+training_outputs_old/
+*patches*/
 
 .github
 
