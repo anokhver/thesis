@@ -62,7 +62,7 @@ from synaptic_ssl.utils_data.patch_dataset import PatchDataset
 from synaptic_ssl.segmentation import (
     SegTrainCfg,
     JointChannelSegDataset,
-    JointChannelDiceBCE, compute_dice_metric_per_channel,
+    JointChannelDiceBCE, JointChannelTversky, compute_dice_metric_per_channel,
     build_swinunetr, load_pretrained_encoder_into_swinunetr, count_params,
     SegTrainTransform, SegValTransform,
     sliding_window_predict_multichannel,
@@ -96,7 +96,8 @@ class _IndexedPatchDataset:
 # ---------------------------------------------------------------------------
 _TOP_KEYS = {
     "run_sanity", "run_overfit", "sessions",
-    "base", "data", "model", "seg", "pseudolabels", "colocalisation",
+    "base", "data", "model", "seg",
+    "pseudolabels", "loss_mask", "colocalisation",
 }
 
 
@@ -193,20 +194,38 @@ def load_config(config_path: str | Path, root_dir: str | Path) -> dict[str, Any]
         synapse_radius_px = int(coloc_raw.get("synapse_radius_px", 3)),
     )
 
+    # Optional Recipe-A soft loss-masking from per-patch soma+dend tiles.
+    # Disabled by default (keeps backward compatibility for configs that
+    # don't mention this section).
+    lm_raw = raw.get("loss_mask", {}) or {}
+    loss_mask_cfg = {
+        "enabled":   bool(lm_raw.get("enabled", False)),
+        "soma_root": _resolve(lm_raw.get("soma_root"), root_dir),
+        "dend_root": _resolve(lm_raw.get("dend_root"), root_dir),
+        "blur_sigma": float(lm_raw.get("blur_sigma", 0.0)),
+        "floor":      float(lm_raw.get("floor", 0.1)),
+    }
+    if loss_mask_cfg["enabled"]:
+        if not loss_mask_cfg["soma_root"] or not loss_mask_cfg["dend_root"]:
+            raise ValueError(
+                "loss_mask.enabled is True but soma_root / dend_root not set."
+            )
+
     sessions = raw.get("sessions", None)
     if sessions is not None:
         sessions = list(sessions)
 
     return {
-        "base_cfg":     base_cfg,
-        "data_cfg":     data_cfg,
-        "model_cfg":    model_cfg,
-        "seg_cfg":      seg_cfg,
-        "pseudolabels": pseudolabels,
-        "coloc_cfg":    coloc_cfg,
-        "sessions":     sessions,
-        "run_sanity":   bool(raw.get("run_sanity",  True)),
-        "run_overfit":  bool(raw.get("run_overfit", True)),
+        "base_cfg":      base_cfg,
+        "data_cfg":      data_cfg,
+        "model_cfg":     model_cfg,
+        "seg_cfg":       seg_cfg,
+        "pseudolabels":  pseudolabels,
+        "loss_mask_cfg": loss_mask_cfg,
+        "coloc_cfg":     coloc_cfg,
+        "sessions":      sessions,
+        "run_sanity":    bool(raw.get("run_sanity",  True)),
+        "run_overfit":   bool(raw.get("run_overfit", True)),
     }
 
 
@@ -222,6 +241,7 @@ def setup_data(
     *,
     seed_generator,
     logger,
+    loss_mask_cfg: dict | None = None,
 ):
     """Load patches + pseudo-labels and return train/val datasets and loaders."""
     # ── Pseudo-label folder (must be pre-extracted) ──
@@ -251,6 +271,29 @@ def setup_data(
         ]
     logger.info(f"raw patches (filtered by sessions) = {len(raw_dataset)}")
 
+    # ── Drop patches whose source MIP has no PRE+POST mask on disk ──
+    # ``mask_index`` keys are ``"<session>/<source_stem>"``. The patch dataset
+    # may reference source MIPs that the Spotiflow pipeline never produced
+    # (e.g. a wall-time crash mid-session). Without this filter such patches
+    # crash a DataLoader worker mid-epoch with FileNotFoundError.
+    valid_keys = set(mask_index.keys())
+    kept, dropped_keys = [], set()
+    for r in raw_dataset.records:
+        key = f"{Path(r['filename']).parts[0]}/{Path(r['source_npy']).stem}"
+        if key in valid_keys:
+            kept.append(r)
+        else:
+            dropped_keys.add(key)
+    if dropped_keys:
+        logger.warning(
+            f"dropped {len(raw_dataset.records) - len(kept)} patches across "
+            f"{len(dropped_keys)} source MIPs with no pseudo-labels "
+            f"(kept {len(kept)} patches)"
+        )
+        sample_missing = sorted(dropped_keys)[:5]
+        logger.warning(f"  first few missing sources: {sample_missing}")
+    raw_dataset.records = kept
+
     sample = raw_dataset[0]
     logger.info(f"sample shape = {tuple(sample.shape)}  dtype = {sample.dtype}")
     assert sample.ndim == 3 and sample.shape[0] == model_cfg.in_channels
@@ -275,8 +318,31 @@ def setup_data(
     train_patch_ds = _IndexedPatchDataset(raw_dataset, train_subset.indices)
     val_patch_ds   = _IndexedPatchDataset(raw_dataset, val_subset.indices)
 
-    train_tf = SegTrainTransform(ch_mean, ch_std)
-    val_tf   = SegValTransform(ch_mean, ch_std)
+    # Loss-mask args (Recipe A). When disabled, JointChannelSegDataset
+    # behaves exactly as before (2-tuple).
+    lm = loss_mask_cfg or {}
+    use_soft_loss_mask = bool(lm.get("enabled", False))
+    ds_loss_kwargs = {}
+    if use_soft_loss_mask:
+        ds_loss_kwargs = dict(
+            soma_mask_dir=lm["soma_root"],
+            dend_mask_dir=lm["dend_root"],
+            loss_mask_blur_sigma=float(lm.get("blur_sigma", 0.0)),
+            loss_mask_floor=float(lm.get("floor", 0.1)),
+        )
+        logger.info(
+            f"loss_mask: enabled  soma_root={lm['soma_root']}  "
+            f"dend_root={lm['dend_root']}  blur={ds_loss_kwargs['loss_mask_blur_sigma']}  "
+            f"floor={ds_loss_kwargs['loss_mask_floor']}"
+        )
+    else:
+        logger.info("loss_mask: disabled (no soma+dend soft weighting)")
+
+    # Soft loss mask requires the train-transform to NOT re-binarise it.
+    train_tf = SegTrainTransform(
+        ch_mean, ch_std, binarize_loss_mask=not use_soft_loss_mask,
+    )
+    val_tf = SegValTransform(ch_mean, ch_std)
 
     per_patch = pseudolabels.get("per_patch_mask_dir")
     train_seg_ds = JointChannelSegDataset(
@@ -284,12 +350,14 @@ def setup_data(
         per_patch_mask_dir=per_patch,
         full_image_mask_dir=mask_root,
         transform=train_tf,
+        **ds_loss_kwargs,
     )
     val_seg_ds = JointChannelSegDataset(
         val_patch_ds,
         per_patch_mask_dir=per_patch,
         full_image_mask_dir=mask_root,
         transform=val_tf,
+        **ds_loss_kwargs,
     )
     logger.info(f"train seg dataset = {len(train_seg_ds)}")
     logger.info(f"val   seg dataset = {len(val_seg_ds)}")
@@ -423,11 +491,29 @@ def setup_optimizer(
 # ---------------------------------------------------------------------------
 # Sanity / overfit
 # ---------------------------------------------------------------------------
-def _make_loss(seg_cfg: SegTrainCfg) -> JointChannelDiceBCE:
-    return JointChannelDiceBCE(
-        dice_weight=seg_cfg.dice_weight,
-        bce_weight=seg_cfg.bce_weight,
-        smooth=seg_cfg.dice_smooth,
+def _make_loss(seg_cfg: SegTrainCfg) -> nn.Module:
+    """Build the per-batch loss according to ``seg_cfg.loss_type``.
+
+    - ``"dice_bce"`` (default): :class:`JointChannelDiceBCE` with
+      ``dice_weight`` / ``bce_weight`` / ``dice_smooth``.
+    - ``"tversky"``: :class:`JointChannelTversky` with
+      ``tversky_alpha`` / ``tversky_beta`` / ``dice_smooth``.
+    """
+    loss_type = (getattr(seg_cfg, "loss_type", "dice_bce") or "dice_bce").lower()
+    if loss_type == "tversky":
+        return JointChannelTversky(
+            alpha=seg_cfg.tversky_alpha,
+            beta=seg_cfg.tversky_beta,
+            smooth=seg_cfg.dice_smooth,
+        )
+    if loss_type == "dice_bce":
+        return JointChannelDiceBCE(
+            dice_weight=seg_cfg.dice_weight,
+            bce_weight=seg_cfg.bce_weight,
+            smooth=seg_cfg.dice_smooth,
+        )
+    raise ValueError(
+        f"Unknown seg.loss_type {loss_type!r}; expected 'dice_bce' or 'tversky'."
     )
 
 
@@ -443,7 +529,12 @@ def run_sanity_checks(
     logger,
 ):
     train_loader = data["train_loader"]
-    batch_img, batch_mask = next(iter(train_loader))
+    batch = next(iter(train_loader))
+    if len(batch) == 3:
+        batch_img, batch_mask, batch_lm = batch
+    else:
+        batch_img, batch_mask = batch
+        batch_lm = None
     assert batch_img.shape == (
         data_cfg.batch_size, model_cfg.in_channels,
         model_cfg.img_size, model_cfg.img_size,
@@ -454,9 +545,15 @@ def run_sanity_checks(
     assert torch.isfinite(batch_img).all()
     logger.info(
         f"[ok] batch shapes: img={tuple(batch_img.shape)} mask={tuple(batch_mask.shape)}"
+        + (f" loss_mask={tuple(batch_lm.shape)}" if batch_lm is not None else "")
     )
     logger.info(f"     PRE coverage  = {batch_mask[:, 0].mean().item():.5f}")
     logger.info(f"     POST coverage = {batch_mask[:, 1].mean().item():.5f}")
+    if batch_lm is not None:
+        logger.info(
+            f"     loss-mask mean={float(batch_lm.mean()):.4f}  "
+            f"min={float(batch_lm.min()):.4f}  max={float(batch_lm.max()):.4f}"
+        )
 
     # Forward + grad flow
     model.eval()
@@ -476,8 +573,9 @@ def run_sanity_checks(
     opt.zero_grad(set_to_none=True)
     _img = batch_img[:2].to(device)
     _msk = batch_mask[:2].to(device)
+    _lm = batch_lm[:2].to(device) if batch_lm is not None else None
     out = model(_img)
-    losses = loss_fn(out, _msk)
+    losses = loss_fn(out, _msk, loss_mask=_lm) if _lm is not None else loss_fn(out, _msk)
     losses["loss"].backward()
     n_grad = sum(1 for p in model.parameters() if p.grad is not None)
     n_tot = sum(1 for _ in model.parameters())
@@ -518,10 +616,16 @@ def run_overfit_check(
     logger,
 ):
     train_loader = data["train_loader"]
-    batch_img, batch_mask = next(iter(train_loader))
+    batch = next(iter(train_loader))
+    if len(batch) == 3:
+        batch_img, batch_mask, batch_lm = batch
+    else:
+        batch_img, batch_mask = batch
+        batch_lm = None
     of_model = build_swinunetr(model_cfg, out_channels=2).to(device)
     of_opt = torch.optim.AdamW(of_model.parameters(), lr=lr)
     of_img = batch_img.to(device); of_msk = batch_mask.to(device)
+    of_lm = batch_lm.to(device) if batch_lm is not None else None
     loss_fn = _make_loss(seg_cfg)
 
     loss_hist, dpre_hist, dpost_hist = [], [], []
@@ -529,7 +633,10 @@ def run_overfit_check(
     for _ in tqdm(range(n_steps), desc="overfit"):
         of_opt.zero_grad(set_to_none=True)
         out = of_model(of_img)
-        losses = loss_fn(out, of_msk)
+        if of_lm is not None:
+            losses = loss_fn(out, of_msk, loss_mask=of_lm)
+        else:
+            losses = loss_fn(out, of_msk)
         losses["loss"].backward()
         of_opt.step()
         loss_hist.append(losses["loss"].item())
@@ -724,13 +831,23 @@ def training_loop(
             desc=f"ep {epoch}/{seg_cfg.epochs} [{phase}]",
             leave=False,
         )
-        for img_b, mask_b in pbar:
+        for batch in pbar:
+            if len(batch) == 3:
+                img_b, mask_b, lm_b = batch
+                lm_b = lm_b.to(device, non_blocking=True)
+            else:
+                img_b, mask_b = batch
+                lm_b = None
             img_b  = img_b.to(device, non_blocking=True)
             mask_b = mask_b.to(device, non_blocking=True)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast(device.type, enabled=use_amp, dtype=amp_dtype):
                 logits = model(img_b)
-                losses = loss_fn(logits, mask_b)
+                losses = (
+                    loss_fn(logits, mask_b, loss_mask=lm_b)
+                    if lm_b is not None
+                    else loss_fn(logits, mask_b)
+                )
             if use_fp16:
                 scaler.scale(losses["loss"]).backward()
                 scaler.unscale_(optimizer)
@@ -762,13 +879,25 @@ def training_loop(
         val_loss_sum, val_dpre_sum, val_dpost_sum, n_vb = 0.0, 0.0, 0.0, 0
         t_val = time.time()
         with torch.no_grad():
-            for img_b, mask_b in val_loader:
+            for batch in val_loader:
+                if len(batch) == 3:
+                    img_b, mask_b, lm_b = batch
+                    lm_b = lm_b.to(device, non_blocking=True)
+                else:
+                    img_b, mask_b = batch
+                    lm_b = None
                 img_b  = img_b.to(device, non_blocking=True)
                 mask_b = mask_b.to(device, non_blocking=True)
                 with torch.amp.autocast(device.type, enabled=use_amp, dtype=amp_dtype):
                     logits = model(img_b)
-                    v_losses = loss_fn(logits, mask_b)
+                    v_losses = (
+                        loss_fn(logits, mask_b, loss_mask=lm_b)
+                        if lm_b is not None
+                        else loss_fn(logits, mask_b)
+                    )
                 val_loss_sum += v_losses["loss"].item()
+                # Per-channel Dice metric is computed on un-masked predictions
+                # so the validation number stays comparable across configs.
                 d = compute_dice_metric_per_channel(logits, mask_b)
                 val_dpre_sum  += float(d[0])
                 val_dpost_sum += float(d[1])
@@ -1016,6 +1145,7 @@ def main():
     model_cfg    = cfg["model_cfg"]
     seg_cfg      = cfg["seg_cfg"]
     pseudolabels = cfg["pseudolabels"]
+    loss_mask_cfg = cfg["loss_mask_cfg"]
     coloc_cfg    = cfg["coloc_cfg"]
     sessions     = cfg["sessions"]
     run_sanity   = cfg["run_sanity"]
@@ -1059,6 +1189,7 @@ def main():
         extra={
             "sessions": sessions,
             "pseudolabels": pseudolabels,
+            "loss_mask": loss_mask_cfg,
             "colocalisation": dataclasses.asdict(coloc_cfg),
         },
     )
@@ -1078,6 +1209,7 @@ def main():
     data = setup_data(
         data_cfg, model_cfg, seg_cfg, pseudolabels, sessions,
         seed_generator=generator, logger=logger,
+        loss_mask_cfg=loss_mask_cfg,
     )
     stats = {
         "channel_names": list(data_cfg.channel_names),

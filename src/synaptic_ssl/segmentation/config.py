@@ -27,5 +27,12 @@ class SegTrainCfg:
     bce_weight: float = 1.0
     dice_smooth: float = 1.0
 
+    # loss selection (default keeps the original Dice+BCE behaviour)
+    # "dice_bce" -> :class:`JointChannelDiceBCE` (uses dice_weight, bce_weight, dice_smooth)
+    # "tversky"  -> :class:`JointChannelTversky` (uses tversky_alpha, tversky_beta, dice_smooth)
+    loss_type: str = "dice_bce"
+    tversky_alpha: float = 0.3   # FP weight (< beta => false positives forgiven)
+    tversky_beta: float = 0.7    # FN weight
+
     # pseudo-label cache
     pseudolabel_cache_dir: str | None = None

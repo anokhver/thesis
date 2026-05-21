@@ -290,6 +290,17 @@ class JointChannelSegDataset(Dataset):
     a region of interest (e.g. ``soma ∪ dendrite``); when set,
     ``__getitem__`` returns the 3-tuple ``(image, mask, loss_mask)`` with
     ``loss_mask`` broadcast to ``(2, H, W)``.
+
+    Per-patch ``soma_mask_dir`` + ``dend_mask_dir`` provide a *disk-based*
+    loss mask: for each patch ``<stem>``, the dataset reads
+    ``<soma_mask_dir>/<stem>_soma.npy`` and ``<dend_mask_dir>/<stem>_dend.npy``
+    (both ``(H, W)`` uint8), ORs them, optionally Gaussian-blurs the result
+    with ``loss_mask_blur_sigma`` so the mask boundary is fuzzy (the
+    structural masks are not pixel-perfect), and applies
+    ``loss_mask_floor`` so that pixels outside the structural mask still
+    get a residual weight (``floor=0.0`` = strict masking, ``floor=0.1`` =
+    Recipe-A soft weighting). Positive pixels in ``mask`` are always
+    supervised (the loss-mask is OR-ed with ``mask > 0``).
     """
 
     def __init__(
@@ -302,6 +313,12 @@ class JointChannelSegDataset(Dataset):
         pre_suffix: str = "_pre.npy",
         post_suffix: str = "_post.npy",
         precomputed_loss_masks: dict[str, np.ndarray] | None = None,
+        soma_mask_dir: str | Path | None = None,
+        dend_mask_dir: str | Path | None = None,
+        soma_suffix: str = "_soma.npy",
+        dend_suffix: str = "_dend.npy",
+        loss_mask_blur_sigma: float = 0.0,
+        loss_mask_floor: float = 0.0,
     ):
         if per_patch_mask_dir is None and full_image_mask_dir is None:
             raise ValueError(
@@ -321,6 +338,26 @@ class JointChannelSegDataset(Dataset):
         self.precomputed_loss_masks = precomputed_loss_masks
         # cache of source_key -> (pre_mmap, post_mmap); built lazily
         self._fullimg_cache: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+
+        # Per-patch soma/dend loss-mask source. Both dirs must be set (or both
+        # None). Activated when both are non-None.
+        if (soma_mask_dir is None) != (dend_mask_dir is None):
+            raise ValueError(
+                "soma_mask_dir and dend_mask_dir must both be set or both be None"
+            )
+        self.soma_mask_dir = (
+            Path(soma_mask_dir) if soma_mask_dir is not None else None
+        )
+        self.dend_mask_dir = (
+            Path(dend_mask_dir) if dend_mask_dir is not None else None
+        )
+        self.soma_suffix = soma_suffix
+        self.dend_suffix = dend_suffix
+        self.loss_mask_blur_sigma = float(loss_mask_blur_sigma)
+        self.loss_mask_floor = float(loss_mask_floor)
+        self._use_disk_loss_mask = (
+            self.soma_mask_dir is not None and self.dend_mask_dir is not None
+        )
 
     def __len__(self) -> int:
         return len(self.patch_ds)
@@ -401,19 +438,86 @@ class JointChannelSegDataset(Dataset):
 
     # ------------------------------------------------------------------ loss mask
 
-    def _load_loss_mask(self, rec, expected_hw) -> np.ndarray | None:
-        if self.precomputed_loss_masks is None:
+    def _load_disk_loss_mask(self, rec) -> np.ndarray | None:
+        """Build a soft ``(H, W)`` loss-mask from per-patch soma + dend tiles.
+
+        Returns ``None`` when soma/dend dirs are not configured. Pixels inside
+        ``soma ∪ dend`` get weight 1.0, pixels outside get ``loss_mask_floor``.
+        With ``loss_mask_blur_sigma > 0`` the mask is Gaussian-blurred first so
+        the boundary is fuzzy (the structural masks are not pixel-perfect).
+        """
+        if not self._use_disk_loss_mask:
             return None
-        name = rec["filename"]
-        if name not in self.precomputed_loss_masks:
-            raise KeyError(f"precomputed_loss_masks missing entry for {name!r}")
-        lm = np.asarray(self.precomputed_loss_masks[name])
-        if lm.shape != expected_hw:
-            raise ValueError(
-                f"loss mask for {name!r} has shape {lm.shape}, "
-                f"expected {expected_hw}"
+        stem = Path(rec["filename"]).stem
+        # The soma/dend tarballs use a nested layout: <root>/<session>/<stem>_*.npy
+        session = Path(rec["filename"]).parts[0] if len(Path(rec["filename"]).parts) > 1 else ""
+        for base in (
+            (self.soma_mask_dir / session) if session else self.soma_mask_dir,
+            self.soma_mask_dir,
+        ):
+            cand = base / f"{stem}{self.soma_suffix}"
+            if cand.exists():
+                soma_p = cand
+                break
+        else:
+            raise FileNotFoundError(
+                f"soma mask missing for {rec['filename']!r}"
             )
-        return lm.astype(np.float32)
+        for base in (
+            (self.dend_mask_dir / session) if session else self.dend_mask_dir,
+            self.dend_mask_dir,
+        ):
+            cand = base / f"{stem}{self.dend_suffix}"
+            if cand.exists():
+                dend_p = cand
+                break
+        else:
+            raise FileNotFoundError(
+                f"dend mask missing for {rec['filename']!r}"
+            )
+        soma = np.load(soma_p).astype(np.float32)
+        dend = np.load(dend_p).astype(np.float32)
+        struct = ((soma > 0) | (dend > 0)).astype(np.float32)
+        if self.loss_mask_blur_sigma > 0:
+            from scipy.ndimage import gaussian_filter
+
+            struct = gaussian_filter(struct, sigma=self.loss_mask_blur_sigma)
+            # blur produces values in [0, 1]; renormalise so max -> 1.0
+            mx = float(struct.max())
+            if mx > 0:
+                struct = struct / mx
+        # apply floor: pixels outside structural mask still get residual weight
+        if self.loss_mask_floor > 0:
+            struct = np.maximum(struct, self.loss_mask_floor)
+        return struct.astype(np.float32)
+
+    def _load_loss_mask(self, rec, expected_hw) -> np.ndarray | None:
+        # 1. in-memory dict (highest priority, unchanged legacy behaviour)
+        if self.precomputed_loss_masks is not None:
+            name = rec["filename"]
+            if name not in self.precomputed_loss_masks:
+                raise KeyError(
+                    f"precomputed_loss_masks missing entry for {name!r}"
+                )
+            lm = np.asarray(self.precomputed_loss_masks[name])
+            if lm.shape != expected_hw:
+                raise ValueError(
+                    f"loss mask for {name!r} has shape {lm.shape}, "
+                    f"expected {expected_hw}"
+                )
+            return lm.astype(np.float32)
+        # 2. soft loss mask from per-patch soma+dend tiles
+        if self._use_disk_loss_mask:
+            lm = self._load_disk_loss_mask(rec)
+            if lm is None:
+                return None
+            if lm.shape != expected_hw:
+                raise ValueError(
+                    f"disk loss mask for {rec['filename']!r} has shape "
+                    f"{lm.shape}, expected {expected_hw}"
+                )
+            return lm
+        return None
 
     # ------------------------------------------------------------------ getitem
 
@@ -435,8 +539,12 @@ class JointChannelSegDataset(Dataset):
         loss_mask = None
         if loss_mask_np is not None:
             # broadcast (H, W) -> (2, H, W) so SegTrainTransform applies
-            # identical geometry to both channels
-            base = ((loss_mask_np > 0) | (mask_np.sum(axis=0) > 0)).astype(np.float32)
+            # identical geometry to both channels. Pixels where mask>0 are
+            # always fully supervised (max(loss_mask, 1.0) at puncta) so
+            # we don't silently down-weight pseudo-positives if they land
+            # outside the structural mask due to mask noise.
+            mask_pos = (mask_np.sum(axis=0) > 0).astype(np.float32)
+            base = np.maximum(loss_mask_np, mask_pos)
             loss_mask = torch.from_numpy(np.stack([base, base], axis=0)).float()
 
         if self.transform is not None:

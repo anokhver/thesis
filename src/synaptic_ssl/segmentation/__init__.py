@@ -5,6 +5,7 @@ from .dataset import PseudoLabelSegDataset, JointChannelSegDataset
 from .losses import (
     DiceBCELoss, SoftDiceLoss, compute_dice_metric,
     JointChannelDiceBCE, compute_dice_metric_per_channel,
+    TverskyLoss, JointChannelTversky,
 )
 from .model import build_swinunetr, load_pretrained_encoder_into_swinunetr, count_params
 from .augment import SegTrainTransform, SegValTransform
@@ -27,6 +28,7 @@ __all__ = [
     "PseudoLabelSegDataset", "JointChannelSegDataset",
     "DiceBCELoss", "SoftDiceLoss", "compute_dice_metric",
     "JointChannelDiceBCE", "compute_dice_metric_per_channel",
+    "TverskyLoss", "JointChannelTversky",
     "build_swinunetr", "load_pretrained_encoder_into_swinunetr", "count_params",
     "SegTrainTransform", "SegValTransform",
     "sliding_window_predict", "predict_full_image",

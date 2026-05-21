@@ -25,12 +25,19 @@ class SegTrainTransform:
         translate_max: int = 5,
         gauss_noise_sigma: float = 0.005,
         poisson_scale: float = 0.005,
+        binarize_loss_mask: bool = True,
     ):
         self.ch_mean = ch_mean.view(-1, 1, 1)
         self.ch_std = ch_std.view(-1, 1, 1)
         self.translate_max = translate_max
         self.gauss_noise_sigma = gauss_noise_sigma
         self.poisson_scale = poisson_scale
+        # Hard-binarise the loss mask after geometric augmentation.
+        # Default ``True`` preserves the existing binary-mask semantics.
+        # Set ``False`` for *soft* loss masks (Recipe A) where pixels
+        # outside the structural region have a non-zero residual weight
+        # (e.g. ``floor=0.1``); binarising at 0.5 would collapse the floor.
+        self.binarize_loss_mask = bool(binarize_loss_mask)
 
     @staticmethod
     def _flips_rot90(x: torch.Tensor, hflip: bool, vflip: bool, k: int):
@@ -97,7 +104,10 @@ class SegTrainTransform:
         # re-binarise masks after interpolation artifacts from translate
         mask = (mask > 0.5).float()
         if loss_mask is not None:
-            loss_mask = (loss_mask > 0.5).float()
+            if self.binarize_loss_mask:
+                loss_mask = (loss_mask > 0.5).float()
+            else:
+                loss_mask = loss_mask.clamp(0.0, 1.0)
             return image, mask, loss_mask
         return image, mask
 

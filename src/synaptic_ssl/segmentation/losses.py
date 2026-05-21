@@ -214,3 +214,117 @@ def compute_dice_metric_per_channel(
         pred_flat.sum(dim=2) + target_flat.sum(dim=2) + smooth
     )
     return dice.mean(dim=0)  # (C,)
+
+
+class TverskyLoss(nn.Module):
+    """Differentiable Tversky loss for binary segmentation.
+
+    ``T = TP / (TP + alpha * FP + beta * FN)`` (per-batch-item, then mean).
+
+    - ``alpha = beta = 0.5`` reduces to Dice.
+    - ``alpha < beta`` makes false positives cheaper than false negatives,
+      i.e. the model is **less** punished for predicting puncta the
+      pseudo-labels missed. Use this when you trust the labelled positives
+      but suspect the pseudo-labels have missed real ones (typical
+      pseudo-label noise regime).
+    """
+
+    def __init__(
+        self,
+        alpha: float = 0.3,
+        beta: float = 0.7,
+        smooth: float = 1.0,
+    ):
+        super().__init__()
+        self.alpha = float(alpha)
+        self.beta = float(beta)
+        self.smooth = float(smooth)
+
+    def forward(
+        self,
+        logits: torch.Tensor,
+        target: torch.Tensor,
+        loss_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        pred = torch.sigmoid(logits)
+        if loss_mask is not None:
+            pred = pred * loss_mask
+            target = target * loss_mask
+        pred_flat = pred.view(pred.size(0), -1)
+        target_flat = target.view(target.size(0), -1)
+        tp = (pred_flat * target_flat).sum(dim=1)
+        fp = (pred_flat * (1.0 - target_flat)).sum(dim=1)
+        fn = ((1.0 - pred_flat) * target_flat).sum(dim=1)
+        tversky = (tp + self.smooth) / (
+            tp + self.alpha * fp + self.beta * fn + self.smooth
+        )
+        return 1.0 - tversky.mean()
+
+
+class JointChannelTversky(nn.Module):
+    """Per-channel :class:`TverskyLoss` summed over a 2-channel output.
+
+    Mirrors :class:`JointChannelDiceBCE`: applies an independent Tversky
+    loss to PRE (channel 0) and POST (channel 1), returns the mean.
+
+    The same ``loss_mask`` conventions apply: ``None``, ``(B, 1, H, W)``
+    (broadcast across channels), or ``(B, 2, H, W)`` (channel-specific).
+    """
+
+    def __init__(
+        self,
+        alpha: float = 0.3,
+        beta: float = 0.7,
+        smooth: float = 1.0,
+    ):
+        super().__init__()
+        self.pre_loss = TverskyLoss(alpha=alpha, beta=beta, smooth=smooth)
+        self.post_loss = TverskyLoss(alpha=alpha, beta=beta, smooth=smooth)
+
+    @staticmethod
+    def _slice_loss_mask(
+        loss_mask: torch.Tensor | None, ch: int
+    ) -> torch.Tensor | None:
+        if loss_mask is None:
+            return None
+        if loss_mask.size(1) == 1:
+            return loss_mask
+        if loss_mask.size(1) == 2:
+            return loss_mask[:, ch : ch + 1]
+        raise ValueError(
+            f"loss_mask must have 1 or 2 channels; got {loss_mask.size(1)}"
+        )
+
+    def forward(
+        self,
+        logits: torch.Tensor,
+        target: torch.Tensor,
+        loss_mask: torch.Tensor | None = None,
+    ) -> dict:
+        if logits.size(1) != 2 or target.size(1) != 2:
+            raise ValueError(
+                f"JointChannelTversky expects 2-channel logits/target; "
+                f"got logits={tuple(logits.shape)} target={tuple(target.shape)}"
+            )
+        pre_loss = self.pre_loss(
+            logits[:, 0:1], target[:, 0:1],
+            loss_mask=self._slice_loss_mask(loss_mask, 0),
+        )
+        post_loss = self.post_loss(
+            logits[:, 1:2], target[:, 1:2],
+            loss_mask=self._slice_loss_mask(loss_mask, 1),
+        )
+        total = 0.5 * (pre_loss + post_loss)
+        # Provide the same dict shape as JointChannelDiceBCE so the
+        # training loop's running-metric dict ("dice_loss", "bce_loss")
+        # accumulators don't crash. Tversky has no Dice/BCE breakdown,
+        # so we put the total loss in the "dice_loss" slot and zero in
+        # "bce_loss" (purely cosmetic; CSV columns stay populated).
+        zero = total.detach() * 0.0
+        return {
+            "loss":      total,
+            "dice_loss": total.detach(),
+            "bce_loss":  zero,
+            "pre_loss":  pre_loss,
+            "post_loss": post_loss,
+        }
