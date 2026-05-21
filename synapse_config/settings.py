@@ -103,3 +103,25 @@ ANALYSIS_JOBS_SYNC = os.environ.get("ANALYSIS_JOBS_SYNC", "0") == "1"
 ANALYSIS_STALE_AFTER_MINUTES = int(
     os.environ.get("ANALYSIS_STALE_AFTER_MINUTES", "60")
 )
+
+# ML pipeline I/O locations.
+# Override any of these via env vars when deploying (e.g. point
+# CHECKPOINT_DIR at a shared NFS mount). Defaults live under MEDIA_ROOT
+# so a fresh checkout works without any configuration.
+CHECKPOINT_DIR = Path(
+    os.environ.get("CHECKPOINT_DIR", MEDIA_ROOT / "checkpoints")
+)
+PATCHES_UPLOAD_DIR = Path(
+    os.environ.get("PATCHES_UPLOAD_DIR", MEDIA_ROOT / "patches_upload")
+)
+BUNDLES_DIR = Path(
+    os.environ.get("BUNDLES_DIR", MEDIA_ROOT / "bundles")
+)
+RUNS_DIR = Path(
+    os.environ.get("RUNS_DIR", MEDIA_ROOT / "runs")
+)
+
+# Upload-size cap for encoder checkpoints (.pt). 500 MB by default.
+MAX_CHECKPOINT_UPLOAD_BYTES = int(
+    os.environ.get("MAX_CHECKPOINT_UPLOAD_BYTES", str(500 * 1024 * 1024))
+)
