@@ -26,6 +26,12 @@ class BaseCfg:
 class DataCfg:
     data_root: str = "../../../data/patches_128"
     exclude_patterns: list[str] = field(default_factory=lambda: ["KONTROLA"])
+    # Optional path to an external JSON file holding a list of exclude
+    # patterns under either the top-level key ``"exclude_patterns"`` or as
+    # a bare JSON list. When set, those patterns are appended to
+    # ``exclude_patterns`` (deduplicated, order preserved) at config load
+    # time. Lets configs reuse a shared exclude list without inlining it.
+    exclude_patterns_file: str | None = None
     val_split: float = 0.1
     batch_size: int = 64
     num_workers: int = 1
@@ -123,9 +129,11 @@ class SSLCfg:
     # ICLR 2022, Table 12: top-1 accuracy improves from 55.9% (dim=256) to
     # 68.6% (dim=8192). Width must be >= encoder dim or BN inside the
     # projector trivially satisfies the variance hinge while the encoder
-    # collapses. 2048 is safely above typical Swin-T stage widths used here.
-    projector_hidden: int = 2048
-    projector_dim: int = 2048
+    # collapses. 512 is a compact default; raise above the encoder dim used
+    # here (Swin-T stage-4 = feature_size * 8, e.g. 768) when running with
+    # ``w_vicreg > 0``.
+    projector_hidden: int = 512
+    projector_dim: int = 512
     # Foreground-weighted reconstruction. Each masked pixel's error is
     # multiplied by ``1 + alpha * sigmoid((target - tau) / temp)``, with the
     # logit reduced over channels by ``amax`` so a pixel that is bright in
@@ -146,19 +154,23 @@ class SSLCfg:
     # in JSON configs to avoid accidental drift between code defaults and
     # experiment settings.
     head_stage_index: int = -1
-    # Per-patch target normalisation (MAE-style; He et al., CVPR 2022 §4.2).
-    # When ``per_patch_target_norm=True``, the reconstruction target is
-    # split into ``target_norm_patch_size``-sized tiles and each tile is
-    # rescaled to mean 0 / std 1 per (sample, channel) before the L1/L2
-    # loss is computed. Removes the "predict the channel mean" shortcut on
-    # mostly-black inputs (the predicted constant has tile-std 0 while the
-    # target has tile-std 1, so the loss never collapses to background).
-    per_patch_target_norm: bool = False
-    target_norm_patch_size: int = 8
     # Threshold (in z-scored target space) above which a pixel counts as
     # foreground for the diagnostic recon_fg metric. tau=1 means "one
     # channel std above the channel mean" — a punctum in z-scored inputs.
     fg_metric_threshold: float = 1.0
+    # When True, validation builds two augmented views per sample using the
+    # train-time augmentation pipeline (with deterministic per-sample seeding
+    # so the val number is comparable across epochs) and computes the full
+    # joint SimMIM+VICReg loss under ``no_grad``. The validation dict then
+    # gains a ``sim`` term and a true ``ssl_loss`` matching the training
+    # objective. When False (default), validation is single-view and
+    # ``L_sim`` is omitted -- existing behaviour, exactly preserved.
+    two_view_validation: bool = False
+    # Base seed used by the deterministic two-view validation transform and
+    # by the deterministic validation block-mask. Per-sample seed is
+    # ``val_view_seed + sample_index``; per-batch mask seed is
+    # ``val_view_seed + batch_index``.
+    val_view_seed: int = 12345
 
 def _to_jsonable(obj: Any) -> Any:
     if dataclasses.is_dataclass(obj):

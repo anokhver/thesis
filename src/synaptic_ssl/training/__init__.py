@@ -4,9 +4,16 @@ from .config import BaseCfg, DataCfg, ModelCfg, TrainCfg, SSLCfg, dump_config
 from .seeding import seed_everything
 from .logging import setup_logger, CSVMetricLogger
 from .data import build_dataloaders, compute_channel_stats, TransformedSubset, split_train_val
-from .augment import MicroscopyTwoViewTransform, ValSingleViewTransform
+from .augment import MicroscopyTwoViewTransform, ValSingleViewTransform, SeededTwoViewTransform
 from .masking import random_block_mask, apply_mask
-from .losses import compute_simmim_vicreg_loss, validation_simmim, simmim_recon_loss, fourier_recon_loss, vicreg_terms
+from .losses import (
+    compute_simmim_vicreg_loss,
+    validation_simmim,
+    validation_simmim_two_view,
+    simmim_recon_loss,
+    fourier_recon_loss,
+    vicreg_terms,
+)
 from .lr_schedule import param_groups_layer_decay, make_warmup_cosine
 from .checkpoints import save_checkpoint, load_checkpoint, find_latest_checkpoint
 from .sanity_batch import (
@@ -29,11 +36,11 @@ __all__ = [
     # data
     "build_dataloaders", "compute_channel_stats", "TransformedSubset", "split_train_val",
     # augment
-    "MicroscopyTwoViewTransform", "ValSingleViewTransform",
+    "MicroscopyTwoViewTransform", "ValSingleViewTransform", "SeededTwoViewTransform",
     # masking
     "random_block_mask", "apply_mask",
     # losses
-    "compute_simmim_vicreg_loss", "validation_simmim",
+    "compute_simmim_vicreg_loss", "validation_simmim", "validation_simmim_two_view",
     "simmim_recon_loss", "fourier_recon_loss", "vicreg_terms",
     # lr_schedule
     "param_groups_layer_decay", "make_warmup_cosine",

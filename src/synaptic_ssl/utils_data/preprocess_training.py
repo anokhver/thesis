@@ -34,6 +34,8 @@ from typing import Optional
 
 import numpy as np
 
+from .patching import INDEX_FIELDS, extract_patches
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -140,14 +142,12 @@ def load_image(path: Path) -> np.ndarray:
 
 def maximum_intensity_projection(volume: np.ndarray) -> np.ndarray:
     """MIP along Z (axis 1). ``(C, Z, Y, X)`` → ``(C, Y, X)`` float32."""
-    # MIP along Z axis (axis=1)
     mip = volume.max(axis=1).astype(np.float32)
     return mip
 
 
 def best_z_slice(volume: np.ndarray) -> int:
     """Return the Z-index with the highest summed intensity across C·Y·X."""
-    # Sum over C, Y, X for each z → shape (Z,)
     intensity_per_z = volume.sum(axis=(0, 2, 3))
     return int(np.argmax(intensity_per_z))
 
@@ -175,7 +175,6 @@ def normalize_percentile(
         vmax = np.percentile(ch, phigh)
         denom = vmax - vmin
         if denom < 1e-8:
-            # Dead channel: set to zero
             out[c] = 0.0
         else:
             out[c] = np.clip((ch - vmin) / denom, 0.0, 1.0)
@@ -185,28 +184,7 @@ def normalize_percentile(
 # ---------------------------------------------------------------------------
 # Tiling into patches
 # ---------------------------------------------------------------------------
-
-def extract_patches(
-    image: np.ndarray,
-    patch_size: int = 128,
-) -> np.ndarray:
-    """Tile ``(C, H, W)`` into non-overlapping ``(N, C, ps, ps)`` patches.
-
-    Trim the bottom/right strip if ``H`` or ``W`` is not divisible by ``patch_size``.
-    """
-    C, H, W = image.shape
-    n_rows = H // patch_size
-    n_cols = W // patch_size
-
-    # Trim if not perfectly divisible
-    image = image[:, : n_rows * patch_size, : n_cols * patch_size]
-
-    # Reshape via view: (C, n_rows, ps, n_cols, ps) → (n_rows, n_cols, C, ps, ps)
-    patches = image.reshape(C, n_rows, patch_size, n_cols, patch_size)
-    patches = patches.transpose(1, 3, 0, 2, 4)  # (n_rows, n_cols, C, ps, ps)
-    patches = patches.reshape(-1, C, patch_size, patch_size)  # (N, C, ps, ps)
-
-    return patches
+# ``extract_patches`` lives in ``patching`` and is re-exported above.
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +238,8 @@ def process_single_image(
         records.append({
             "filename": fname,
             "source_image": path.name,
+            "source_npy": "",
+            "source_path": str(path.resolve()),
             "image_index": image_index,
             "grid_row": row,
             "grid_col": col,
@@ -455,9 +435,10 @@ def main():
 
     csv_path = args.output_dir / "index.csv"
     if all_records:
-        fieldnames = list(all_records[0].keys())
         with open(csv_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(
+                f, fieldnames=list(INDEX_FIELDS), extrasaction="ignore"
+            )
             writer.writeheader()
             writer.writerows(all_records)
     else:

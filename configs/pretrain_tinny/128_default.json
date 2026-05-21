@@ -1,0 +1,133 @@
+{
+  "run_sanity": true,
+  "run_overfit": true,
+  "base": {
+    "seed": 42,
+    "output_root": "../data/training_outputs/pretrain_tinny22k",
+    "experiment_name": "simmim_vicreg_pretrain",
+    "tag": "tinny22k_default",
+    "method_name": "simmim_vicreg",
+    "init_source": "timm_imagenet",
+    "pretrained_ckpt_path": "../data/checkpoints/swin_tiny_patch4_window7_224_22k.pth",
+    "resume_path": null,
+    "dry_run": false
+  },
+  "data": {
+    "data_root": "../data/patches_128_from_zip",
+    "exclude_patterns": [],
+    "val_split": 0.2,
+    "batch_size": 224,
+    "num_workers": 6,
+    "pin_memory": true,
+    "channel_names": [
+      "pre_synaptic",
+      "post_synaptic",
+      "structural"
+    ],
+    "channel_stats_max_samples": 4096,
+    "exclude_patterns_file": "../data/data_analysis/exclude.json"
+  },
+  "model": {
+    "in_channels": 3,
+    "img_size": 128,
+    "feature_size": 96,
+    "patch_size": 2,
+    "window_size": 7,
+    "depths": [
+      2,
+      2,
+      6,
+      2
+    ],
+    "num_heads": [
+      3,
+      6,
+      12,
+      24
+    ],
+    "dropout_path_rate": 0.05
+  },
+  "train": {
+    "epochs": 30,
+    "warmup_epochs": 2,
+    "base_lr": 0.00035,
+    "head_lr": 0.00035,
+    "weight_decay": 0.05,
+    "layer_decay": 1.0,
+    "grad_clip_norm": 5.0,
+    "freeze_encoder_epochs": 1,
+    "save_every_n_epochs": 5,
+    "val_metric_key": "recon_fg",
+    "val_metric_direction": "min",
+    "encoder_save_name": "pretrained_encoder_tinny22k_default.pt"
+  },
+  "ssl": {
+    "mask_ratio": 0.6,
+    "mask_block_size": 16,
+    "loss_kind": "l1",
+    "lambda_sim": 25.0,
+    "lambda_std": 25.0,
+    "lambda_cov": 1.0,
+    "w_recon": 1.0,
+    "w_vicreg": 0.0,
+    "projector_hidden": 2048,
+    "projector_dim": 2048,
+    "w_fourier": 0.01,
+    "head_stage_index": -1,
+    "two_view_validation": true,
+    "val_view_seed": 42
+  },
+  "unfreeze_schedule": [
+    [
+      1,
+      [
+        "random",
+        "layers4"
+      ]
+    ],
+    [
+      2,
+      [
+        "random",
+        "layers4",
+        "layers3"
+      ]
+    ],
+    [
+      3,
+      [
+        "random",
+        "layers4",
+        "layers3",
+        "layers2"
+      ]
+    ],
+    [
+      4,
+      [
+        "random",
+        "layers4",
+        "layers3",
+        "layers2",
+        "layers1"
+      ]
+    ],
+    [
+      5,
+      [
+        "random",
+        "layers4",
+        "layers3",
+        "layers2",
+        "layers1",
+        "patch_embed"
+      ]
+    ]
+  ],
+  "full_image": {
+    "enabled": true,
+    "image_index": null,
+    "overlap": 0.5,
+    "batch_size": 16
+  }
+}

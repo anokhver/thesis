@@ -58,7 +58,12 @@ class SegTrainTransform:
             x = x + torch.randn_like(x) * self.gauss_noise_sigma
         return x
 
-    def __call__(self, image: torch.Tensor, mask: torch.Tensor):
+    def __call__(
+        self,
+        image: torch.Tensor,
+        mask: torch.Tensor,
+        loss_mask: torch.Tensor | None = None,
+    ):
         # sample geometric params (shared between image and mask)
         hflip = torch.rand(()) < 0.5
         vflip = torch.rand(()) < 0.5
@@ -66,16 +71,22 @@ class SegTrainTransform:
         tx = int(torch.randint(-self.translate_max, self.translate_max + 1, ()).item())
         ty = int(torch.randint(-self.translate_max, self.translate_max + 1, ()).item())
 
-        # apply identical geometry to both
+        # apply identical geometry to image, mask and (optional) loss_mask
         image = self._flips_rot90(image, hflip, vflip, k)
         mask = self._flips_rot90(mask, hflip, vflip, k)
+        if loss_mask is not None:
+            loss_mask = self._flips_rot90(loss_mask, hflip, vflip, k)
         # IMPORTANT: pad images with reflect (preserves intensity statistics)
         # but masks with constant 0. Reflect padding mirrors any sparse
         # punctum near a border to its phantom counterpart on the opposite
         # side, which would manifest as artificial positives after the
         # post-translate re-binarisation. See `.planning/pseudolabels-thesis-notes.md`.
+        # The loss_mask is padded constant 0 too: translated-in regions
+        # outside the original FOV are not supervised.
         image = self._translate(image, tx, ty, pad_mode="reflect")
         mask = self._translate(mask, tx, ty, pad_mode="constant")
+        if loss_mask is not None:
+            loss_mask = self._translate(loss_mask, tx, ty, pad_mode="constant")
 
         # image-only augmentation
         image = self._noise(image)
@@ -83,19 +94,28 @@ class SegTrainTransform:
         # normalise image (mask stays binary)
         image = (image - self.ch_mean) / self.ch_std
 
-        # re-binarise mask after interpolation artifacts from translate
+        # re-binarise masks after interpolation artifacts from translate
         mask = (mask > 0.5).float()
-
+        if loss_mask is not None:
+            loss_mask = (loss_mask > 0.5).float()
+            return image, mask, loss_mask
         return image, mask
 
 
 class SegValTransform:
-    """Channel-normalise image. Pass mask through unchanged."""
+    """Channel-normalise image. Pass mask (and optional loss_mask) unchanged."""
 
     def __init__(self, ch_mean: torch.Tensor, ch_std: torch.Tensor):
         self.ch_mean = ch_mean.view(-1, 1, 1)
         self.ch_std = ch_std.view(-1, 1, 1)
 
-    def __call__(self, image: torch.Tensor, mask: torch.Tensor):
+    def __call__(
+        self,
+        image: torch.Tensor,
+        mask: torch.Tensor,
+        loss_mask: torch.Tensor | None = None,
+    ):
         image = (image.float() - self.ch_mean) / self.ch_std
+        if loss_mask is not None:
+            return image, mask, loss_mask
         return image, mask

@@ -25,38 +25,40 @@ def plot_singular_value_spectrum(S, ax=None, mark_target_var: float = 0.95):
 
 
 def plot_resolution_stability(summary: dict, full: dict, ax=None):
-    """``summary[r] = (mean_ari, std_ari)``; ``full[r] = labels``."""
+    """Plot bootstrap stability across resolutions.
+
+    ``summary[r] = (mean_ari, std_ari, mean_nmi, std_nmi)`` (legacy
+    2-tuple is also accepted, in which case only ARI is plotted);
+    ``full[r] = labels``. ARI (Lange et al. 2004; Hubert & Arabie 1985)
+    is the primary curve used for resolution selection; NMI (Strehl &
+    Ghosh 2002) is overlaid as a complementary clustering-similarity
+    measure that is invariant to cluster relabelling.
+    """
     import matplotlib.pyplot as plt
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 4))
     rs = sorted(summary.keys())
-    means = [summary[r][0] for r in rs]
-    stds  = [summary[r][1] for r in rs]
+    has_nmi = len(next(iter(summary.values()))) >= 4
+    means_ari = [summary[r][0] for r in rs]
+    stds_ari  = [summary[r][1] for r in rs]
     ks    = [len(set(full[r])) for r in rs]
-    ax.errorbar(rs, means, yerr=stds, fmt="o-", capsize=3, color="C0",
+    ax.errorbar(rs, means_ari, yerr=stds_ari, fmt="o-", capsize=3, color="C0",
                 label="bootstrap ARI")
+    if has_nmi:
+        means_nmi = [summary[r][2] for r in rs]
+        stds_nmi  = [summary[r][3] for r in rs]
+        ax.errorbar(rs, means_nmi, yerr=stds_nmi, fmt="^--", capsize=3,
+                    color="C2", alpha=0.7, label="bootstrap NMI")
     ax.set_xlabel("Leiden resolution")
-    ax.set_ylabel("mean ARI vs full partition", color="C0")
-    ax.tick_params(axis="y", labelcolor="C0")
+    ax.set_ylabel("stability vs full partition")
+    ax.tick_params(axis="y")
     ax2 = ax.twinx()
     ax2.plot(rs, ks, "s--", color="C3", alpha=0.7, label="K (# clusters)")
     ax2.set_ylabel("# clusters", color="C3")
     ax2.tick_params(axis="y", labelcolor="C3")
     ax.set_title("Bootstrap resolution stability")
     ax.grid(alpha=0.3)
-    return ax
-
-
-def plot_bic_curve(bics, ax=None, title: str = "GMM-BIC"):
-    import matplotlib.pyplot as plt
-    if ax is None:
-        _, ax = plt.subplots(figsize=(6, 3.5))
-    ks, bs = zip(*sorted(bics))
-    ax.plot(ks, bs, "o-")
-    bestk = ks[int(np.argmin(bs))]
-    ax.axvline(bestk, color="red", ls="--", label=f"BIC-min K = {bestk}")
-    ax.set_xlabel("K"); ax.set_ylabel("BIC")
-    ax.set_title(title); ax.grid(alpha=0.3); ax.legend()
+    ax.legend(loc="lower left", fontsize=8)
     return ax
 
 
@@ -292,10 +294,14 @@ def plot_group_frequency_boxplots(
     *,
     max_clusters: int = 20,
     figsize: tuple[float, float] | None = None,
+    q_values: np.ndarray | None = None,
 ):
     """Per-cluster boxplot of image frequencies, split by group.
 
-    Shows which clusters drive group differences.
+    Shows which clusters drive group differences. When ``q_values`` is
+    given (one corrected p per cluster, e.g. from
+    :func:`per_cluster_kruskal_wallis`), each cluster is annotated with
+    ``*``/``**``/``***`` for q < 0.05/0.01/0.001 and ``n.s.`` otherwise.
     """
     import matplotlib.pyplot as plt
 
@@ -334,5 +340,30 @@ def plot_group_frequency_boxplots(
     ax.set_title("Cluster frequency by group")
     ax.legend(fontsize=9)
     ax.grid(axis="y", alpha=0.3)
+
+    if q_values is not None:
+        q_arr = np.asarray(q_values, dtype=np.float64)
+        # headroom for stars
+        ymax_per_k = freq[:, :k].max(axis=0) if freq.shape[1] >= k else \
+            np.full(k, np.nan)
+        ylim_top = float(np.nanmax(ymax_per_k)) if np.isfinite(
+            np.nanmax(ymax_per_k)) else 1.0
+        ax.set_ylim(top=ylim_top * 1.15)
+        for ki in range(k):
+            if ki >= len(q_arr) or not np.isfinite(q_arr[ki]):
+                continue
+            q = q_arr[ki]
+            if q < 0.001:
+                ann, weight = "***", "bold"
+            elif q < 0.01:
+                ann, weight = "**", "bold"
+            elif q < 0.05:
+                ann, weight = "*", "bold"
+            else:
+                ann, weight = "n.s.", "normal"
+            ax.text(ki, ymax_per_k[ki] * 1.05, ann,
+                    ha="center", va="bottom",
+                    fontsize=9, fontweight=weight)
+
     fig.tight_layout()
     return fig

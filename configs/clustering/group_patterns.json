@@ -1,0 +1,21 @@
+{
+  "_comment": "Maps source_image filename substrings (upper-cased) to display names of treatment groups. Order matters: first-match-wins, so place more specific patterns before more general ones (e.g. PSYHARMIN before PSY, NORPSIHARMIN before NORPSI). Loaded via synaptic_ssl.clustering.pipeline.load_group_patterns.",
+  "patterns": [
+    ["NORPSIHARMIN",  "Norpsilocin + harmine"],
+    ["PSIHARMIN",     "Psilocin + harmine"],
+    ["PSYHARMIN",     "Psilocybin + harmine"],
+    ["NORBAEOHARMIN", "Norbaeocystin + harmine"],
+    ["BAEOHARMIN",    "Baeocystin + harmine"],
+    ["AERUGHARMIN",   "Aeruginascin + harmine"],
+    ["NORPSI",        "Norpsilocin"],
+    ["NORBAEO",       "Norbaeocystin"],
+    ["BAEO",          "Baeocystin"],
+    ["AERUG",         "Aeruginascin"],
+    ["PSY",           "Psilocybin"],
+    ["PSI",           "Psilocin"],
+    ["HARMIN",        "Harmine"],
+    ["LITHIUM",       "Lithium"],
+    ["KONTROLA",      "Control"],
+    ["NC",            "Negative Control"]
+  ]
+}

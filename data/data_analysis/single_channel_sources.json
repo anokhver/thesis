@@ -1,0 +1,18 @@
+{
+  "_comment": "PPNC2 24h acquisitions from 20251220 (801..810) — these were captured with a single fluorescence channel only (shape (1, 128, 128) per patch) while the rest of the dataset is 3-channel. They are excluded from SSL pretraining via exclude_patterns.",
+  "channel_count": 1,
+  "acquisition_date": "20251220",
+  "patch_shape": [1, 128, 128],
+  "sources": [
+    "7_8_PPNC2_24hod_1_Multichannel Z-Stack_20251220_801.npy",
+    "7_8_PPNC2_24hod_2_Multichannel Z-Stack_20251220_802.npy",
+    "7_8_PPNC2_24hod_3_Multichannel Z-Stack_20251220_803.npy",
+    "7_8_PPNC2_24hod_4_Multichannel Z-Stack_20251220_804.npy",
+    "7_8_PPNC2_24hod_5_Multichannel Z-Stack_20251220_805.npy",
+    "7_8_PPNC2_24hod_6_Multichannel Z-Stack_20251220_806.npy",
+    "7_8_PPNC2_24hod_7_Multichannel Z-Stack_20251220_807.npy",
+    "7_8_PPNC2_24hod_8_Multichannel Z-Stack_20251220_808.npy",
+    "7_8_PPNC2_24hod_9_Multichannel Z-Stack_20251220_809.npy",
+    "7_8_PPNC2_24hod_10_Multichannel Z-Stack_20251220_810.npy"
+  ]
+}

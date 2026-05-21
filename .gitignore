@@ -2,9 +2,6 @@
 papers/*
 /doc/
 
-# Model checkpoints (too large for GitHub)
-*.pt
-
 # Python
 __pycache__/
 *.pyc
@@ -15,9 +12,19 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 
-# Data (too large for GitHub)
-/data/
-data/
+# Data (too large for GitHub) — master's authoritative rules
+data/*
+!data/imaging_outputs/
+!data/data_analysis/
+*.pth
+*.pt
+*.ckpt
+*.npy
+*.npz
+*.zip
+*.tar*
+training_outputs_old/
+*patches*/
 
 # Papermill executed-notebook outputs
 notebooks/**/runs/
@@ -28,6 +35,11 @@ notebooks/**/outputs/
 # Personal notes
 .my/
 .old/
+.planning
+.papers
+.tmp_papers
+.inspo
+inspo
 
 # Envs
 .venv/
@@ -35,11 +47,6 @@ notebooks/**/outputs/
 .vscode/
 my_pck_project/
 .runs-analyse/
-inspo
-.planning
-.papers
-.tmp_papers
-*md
 
 # Django (frontend)
 db/

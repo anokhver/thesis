@@ -1,17 +1,22 @@
 #!/bin/bash
 #PBS -N pretrain_moby_script
-#PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=95000mb:scratch_local=50gb
-#PBS -l walltime=6:00:00
+#PBS -l select=1:ncpus=8:mem=64gb:ngpus=1:gpu_mem=95000mb:scratch_local=20gb
+#PBS -l walltime=5:00:00
 #PBS -j oe
 #PBS -o /storage/brno2/home/anokhver/thesis/logs/
 #PBS -m abe
-#PBS -M your@email.com
+#PBS -M veronika.i.anokhina@gmail.com
 
 # SimMIM+VICReg pretrain from MoBY weights (script version).
 # Outputs go to data/training_outputs/.
+#
+# Variant selection (default: 128_default.json):
+#   qsub scripts/metacentrum/submit_pretrain_moby_py.sh
+#   qsub -v CONFIG=configs/pretrain_moby/128_no_fourier_vicreg_on.json  scripts/metacentrum/submit_pretrain_moby_py.sh
+#   qsub -v CONFIG=configs/pretrain_moby/128_no_fourier_vicreg_off.json scripts/metacentrum/submit_pretrain_moby_py.sh
 
 PROJECT_DIR="/storage/brno2/home/anokhver/thesis"
-CONFIG="${PROJECT_DIR}/configs/pretrain_moby/default.json"
+CONFIG="${CONFIG:-${PROJECT_DIR}/configs/pretrain_moby/128_default.json}"
 CONDA_ENV="microscopy"
 
 set -euo pipefail
@@ -32,7 +37,7 @@ echo "Config:    ${CONFIG}"
 echo "Start:     $(date)"
 echo "================"
 
-python scripts/pretrain_simmim_vicreg.py \
+python scripts/training/pretrain_simmim_vicreg.py \
     --config "${CONFIG}" \
     2>&1
 
