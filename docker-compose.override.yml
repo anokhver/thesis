@@ -1,0 +1,20 @@
+# Auto-loaded by `docker compose up` for local development.
+# Disable by passing `-f docker-compose.yml` only.
+#
+# Overrides the production defaults:
+# - Mount the repo over /app so code edits are picked up without rebuilding.
+# - Run Django's auto-reloading dev server instead of gunicorn.
+# - Turn DEBUG on so unhandled tracebacks render in the browser.
+
+services:
+  web:
+    environment:
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: "*"
+    volumes:
+      - .:/app
+      - db_data:/app/db
+      - media_data:/app/media
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"

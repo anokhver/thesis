@@ -1,0 +1,30 @@
+# Runtime requirements for the Django web container.
+#
+# The synaptic_ssl package (installed via `pip install .` from the repo
+# root) already pulls in torch, monai, einops, numpy, scipy, scikit-image,
+# matplotlib, tqdm, and torchvision via pyproject.toml.
+#
+# This file adds:
+#   - Web framework + static-files server + WSGI server.
+#   - Clustering-pipeline dependencies that synaptic_ssl uses but does
+#     NOT declare in its [project] dependencies (they are lazy-imported
+#     inside synaptic_ssl/clustering/). We pin them at the web layer so
+#     the container is deterministic without touching the package's
+#     dependency contract (AGENTS.md rule 5).
+#
+# Versions are pinned for thesis reproducibility. Loose ranges are used
+# only for Django, Pillow, gunicorn, and WhiteNoise where the
+# maintainers honour semantic versioning.
+
+# Web stack
+Django>=5.2,<6
+Pillow>=10,<12
+gunicorn>=23,<24
+whitenoise>=6.7,<7
+
+# Lazy-imported clustering deps (pin tightly)
+scikit-learn==1.5.2
+pandas==2.2.3
+umap-learn==0.5.7
+leidenalg==0.10.2
+igraph==0.11.8

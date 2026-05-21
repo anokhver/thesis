@@ -10,8 +10,12 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+build/
+dist/
+*.egg-info/
 db/
 media/
+staticfiles/
 notebooks/
 .notes/
 .papers/
@@ -20,3 +24,5 @@ notebooks/
 .vscode/
 *.sqlite3
 .env
+e2e_fixture/
+docker-compose.override.yml

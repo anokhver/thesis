@@ -1,32 +1,75 @@
-FROM python:3.11-slim
+# Multi-stage build for the Synaptic Cluster Explorer container.
+# Stage 1 installs the Python wheels + builds the synaptic_ssl package.
+# Stage 2 copies only the venv + source needed at runtime.
 
-ARG INCLUDE_ML=0
+FROM python:3.11-slim-bookworm AS builder
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /build
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --upgrade pip wheel
+
+# Web stack + clustering deps. Pinned in requirements/web.txt so the
+# build is deterministic.
+COPY requirements/web.txt requirements/web.txt
+RUN pip install -r requirements/web.txt
+
+# Install the synaptic_ssl package. We only need pyproject.toml + the
+# source under src/ + README (referenced by pyproject) — this keeps
+# the layer cache valid as long as the package code is unchanged.
+COPY pyproject.toml README.md ./
+COPY src/ src/
+RUN pip install .
+
+
+# ---------------------------------------------------------------------------
+# Runtime image
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim-bookworm AS runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    DJANGO_SETTINGS_MODULE=synapse_config.settings
+
+# Copy the wheel-installed venv from the builder stage. No build tools
+# end up in the runtime image, so it stays a few hundred MB lighter.
+COPY --from=builder /opt/venv /opt/venv
 
 WORKDIR /app
-
-COPY requirements_web.txt .
-RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements_web.txt
-
-# Flip INCLUDE_ML=1 once the real ML pipeline is merged. requirements.txt
-# is the place to add torch / monai / aicsimageio so they land in the
-# same image.
-COPY requirements.txt .
-RUN if [ "$INCLUDE_ML" = "1" ]; then \
-        pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt ; \
-    fi
-
 COPY . .
 
-RUN mkdir -p /app/db /app/media
+# Persistent dirs (also volume-mountable). Created here so the image
+# works standalone without compose volumes too.
+RUN mkdir -p /app/db /app/media /app/staticfiles
 
-ENV PYTHONPATH=/app \
-    PYTHONUNBUFFERED=1 \
-    DJANGO_SETTINGS_MODULE=synapse_config.settings
+# collectstatic must run with DEBUG=0 so the production manifest storage
+# generates style.HASH.css entries WhiteNoise can serve with far-future
+# cache headers. DJANGO_DEBUG only affects this build step; runtime
+# inherits whatever the operator sets (defaults to "True" in settings).
+RUN DJANGO_DEBUG=0 python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request, sys; \
-sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).status==200 else 1)" \
-    || exit 1
+sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3).status == 200 else 1)"
 
+# gunicorn with one process so the in-process job executor's single
+# worker contract (services/jobs.py) is preserved, plus 4 threads so
+# status polling stays responsive while a clustering run is busy.
+# --timeout 1800 covers long extract+cluster runs on CPU (~10+ min on
+# real datasets); torch and numpy release the GIL for compute so polling
+# threads still serve status JSON during a run.
+CMD ["gunicorn", "synapse_config.wsgi:application", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "1", \
+     "--threads", "4", \
+     "--timeout", "1800", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-"]
