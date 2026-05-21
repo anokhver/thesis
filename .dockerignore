@@ -1,5 +1,6 @@
 .git
 .gitignore
+.gitattributes
 .venv
 __pycache__/
 *.pyc
@@ -17,6 +18,7 @@ db/
 media/
 staticfiles/
 notebooks/
+data/
 .notes/
 .papers/
 .citation/
@@ -26,3 +28,5 @@ notebooks/
 .env
 e2e_fixture/
 docker-compose.override.yml
+AGENTS.md
+environment*.yml

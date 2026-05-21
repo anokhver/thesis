@@ -11,7 +11,11 @@ requires-python = ">=3.10"
 authors = [
     { name = "Veronika Anokhina" },
 ]
-license = { text = "Proprietary" }
+license = { text = "MIT" }
+# TODO: confirm with thesis supervisor (Ing. Vojtěch Brejtr) that MIT
+# is acceptable for FEL OI bachelor's thesis code submission. The
+# placeholder unblocks publishing the Docker image; revise here and in
+# LICENSE if the faculty requires a different license.
 
 # Core runtime dependencies. See requirements.txt for the full pinned list
 # used in development (CUDA-specific torch builds belong there, not here).

@@ -32,6 +32,13 @@ RUN pip install .
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim-bookworm AS runtime
 
+# OCI image annotations for Docker Hub / GHCR provenance.
+LABEL org.opencontainers.image.title="Synaptic Cluster Explorer" \
+      org.opencontainers.image.description="Clustering analysis UI for the SynAPSeg self-supervised microscopy pipeline" \
+      org.opencontainers.image.authors="Veronika Anokhina <veronika.i.anokhina@gmail.com>" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="0.1.0"
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
@@ -53,6 +60,13 @@ RUN mkdir -p /app/db /app/media /app/staticfiles
 # cache headers. DJANGO_DEBUG only affects this build step; runtime
 # inherits whatever the operator sets (defaults to "True" in settings).
 RUN DJANGO_DEBUG=0 python manage.py collectstatic --noinput
+
+# Drop privileges. The named uid/gid (10001) makes it easy for hosts to
+# pre-create directories with matching ownership for bind-mounted volumes.
+RUN groupadd -r -g 10001 app \
+    && useradd -r -u 10001 -g app -d /app -s /sbin/nologin app \
+    && chown -R app:app /app
+USER app
 
 EXPOSE 8000
 

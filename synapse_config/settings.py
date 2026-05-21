@@ -64,7 +64,7 @@ WSGI_APPLICATION = "synapse_config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db" / "db.sqlite3",
+        "NAME": Path(os.environ.get("SCE_SQLITE_PATH", str(BASE_DIR / "db" / "db.sqlite3"))),
         "OPTIONS": {"timeout": 20},
     }
 }
@@ -101,7 +101,7 @@ STORAGES = {
 }
 
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(os.environ.get("SCE_MEDIA_ROOT", str(BASE_DIR / "media")))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -126,25 +126,26 @@ ANALYSIS_STALE_AFTER_MINUTES = int(
 
 # ML pipeline I/O locations.
 # Override any of these via env vars when deploying (e.g. point
-# CHECKPOINT_DIR at a shared NFS mount). Defaults live under MEDIA_ROOT
-# so a fresh checkout works without any configuration.
+# SCE_CHECKPOINT_DIR at a shared NFS mount). Defaults live under
+# MEDIA_ROOT so a fresh checkout works without any configuration.
+# All SCE_-prefixed env vars are documented in .env.example.
 CHECKPOINT_DIR = Path(
-    os.environ.get("CHECKPOINT_DIR", MEDIA_ROOT / "checkpoints")
+    os.environ.get("SCE_CHECKPOINT_DIR", MEDIA_ROOT / "checkpoints")
 )
 RUNS_DIR = Path(
-    os.environ.get("RUNS_DIR", MEDIA_ROOT / "runs")
+    os.environ.get("SCE_RUNS_DIR", MEDIA_ROOT / "runs")
 )
 
 # Upload-size cap for encoder checkpoints (.pt). 500 MB by default.
 MAX_CHECKPOINT_UPLOAD_BYTES = int(
-    os.environ.get("MAX_CHECKPOINT_UPLOAD_BYTES", str(500 * 1024 * 1024))
+    os.environ.get("SCE_MAX_CHECKPOINT_UPLOAD_BYTES", str(500 * 1024 * 1024))
 )
 
 # Run-creation ZIP upload limits.
 MAX_ZIP_UPLOAD_BYTES = int(
-    os.environ.get("MAX_ZIP_UPLOAD_BYTES", str(2 * 1024 * 1024 * 1024))
+    os.environ.get("SCE_MAX_ZIP_UPLOAD_BYTES", str(2 * 1024 * 1024 * 1024))
 )
 MAX_ZIP_UNCOMPRESSED_BYTES = int(
-    os.environ.get("MAX_ZIP_UNCOMPRESSED_BYTES", str(20 * 1024 * 1024 * 1024))
+    os.environ.get("SCE_MAX_ZIP_UNCOMPRESSED_BYTES", str(20 * 1024 * 1024 * 1024))
 )
-MAX_ZIP_MEMBERS = int(os.environ.get("MAX_ZIP_MEMBERS", "200000"))
+MAX_ZIP_MEMBERS = int(os.environ.get("SCE_MAX_ZIP_MEMBERS", "200000"))
