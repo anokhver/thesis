@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block title %}Checkpoints — SynAPSeg{% endblock %}
+
+{% block content %}
+<h1>Encoder Checkpoints</h1>
+<p style="color: var(--text-secondary);">
+    Upload and manage the encoder weight files that drive embedding
+    extraction. Allowed extensions: <code>.pt</code>, <code>.pth</code>.
+</p>
+
+{% card title="Upload checkpoint" margin="1.5rem" %}
+<form method="post" enctype="multipart/form-data"
+      action="{% url 'synapse_web:checkpoints' %}">
+    {% csrf_token %}
+    {{ form.file.label_tag }}
+    {{ form.file }}
+    {% if form.file.errors %}
+    <ul class="errorlist">
+        {% for err in form.file.errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <p style="color: var(--text-secondary); font-size: 0.9em;">
+        Max upload size: {{ max_upload_bytes|filesizeformat }}.
+    </p>
+    <button type="submit" class="btn">Upload</button>
+</form>
+{% endcard %}
+
+{% if checkpoints %}
+{% card title="Available checkpoints" margin="1.5rem" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Modified</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ck in checkpoints %}
+        <tr>
+            <td><code>{{ ck.name }}</code></td>
+            <td>{{ ck.size_display }}</td>
+            <td>{{ ck.modified_at|date:"Y-m-d H:i" }}</td>
+            <td>
+                <form method="post"
+                      action="{% url 'synapse_web:delete_checkpoint' %}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Delete checkpoint {{ ck.name|escapejs }}?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="name" value="{{ ck.name }}">
+                    <button type="submit" class="btn"
+                            style="background: var(--danger, #b00020);">
+                        Delete
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endcard %}
+{% else %}
+{% empty_state %}
+<p>No checkpoints uploaded yet.</p>
+{% endempty_state %}
+{% endif %}
+{% endblock %}

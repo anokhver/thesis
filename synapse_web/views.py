@@ -1,9 +1,18 @@
 from django.conf import settings
+from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_POST
 
+from .forms import CheckpointUploadForm
 from .models import AnalysisRun
+from .services.checkpoints import (
+    delete_checkpoint as delete_checkpoint_file,
+    list_checkpoints,
+    save_uploaded_checkpoint,
+)
 from .services.naming import GROUP_TREATMENTS, KNOWN_GROUPS
 from .services.training_config import (
     PREPROCESSING_DEFAULTS,
@@ -91,3 +100,43 @@ def overview(request):
             "thesis_pdf_url": settings.THESIS_PDF_URL,
         },
     )
+
+
+def checkpoints(request):
+    if request.method == "POST":
+        form = CheckpointUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                final_path = save_uploaded_checkpoint(form.cleaned_data["file"])
+            except ValidationError as exc:
+                for msg in exc.messages:
+                    form.add_error("file", msg)
+            else:
+                messages.success(
+                    request, f"Uploaded checkpoint {final_path.name!r}."
+                )
+                return redirect("synapse_web:checkpoints")
+    else:
+        form = CheckpointUploadForm()
+
+    return render(
+        request,
+        "synapse_web/checkpoints.html",
+        {
+            "form": form,
+            "checkpoints": list_checkpoints(),
+            "max_upload_bytes": int(settings.MAX_CHECKPOINT_UPLOAD_BYTES),
+        },
+    )
+
+
+@require_POST
+def delete_checkpoint(request):
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        messages.error(request, "Missing checkpoint name.")
+    elif delete_checkpoint_file(name):
+        messages.success(request, f"Deleted checkpoint {name!r}.")
+    else:
+        messages.error(request, f"Could not delete checkpoint {name!r}.")
+    return redirect("synapse_web:checkpoints")
