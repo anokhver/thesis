@@ -43,14 +43,6 @@ _NOISE_COLOR = "#9e9e9e"
 # URL composition
 # ---------------------------------------------------------------------------
 
-def _is_within(child: Path, parent: Path) -> bool:
-    try:
-        child.resolve().relative_to(parent.resolve())
-    except (ValueError, OSError):
-        return False
-    return True
-
-
 def media_url_for(abs_path: Path) -> str | None:
     """Return the public media URL for ``abs_path`` or ``None``.
 

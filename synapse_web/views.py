@@ -211,9 +211,11 @@ def _create_run_from_form(form: NewRunForm, archive) -> tuple[AnalysisRun, list[
             status="pending",
             run_kind=run_kind,
             checkpoint_path=ckpt_path,
+            commit_sha=jobs.current_commit_sha(),
             config_snapshot={
                 "checkpoint_name": ckpt_name,
                 "checkpoint_path": ckpt_path,
+                "work_fn": settings.ANALYSIS_WORK_FN,
                 "source": "new_run_form",
             },
         )

@@ -48,19 +48,6 @@ def _make_encrypted_flag_zip() -> bytes:
         zf.writestr("secret.txt", b"X")
     data = bytearray(buf.getvalue())
     if data[:4] == b"PK\x03\x04":
-        data[6] |= 0x1
-    cd_off = data.find(b"PK\x01\x02")
-    if cd_off >= 0:
-        data[cd_off + 8] |= 0x1
-    return bytes(data)
-    """Build a normal ZIP, then flip bit 0 of the general-purpose flag on
-    both the local file header and central directory entry so zipfile
-    sees the entry as encrypted (writestr can't actually encrypt)."""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("secret.txt", b"X")
-    data = bytearray(buf.getvalue())
-    if data[:4] == b"PK\x03\x04":
         data[6] |= 0x1  # local file header flag (LE, low byte)
     cd_off = data.find(b"PK\x01\x02")
     if cd_off >= 0:

@@ -111,12 +111,6 @@ ANALYSIS_STALE_AFTER_MINUTES = int(
 CHECKPOINT_DIR = Path(
     os.environ.get("CHECKPOINT_DIR", MEDIA_ROOT / "checkpoints")
 )
-PATCHES_UPLOAD_DIR = Path(
-    os.environ.get("PATCHES_UPLOAD_DIR", MEDIA_ROOT / "patches_upload")
-)
-BUNDLES_DIR = Path(
-    os.environ.get("BUNDLES_DIR", MEDIA_ROOT / "bundles")
-)
 RUNS_DIR = Path(
     os.environ.get("RUNS_DIR", MEDIA_ROOT / "runs")
 )

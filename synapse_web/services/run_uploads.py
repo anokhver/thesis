@@ -31,6 +31,7 @@ from typing import Iterable
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
+from ._paths import is_within
 from .naming import derive_treatment_group
 
 logger = logging.getLogger(__name__)
@@ -38,14 +39,6 @@ logger = logging.getLogger(__name__)
 _CHUNK = 64 * 1024
 _BAD_NAME_CHARS = re.compile(r"[:\x00]")
 _DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
-
-
-def _is_within(child: Path, parent: Path) -> bool:
-    try:
-        child.resolve().relative_to(parent.resolve())
-    except (ValueError, OSError):
-        return False
-    return True
 
 
 def _zip_entry_is_symlink(info: zipfile.ZipInfo) -> bool:
@@ -169,7 +162,7 @@ def safe_extract_zip(file_obj, dest_dir: Path) -> None:
             if not rel.parts:
                 continue
             target = (dest_dir / Path(*rel.parts)).resolve()
-            if not _is_within(target, dest_dir):
+            if not is_within(target, dest_dir):
                 raise ValidationError(
                     f"ZIP entry escapes destination: {info.filename!r}."
                 )

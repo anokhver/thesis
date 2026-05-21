@@ -24,6 +24,8 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 
+from ._paths import is_within
+
 logger = logging.getLogger(__name__)
 
 ALLOWED_SUFFIXES = {".pt", ".pth"}
@@ -32,14 +34,6 @@ _PARTIAL_SUFFIX = ".partial"
 
 def _root() -> Path:
     return Path(settings.CHECKPOINT_DIR)
-
-
-def _is_within(child: Path, parent: Path) -> bool:
-    try:
-        child.resolve().relative_to(parent.resolve())
-    except (ValueError, OSError):
-        return False
-    return True
 
 
 def _human_size(n: int) -> str:
@@ -210,7 +204,7 @@ def delete_checkpoint(name: str) -> bool:
 
     root = _root()
     target = root / name
-    if not _is_within(target, root):
+    if not is_within(target, root):
         return False
     try:
         if target.is_symlink():

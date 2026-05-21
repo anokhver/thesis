@@ -22,6 +22,8 @@ from django.conf import settings
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 
+from ._paths import is_within
+
 
 def runs_root() -> Path:
     return Path(settings.RUNS_DIR)
@@ -45,19 +47,11 @@ def ensure_run_dirs(run) -> tuple[Path, Path, Path]:
     return input_dir, bundle_dir, output_dir
 
 
-def _is_within(child: Path, parent: Path) -> bool:
-    try:
-        child.resolve().relative_to(parent.resolve())
-        return True
-    except ValueError:
-        return False
-
-
 def delete_run_artifacts(run) -> bool:
     root = run_root(run)
     if not root.exists():
         return False
-    if not _is_within(root, runs_root()):
+    if not is_within(root, runs_root()):
         return False
     shutil.rmtree(root, ignore_errors=True)
     return True
