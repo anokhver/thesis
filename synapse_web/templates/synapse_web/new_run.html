@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block title %}New run — Synaptic Cluster Explorer{% endblock %}
+
+{% block content %}
+<h1>Start a new clustering run</h1>
+
+{% if not checkpoints %}
+<div class="alert alert-warning">
+    No encoder checkpoints are available yet. You can still run a
+    cluster-only job. Upload one on the
+    <a href="{% url 'synapse_web:checkpoints' %}">Checkpoints</a> page.
+</div>
+{% endif %}
+
+{% card title="Run details" margin="1.5rem" %}
+<form method="post" enctype="multipart/form-data"
+      action="{% url 'synapse_web:new_run' %}">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <ul class="errorlist">
+        {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    <fieldset style="margin-bottom: 1rem;">
+        <legend>{{ form.run_kind.label }}</legend>
+        {{ form.run_kind }}
+        {% if form.run_kind.errors %}
+        <ul class="errorlist">
+            {% for err in form.run_kind.errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+        <p style="color: var(--text-secondary); font-size: 0.9em;">
+            <strong>extract&nbsp;+&nbsp;cluster</strong>: ZIP of a patches
+            directory (PatchDataset format — <code>index.csv</code> plus
+            <code>.npy</code> files). The encoder runs first, then clustering.
+            <br>
+            <strong>cluster only</strong>: ZIP containing
+            <code>embeddings.npy</code> and <code>metadata.csv</code>
+            (optionally <code>manifest.json</code>). Skips the encoder.
+        </p>
+    </fieldset>
+
+    <div id="checkpoint-field" style="margin-bottom: 1rem;">
+        {{ form.checkpoint.label_tag }}
+        {{ form.checkpoint }}
+        {% if form.checkpoint.errors %}
+        <ul class="errorlist">
+            {% for err in form.checkpoint.errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+        <p style="color: var(--text-secondary); font-size: 0.9em;">
+            {{ form.checkpoint.help_text }}
+        </p>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+        {{ form.archive.label_tag }}
+        {{ form.archive }}
+        {% if form.archive.errors %}
+        <ul class="errorlist">
+            {% for err in form.archive.errors %}<li>{{ err }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+        <p style="color: var(--text-secondary); font-size: 0.9em;">
+            Max upload size: {{ max_zip_bytes|filesizeformat }}.
+        </p>
+    </div>
+
+    <button type="submit" class="btn">Create run</button>
+    <a href="{% url 'synapse_web:results' %}" class="btn"
+       style="background: var(--secondary);">Cancel</a>
+</form>
+{% endcard %}
+
+<script>
+(function () {
+    var radios = document.querySelectorAll('input[name="run_kind"]');
+    var field = document.getElementById('checkpoint-field');
+    function sync() {
+        var v = document.querySelector('input[name="run_kind"]:checked');
+        field.style.display = (v && v.value === 'extract_and_cluster')
+            ? 'block' : 'none';
+    }
+    radios.forEach(function (r) { r.addEventListener('change', sync); });
+    sync();
+})();
+</script>
+{% endblock %}

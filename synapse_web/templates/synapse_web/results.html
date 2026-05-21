@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block title %}Results — Synaptic Cluster Explorer{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Analysis Results</h1>
+    <div class="actions">
+        <a href="{% url 'synapse_web:new_run' %}" class="btn">Start new run</a>
+    </div>
+</div>
+
+{% if run_summaries %}
+{% card title="Run History" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Run ID</th>
+            <th>Date</th>
+            <th>Kind</th>
+            <th>Status</th>
+            <th>Images</th>
+            <th>Patches</th>
+            <th>Clusters</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for run in run_summaries %}
+        <tr>
+            <td><code>{{ run.id_short }}</code></td>
+            <td>{{ run.created_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ run.run_kind }}</td>
+            <td>{% status_badge run.status %}</td>
+            <td>{{ run.n_source_images|default:"—" }}</td>
+            <td>{{ run.n_patches|default:"—" }}</td>
+            <td>{{ run.n_clusters|default:"—" }}</td>
+            <td><a href="{% url 'synapse_web:run_detail' run.id %}">Open</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endcard %}
+{% else %}
+{% empty_state %}
+<p>No analysis runs yet.</p>
+{% endempty_state %}
+{% endif %}
+{% endblock %}

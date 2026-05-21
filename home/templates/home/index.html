@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block title %}Synaptic Cluster Explorer — Home{% endblock %}
+
+{% block content %}
+{% card max_width="700px" centered=True margin="2rem" %}
+<div style="text-align: center;">
+    <h1>Synaptic Cluster Explorer</h1>
+    <h2>Clustering analysis for the SynAPSeg pipeline</h2>
+    <p style="margin-top: 1rem; color: var(--text-secondary);">
+        Bachelor's Thesis by <strong>Veronika Anokhina</strong>
+        <br>
+        Supervisor: <strong>Ing. Vojtěch Brejtr</strong>
+    </p>
+    <p style="color: var(--text-secondary);">
+        Czech Technical University in Prague (CTU)
+        <br>
+        in collaboration with the
+        <strong>National Institute of Mental Health (NUDZ)</strong>
+    </p>
+    <p style="margin-top: 1.5rem;">
+        Front-end for the clustering side of the SynAPSeg thesis pipeline:
+        upload a Swin encoder checkpoint, extract patch embeddings, and run
+        the Leiden clustering analysis on the resulting bundle.
+    </p>
+    <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
+        <a href="{% url 'synapse_web:results' %}" class="btn">
+            View Results
+        </a>
+        <a href="{% url 'synapse_web:overview' %}" class="btn" style="background: var(--secondary);">
+            Project Overview
+        </a>
+    </div>
+</div>
+{% endcard %}
+{% endblock %}

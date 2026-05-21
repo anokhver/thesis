@@ -1,0 +1,18 @@
+<table class="data-table">
+    {% if has_header %}
+    <thead>
+        <tr>
+            <th>{{ key_label }}</th>
+            <th>{{ value_label }}</th>
+        </tr>
+    </thead>
+    {% endif %}
+    <tbody>
+        {% for key, value in rows %}
+        <tr>
+            <th style="width: 40%;">{{ key }}</th>
+            <td>{{ value }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

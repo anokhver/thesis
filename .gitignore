@@ -1,12 +1,18 @@
+/research-contributions/*
+papers/*
+/doc/
+
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 *.egg-info/
 
 # Jupyter
 .ipynb_checkpoints/
 
-# Data (too large for GitHub)
+# Data (too large for GitHub) — master's authoritative rules
 data/*
 !data/imaging_outputs/
 !data/data_analysis/
@@ -14,13 +20,11 @@ data/*
 *.pt
 *.ckpt
 *.npy
+*.npz
 *.zip
 *.tar*
-*.npz
 training_outputs_old/
 *patches*/
-
-.github
 
 # Papermill executed-notebook outputs
 notebooks/**/runs/
@@ -28,14 +32,31 @@ notebooks/**/outputs/
 /logs/
 .outs/*
 
-# Personall notes
+# Personal notes
 .my/
 .old/
-.venv/
-.runs-analyse/
-.inspo
-.venv1
 .planning
 .papers
 .tmp_papers
-.github
+.inspo
+inspo
+
+# Envs
+.venv/
+.venv1
+.vscode/
+my_pck_project/
+.runs-analyse/
+
+# Django (frontend)
+db/
+*.sqlite3
+media/
+staticfiles/
+
+# Secrets & logs
+.env
+*.log
+
+# Agent rules (local-only, not for upstream)
+AGENTS.md

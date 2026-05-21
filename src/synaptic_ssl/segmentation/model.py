@@ -113,6 +113,78 @@ def load_pretrained_encoder_into_swinunetr(
     return summary
 
 
+def load_full_swinunetr_from_ckpt(
+    model: nn.Module,
+    ckpt_path: str | Path,
+    *,
+    strict: bool = True,
+    logger=None,
+) -> dict:
+    """Warm-start the **entire** SwinUNETR (encoder + decoder) from a seg ckpt.
+
+    Use this for iter-1 of the self-training loop (Bai 2017 §2.1: warm-start
+    S1 from S0 = full model). Distinct from
+    :func:`load_pretrained_encoder_into_swinunetr`, which loads only
+    ``swinViT`` from an SSL pretraining checkpoint.
+
+    The seg checkpoint produced by
+    :func:`synaptic_ssl.training.checkpoints.save_checkpoint`
+    stores the full SwinUNETR ``state_dict`` under the (misleadingly
+    named) key ``"encoder_state_dict"``.
+
+    Returns a small summary dict including ``channel_mean`` /
+    ``channel_std`` so the caller can pin normalisation to the iter-0
+    training-time statistics.
+    """
+    log = logger.info if logger is not None else print
+
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    if "encoder_state_dict" not in ckpt:
+        raise KeyError(
+            f"{ckpt_path}: expected key 'encoder_state_dict' (from save_checkpoint); "
+            f"got keys {list(ckpt.keys())}"
+        )
+    src_sd = ckpt["encoder_state_dict"]
+    # Compare head shapes if both are present, so we can emit a useful
+    # message instead of a raw state_dict shape mismatch. MONAI's head
+    # weight key is ``out.conv.conv.weight`` in current versions; fall
+    # back to other plausible spellings.
+    tgt_sd = model.state_dict()
+    head_keys = ("out.conv.conv.weight", "out.conv.weight", "out.weight")
+    for hk in head_keys:
+        if hk in src_sd and hk in tgt_sd and src_sd[hk].shape != tgt_sd[hk].shape:
+            raise ValueError(
+                f"warm-start {ckpt_path}: head shape mismatch at {hk!r} "
+                f"(ckpt={tuple(src_sd[hk].shape)}, model={tuple(tgt_sd[hk].shape)}). "
+                f"Likely an out_channels mismatch (ckpt={int(src_sd[hk].shape[0])}, "
+                f"model={int(tgt_sd[hk].shape[0])}). Rebuild the model with "
+                f"SegTrainCfg(out_channels={int(src_sd[hk].shape[0])}) or warm-start "
+                f"from a matching iter-0 checkpoint."
+            )
+    result = model.load_state_dict(src_sd, strict=strict)
+
+    summary = {
+        "n_loaded":          len(src_sd),
+        "n_missing":         len(getattr(result, "missing_keys", [])),
+        "n_unexpected":      len(getattr(result, "unexpected_keys", [])),
+        "channel_mean":      ckpt.get("channel_mean"),
+        "channel_std":       ckpt.get("channel_std"),
+        "source_step":       ckpt.get("global_step", ckpt.get("epoch")),
+        "source_val_metric": ckpt.get("val_metric"),
+    }
+    log(
+        f"[warm-start] loaded full SwinUNETR from {Path(ckpt_path).name} | "
+        f"params={summary['n_loaded']} missing={summary['n_missing']} "
+        f"unexpected={summary['n_unexpected']}"
+    )
+    if summary["n_missing"] > 0 or summary["n_unexpected"] > 0:
+        warnings.warn(
+            f"warm-start from {ckpt_path}: missing={result.missing_keys} "
+            f"unexpected={result.unexpected_keys}"
+        )
+    return summary
+
+
 def count_params(model, only_trainable: bool = False) -> int:
     """Count parameters in a module or dict of modules."""
     if isinstance(model, dict):

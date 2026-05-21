@@ -11,6 +11,47 @@ import torch.nn as nn
 from ..utils_data.reassemble import reassemble_image
 
 
+# D4 symmetry group: 8 elements built from hflip, vflip, rot90.
+# Each entry is (apply_to_input, undo_on_output). Inverses are picked so
+# undo(model(apply(x))) is the model output in the original frame.
+_D4_TRANSFORMS = (
+    (lambda x: x,
+     lambda y: y),
+    (lambda x: torch.flip(x, dims=(-1,)),
+     lambda y: torch.flip(y, dims=(-1,))),
+    (lambda x: torch.flip(x, dims=(-2,)),
+     lambda y: torch.flip(y, dims=(-2,))),
+    (lambda x: torch.flip(x, dims=(-2, -1)),
+     lambda y: torch.flip(y, dims=(-2, -1))),
+    (lambda x: torch.rot90(x, 1, dims=(-2, -1)),
+     lambda y: torch.rot90(y, -1, dims=(-2, -1))),
+    (lambda x: torch.rot90(x, 2, dims=(-2, -1)),
+     lambda y: torch.rot90(y, -2, dims=(-2, -1))),
+    (lambda x: torch.rot90(x, 3, dims=(-2, -1)),
+     lambda y: torch.rot90(y, -3, dims=(-2, -1))),
+    (lambda x: torch.rot90(torch.flip(x, dims=(-1,)), 1, dims=(-2, -1)),
+     lambda y: torch.flip(torch.rot90(y, -1, dims=(-2, -1)), dims=(-1,))),
+)
+
+
+def predict_d4_tta(model: nn.Module, batch_t: torch.Tensor) -> torch.Tensor:
+    """Average sigmoid probabilities over the 8 D4 symmetries.
+
+    ``batch_t`` is ``(B, C, H, W)``. Returns ``(B, 1, H, W)`` mean probability.
+    Only flips and 90-degree rotations are used; these are the same geometric
+    augmentations applied at training time, so they preserve the puncta scale
+    and the channel identities (synapsin / PSD / MAP2).
+    """
+    acc = None
+    for apply_fn, undo_fn in _D4_TRANSFORMS:
+        xv = apply_fn(batch_t)
+        logits = model(xv)
+        prob = torch.sigmoid(logits)
+        prob = undo_fn(prob)
+        acc = prob if acc is None else acc + prob
+    return acc / float(len(_D4_TRANSFORMS))
+
+
 def sliding_window_predict(
     model: nn.Module,
     full_image: np.ndarray,
@@ -20,6 +61,7 @@ def sliding_window_predict(
     device: torch.device,
     overlap: float = 0.5,
     batch_size: int = 16,
+    use_tta: bool = False,
 ) -> np.ndarray:
     """Sliding-window inference on a ``(C, H, W)`` float32 image.
 
@@ -60,8 +102,11 @@ def sliding_window_predict(
                 p = (p - ch_mean_np) / ch_std_np
                 patches.append(p)
             batch_t = torch.from_numpy(np.stack(patches)).float().to(device)
-            logits = model(batch_t)
-            probs = torch.sigmoid(logits).cpu().numpy()[:, 0]  # (B, H, W)
+            if use_tta:
+                probs = predict_d4_tta(model, batch_t).cpu().numpy()[:, 0]
+            else:
+                logits = model(batch_t)
+                probs = torch.sigmoid(logits).cpu().numpy()[:, 0]  # (B, H, W)
             for j, (y, x) in enumerate(batch_pos):
                 acc[y : y + patch_size, x : x + patch_size] += probs[j]
                 count[y : y + patch_size, x : x + patch_size] += 1.0
@@ -82,6 +127,7 @@ def predict_full_image(
     overlap: float = 0.5,
     batch_size: int = 16,
     exclude_patterns: list[str] | None = None,
+    use_tta: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Reassemble a full image and run sliding-window prediction.
 
@@ -92,7 +138,7 @@ def predict_full_image(
     )
     prob_map = sliding_window_predict(
         model, full_image, patch_size, ch_mean, ch_std,
-        device, overlap=overlap, batch_size=batch_size,
+        device, overlap=overlap, batch_size=batch_size, use_tta=use_tta,
     )
     return full_image, prob_map
 

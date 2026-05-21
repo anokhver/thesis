@@ -179,6 +179,54 @@ scripts\nudz\run_preprocess_windows.ps1       -Mode full -Workers 4
 scripts\nudz\run_preprocess_notile_windows.ps1            # full-MIP, no tiling
 ```
 
+## Web frontend (Docker)
+
+The Django UI (`Synaptic Cluster Explorer`) runs the embedding-extract +
+Leiden-clustering half of the pipeline through a browser. The whole stack
+ships as a single image.
+
+```bash
+# Production-style: gunicorn + WhiteNoise inside the image.
+cp .env.example .env                          # edit secrets, point paths
+docker compose -f docker-compose.yml up --build
+
+# Dev with hot-reload (auto-loads docker-compose.override.yml):
+docker compose up --build
+```
+
+Browse to <http://localhost:8000/>. Liveness probe at `/healthz/`.
+
+The image **does not bake in any dataset.** Every storage path is
+overridable so the same image can talk to local volumes or a lab share:
+
+| Env var              | Default                | Purpose                                  |
+|----------------------|------------------------|------------------------------------------|
+| `SCE_MEDIA_ROOT`     | `/app/media`           | Root of run artefacts, uploads, plots.   |
+| `SCE_CHECKPOINT_DIR` | `$SCE_MEDIA_ROOT/checkpoints` | Encoder `.pt` files.                  |
+| `SCE_RUNS_DIR`       | `$SCE_MEDIA_ROOT/runs` | Per-run input/bundle/output trees.       |
+| `SCE_SQLITE_PATH`    | `/app/db/db.sqlite3`   | App database.                            |
+
+The compose file mounts the in-image `/app/db` and `/app/media` to named
+Docker volumes so SQLite + uploads survive container restarts. To mount
+an external disk instead, set the env vars above to paths inside `/data`
+(or wherever) and add a bind volume for that path:
+
+```yaml
+services:
+  web:
+    environment:
+      SCE_MEDIA_ROOT: /data/media
+      SCE_CHECKPOINT_DIR: /data/checkpoints
+      SCE_RUNS_DIR: /data/runs
+    volumes:
+      - /mnt/lab_share/synapseg:/data
+```
+
+GPU note: the image is CPU-only by default. PyTorch falls back to CPU
+when no NVIDIA driver is visible (`torch.cuda.is_available() == False`).
+To run on GPU, install `nvidia-container-toolkit` on the host and add
+`runtime: nvidia` (Compose v2 `gpus: all`) to the `web` service.
+
 ## Scripts
 
 ### Top-level Python entry points (`scripts/<category>/*.py`)

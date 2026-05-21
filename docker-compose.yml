@@ -1,0 +1,37 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: synaptic-cluster-explorer:latest
+    ports:
+      - "8000:8000"
+    # Optional .env (Compose 2.20+ accepts the `required: false` form).
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-127.0.0.1,localhost}"
+    volumes:
+      # Persistent SQLite + run artefacts + uploaded checkpoints survive
+      # container restarts. SQLite is in db/ as a directory mount so
+      # Docker Desktop / WSL2 bind-mount semantics stay simple.
+      - db_data:/app/db
+      - media_data:/app/media
+    restart: unless-stopped
+    # Single web worker so the in-process job executor stays consistent;
+    # see synapse_web/services/jobs.py for the rationale. Use POSIX sh —
+    # python:3.11-slim does not ship bash.
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py recover_stale_runs &&
+             gunicorn synapse_config.wsgi:application
+               --bind 0.0.0.0:8000
+               --workers 1 --threads 4 --timeout 1800
+               --access-logfile - --error-logfile -"
+
+volumes:
+  db_data:
+  media_data:
+

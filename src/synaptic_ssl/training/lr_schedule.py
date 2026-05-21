@@ -62,10 +62,30 @@ def param_groups_layer_decay(
 
 
 def make_warmup_cosine(warmup_epochs: int, total_epochs: int):
-    """Return an ``LambdaLR`` lambda: linear warmup then cosine decay to 0."""
+    """Return an ``LambdaLR`` lambda: linear warmup then cosine decay to 0.
+
+    Stepped once per epoch. For per-step schedules use
+    ``make_warmup_cosine_steps``.
+    """
     def lr_lambda(epoch):
         if epoch < warmup_epochs:
             return epoch / max(1, warmup_epochs)
         progress = (epoch - warmup_epochs) / max(1, total_epochs - warmup_epochs)
+        return 0.5 * (1.0 + math.cos(math.pi * progress))
+    return lr_lambda
+
+
+def make_warmup_cosine_steps(warmup_steps: int, total_steps: int):
+    """Return an ``LambdaLR`` lambda stepped once per optimiser step.
+
+    Linear warmup over ``warmup_steps`` then cosine decay to 0 over the
+    remaining ``total_steps - warmup_steps``. BS-invariant: use this when
+    the same recipe must run at different batch sizes (e.g. laptop vs
+    cluster), where epoch count varies but step budget is fixed.
+    """
+    def lr_lambda(step):
+        if step < warmup_steps:
+            return step / max(1, warmup_steps)
+        progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
         return 0.5 * (1.0 + math.cos(math.pi * progress))
     return lr_lambda

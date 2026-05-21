@@ -998,7 +998,7 @@ def run(args: argparse.Namespace) -> int:
                 f"clusters differ across treatments at q<0.05 (BH-FDR)"
             )
         readme_lines.append("")
-    (out_dir / "README.md").write_text("\n".join(readme_lines))
+    (out_dir / "README.md").write_text("\n".join(readme_lines), encoding="utf-8")
 
     # ---- 15. Plots ------------------------------------------------------
     if not args.no_plots:
