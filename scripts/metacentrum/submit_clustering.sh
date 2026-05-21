@@ -5,7 +5,7 @@
 #PBS -j oe
 #PBS -o /storage/brno2/home/anokhver/thesis/logs/
 #PBS -m abe
-#PBS -M your@email.com
+#PBS -M veronika.i.anokhina@gmail.com
 
 # Clustering / representation-quality check on a trained encoder.
 # Inference only -- modest GPU is enough; no training, short walltime.

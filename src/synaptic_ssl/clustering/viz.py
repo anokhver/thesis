@@ -25,25 +25,40 @@ def plot_singular_value_spectrum(S, ax=None, mark_target_var: float = 0.95):
 
 
 def plot_resolution_stability(summary: dict, full: dict, ax=None):
-    """``summary[r] = (mean_ari, std_ari)``; ``full[r] = labels``."""
+    """Plot bootstrap stability across resolutions.
+
+    ``summary[r] = (mean_ari, std_ari, mean_nmi, std_nmi)`` (legacy
+    2-tuple is also accepted, in which case only ARI is plotted);
+    ``full[r] = labels``. ARI (Lange et al. 2004; Hubert & Arabie 1985)
+    is the primary curve used for resolution selection; NMI (Strehl &
+    Ghosh 2002) is overlaid as a complementary clustering-similarity
+    measure that is invariant to cluster relabelling.
+    """
     import matplotlib.pyplot as plt
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 4))
     rs = sorted(summary.keys())
-    means = [summary[r][0] for r in rs]
-    stds  = [summary[r][1] for r in rs]
+    has_nmi = len(next(iter(summary.values()))) >= 4
+    means_ari = [summary[r][0] for r in rs]
+    stds_ari  = [summary[r][1] for r in rs]
     ks    = [len(set(full[r])) for r in rs]
-    ax.errorbar(rs, means, yerr=stds, fmt="o-", capsize=3, color="C0",
+    ax.errorbar(rs, means_ari, yerr=stds_ari, fmt="o-", capsize=3, color="C0",
                 label="bootstrap ARI")
+    if has_nmi:
+        means_nmi = [summary[r][2] for r in rs]
+        stds_nmi  = [summary[r][3] for r in rs]
+        ax.errorbar(rs, means_nmi, yerr=stds_nmi, fmt="^--", capsize=3,
+                    color="C2", alpha=0.7, label="bootstrap NMI")
     ax.set_xlabel("Leiden resolution")
-    ax.set_ylabel("mean ARI vs full partition", color="C0")
-    ax.tick_params(axis="y", labelcolor="C0")
+    ax.set_ylabel("stability vs full partition")
+    ax.tick_params(axis="y")
     ax2 = ax.twinx()
     ax2.plot(rs, ks, "s--", color="C3", alpha=0.7, label="K (# clusters)")
     ax2.set_ylabel("# clusters", color="C3")
     ax2.tick_params(axis="y", labelcolor="C3")
     ax.set_title("Bootstrap resolution stability")
     ax.grid(alpha=0.3)
+    ax.legend(loc="lower left", fontsize=8)
     return ax
 
 
