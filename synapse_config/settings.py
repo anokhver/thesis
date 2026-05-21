@@ -95,7 +95,7 @@ THESIS_PDF_URL = os.environ.get(
 
 ANALYSIS_WORK_FN = os.environ.get(
     "ANALYSIS_WORK_FN",
-    "synapse_web.services.work_stub.do_work",
+    "synapse_web.services.ml_jobs.do_work",
 )
 
 ANALYSIS_JOBS_SYNC = os.environ.get("ANALYSIS_JOBS_SYNC", "0") == "1"

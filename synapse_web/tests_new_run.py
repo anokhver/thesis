@@ -366,6 +366,7 @@ class _RunsViewMixin(_CheckpointMixin, _MixinTmp):
         self._runs_override = override_settings(
             MEDIA_ROOT=str(self.tmp_path),
             ANALYSIS_JOBS_SYNC=True,
+            ANALYSIS_WORK_FN="synapse_web.services.work_stub.do_work",
         )
         self._runs_override.enable()
 

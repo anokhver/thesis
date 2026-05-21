@@ -34,7 +34,12 @@ def _make_run(items, *, checkpoint="ckpt/x.pt", kind="extract_and_cluster") -> A
     )
 
 
-@override_settings(ANALYSIS_JOBS_SYNC=True)
+_STUB_WORK = "synapse_web.services.work_stub.do_work"
+
+
+@override_settings(
+    ANALYSIS_JOBS_SYNC=True, ANALYSIS_WORK_FN=_STUB_WORK,
+)
 class JobRunnerSyncTests(TestCase):
     def test_stub_run_completes_and_creates_source_stats(self):
         items = [_manifest_item("a.vsi", "BAEO"), _manifest_item("b.vsi", "PSI", 7)]
@@ -103,7 +108,9 @@ class ProgressReporterTests(TestCase):
         self.assertEqual(run.progress, 100)
 
 
-@override_settings(ANALYSIS_JOBS_SYNC=True)
+@override_settings(
+    ANALYSIS_JOBS_SYNC=True, ANALYSIS_WORK_FN=_STUB_WORK,
+)
 class RunDetailViewTests(TestCase):
     def test_run_detail_renders_for_completed_run(self):
         run = _make_run([_manifest_item("a.vsi"), _manifest_item("b.vsi", "PSI")])
@@ -148,7 +155,9 @@ class RunStatusJsonTests(TestCase):
             f"expected no-store/no-cache header, got {cache!r}",
         )
 
-    @override_settings(ANALYSIS_JOBS_SYNC=True)
+    @override_settings(
+        ANALYSIS_JOBS_SYNC=True, ANALYSIS_WORK_FN=_STUB_WORK,
+    )
     def test_finished_flag_flips_after_completion(self):
         run = _make_run([_manifest_item()])
         jobs.submit_run(str(run.id))
@@ -225,6 +234,7 @@ class RunArtifactsCleanupTests(TestCase):
         self.assertFalse(ra.delete_run_artifacts(FakeRun()))
 
 
+@override_settings(ANALYSIS_WORK_FN=_STUB_WORK)
 class ThreadedSubmitSmokeTest(TransactionTestCase):
     """Spin a real ThreadPoolExecutor job and verify it finishes via polling.
 
