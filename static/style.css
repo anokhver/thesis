@@ -211,6 +211,32 @@ main.container { padding-top: 2rem; padding-bottom: 2rem; flex: 1; }
 /* ── Clickable table row ── */
 .data-table tbody tr.clickable { cursor: pointer; }
 
+/* ── Significant statistical-test row ── */
+.data-table tbody tr.significant > td,
+.data-table tbody tr.significant > th { font-weight: 700; }
+.data-table tbody tr.picked-row { background: #f5f3ff; }
+
+/* ── Card sub-sections (clustering results) ── */
+.card-subhead {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+    margin: 0 0 0.5rem 0;
+}
+.card-footnote {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin: 0.5rem 0 0 0;
+}
+.cluster-sanity-grid,
+.group-stats-omnibus {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem 1.5rem;
+}
+
 /* ── Footer ── */
 .footer {
     border-top: 1px solid var(--border);

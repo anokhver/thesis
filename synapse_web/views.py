@@ -24,6 +24,7 @@ from .services.artifacts import (
     list_plots,
     output_dir_present,
 )
+from .services.clustering_results import prepare_clustering_sections
 from .services.run_uploads import (
     inspect_bundle,
     inspect_patches,
@@ -63,6 +64,14 @@ def run_detail(request, run_id):
         for k in ("umap_groups", "group_heatmap", "group_boxplots")
     )
 
+    sections = (
+        prepare_clustering_sections(
+            run.clustering_summary, output_dir=run.output_dir,
+        )
+        if run.status == "completed"
+        else {}
+    )
+
     return render(
         request,
         "synapse_web/run_detail.html",
@@ -78,6 +87,7 @@ def run_detail(request, run_id):
             "has_group_plots": has_group_plots,
             "output_dir_present": output_dir_present(run),
             "debug": settings.DEBUG,
+            "sections": sections,
         },
     )
 

@@ -56,6 +56,126 @@
 {% endcard %}
 {% endif %}
 
+{% if sections.show_pipeline_meta %}
+{% card title="Pipeline parameters" margin="1.5rem" %}
+{% kv_table sections.pipeline_meta %}
+{% endcard %}
+{% endif %}
+
+{% if sections.show_sanity %}
+{% card title="Cluster sanity" margin="1.5rem" %}
+<div class="cluster-sanity-grid">
+    {% for subtitle, rows in sections.sanity_subsections %}
+    <section>
+        <h3 class="card-subhead">{{ subtitle }}</h3>
+        {% kv_table rows %}
+    </section>
+    {% endfor %}
+</div>
+{% endcard %}
+{% endif %}
+
+{% if sections.show_bootstrap_sweep %}
+{% card title="Resolution stability sweep" margin="1.5rem" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Resolution</th>
+            <th>Clusters</th>
+            <th>Bootstrap ARI</th>
+            <th>Bootstrap NMI</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in sections.bootstrap_sweep_rows %}
+        <tr{% if row.is_picked %} class="picked-row"{% endif %}>
+            <td>
+                <code>{{ row.resolution }}</code>
+                {% if row.is_picked %}<span class="badge badge-completed" style="margin-left: 0.4em;">picked</span>{% endif %}
+            </td>
+            <td>{{ row.n_clusters }}</td>
+            <td>{{ row.mean_ari }} ± {{ row.std_ari }}</td>
+            <td>{{ row.mean_nmi }} ± {{ row.std_nmi }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="card-footnote">
+    ARI / NMI ± std across bootstrap subsamples per Leiden resolution.
+    Picked row is the one selected by the pipeline's resolution-picker.
+</p>
+{% endcard %}
+{% endif %}
+
+{% if sections.show_cluster_purity %}
+{% card title="Cluster purity by source image" margin="1.5rem" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Cluster</th>
+            <th>Size</th>
+            <th>Images present</th>
+            <th>Normalised entropy</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in sections.cluster_purity_rows %}
+        <tr>
+            <td><code>{{ row.cluster }}</code></td>
+            <td>{{ row.size }}</td>
+            <td>{{ row.n_images_present }}</td>
+            <td>{{ row.norm_entropy }} ({{ row.norm_entropy_pct }})</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="card-footnote">
+    Normalised entropy of the per-cluster source-image distribution.
+    1.0 = perfectly mixed across images; 0.0 = one image dominates.
+</p>
+{% endcard %}
+{% endif %}
+
+{% if sections.show_medoids %}
+{% card title="Cluster medoids" margin="1.5rem" %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Cluster</th>
+            <th>Size</th>
+            <th>Medoid patch</th>
+            <th>Sampled patches</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in sections.medoid_rows %}
+        <tr>
+            <td><code>{{ row.cluster }}</code></td>
+            <td>{{ row.size }}</td>
+            <td>
+                {% if row.medoid_filename %}
+                    <code>{{ row.medoid_filename }}</code>
+                    {% if row.medoid_source_image %}
+                    <br><span class="card-footnote">{{ row.medoid_source_image }}</span>
+                    {% endif %}
+                {% else %}
+                    row #{{ row.medoid_index }}
+                {% endif %}
+            </td>
+            <td>{{ row.n_samples }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="card-footnote">
+    Medoid: patch closest to the cluster mean in PCA-whitened space.
+    Filename/source-image are resolved against
+    <code>patch_labels.csv</code> when available; otherwise the raw row
+    index into <code>labels.npy</code> is shown.
+</p>
+{% endcard %}
+{% endif %}
+
 {% if run.status == "completed" and plots_by_name.umap_clusters.url %}
 {% card title="Cluster space" margin="1.5rem" %}
 <figure style="margin: 0; text-align: center;">
@@ -112,6 +232,159 @@
     </figure>
     {% endif %}
 </div>
+{% endcard %}
+{% endif %}
+
+{% if sections.show_group_stats %}
+{% card title="Group statistical tests" margin="1.5rem" %}
+<p class="card-footnote">
+    Image is the statistical unit throughout (Lazic 2010, BMC Neurosci 11:5).
+    Significance flag below uses BH-FDR-corrected p &lt; {{ sections.alpha }}
+    for pairwise / per-cluster tests; for omnibus tests it uses the
+    permutation p-value at the same threshold.
+</p>
+
+<div class="group-stats-omnibus">
+    {% if sections.group_cluster_test %}
+    <section>
+        <h3 class="card-subhead">Image-permutation χ² (composition)</h3>
+        {% if sections.group_cluster_test.available %}
+        <table class="data-table">
+            <tbody>
+                <tr><th style="width: 40%;">χ² statistic</th><td>{{ sections.group_cluster_test.statistic }}</td></tr>
+                <tr{% if sections.group_cluster_test.significant %} class="significant"{% endif %}>
+                    <th>Permutation p</th>
+                    <td>{{ sections.group_cluster_test.p_value }}</td>
+                </tr>
+                <tr><th>Groups</th><td>{{ sections.group_cluster_test.group_names|join:", " }}</td></tr>
+                <tr><th>Method</th><td><code>{{ sections.group_cluster_test.method }}</code></td></tr>
+            </tbody>
+        </table>
+        {% if sections.group_cluster_test.per_group %}
+        <p class="card-footnote">Images per group:
+            {% for g, n in sections.group_cluster_test.per_group %}{{ g }} = {{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}
+        </p>
+        {% endif %}
+        {% else %}
+        <p class="card-footnote">Not available — {{ sections.group_cluster_test.method }}.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {% if sections.permanova %}
+    <section>
+        <h3 class="card-subhead">PERMANOVA on per-image frequencies</h3>
+        {% if sections.permanova.available %}
+        <table class="data-table">
+            <tbody>
+                <tr><th style="width: 40%;">Pseudo-F</th><td>{{ sections.permanova.f_statistic }}</td></tr>
+                <tr{% if sections.permanova.significant %} class="significant"{% endif %}>
+                    <th>Permutation p</th>
+                    <td>{{ sections.permanova.p_value }}</td>
+                </tr>
+                <tr><th>R²</th><td>{{ sections.permanova.r_squared }}</td></tr>
+                <tr><th>Permutations</th><td>{{ sections.permanova.n_permutations }}</td></tr>
+            </tbody>
+        </table>
+        {% if sections.permanova.per_group %}
+        <p class="card-footnote">Images per group:
+            {% for g, n in sections.permanova.per_group %}{{ g }} = {{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}
+        </p>
+        {% endif %}
+        {% else %}
+        <p class="card-footnote">Not available — insufficient images per group.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+</div>
+
+{% if sections.pairwise_permanova.rows %}
+<h3 class="card-subhead" style="margin-top: 1.5rem;">Pairwise PERMANOVA</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Group pair</th>
+            <th>Pseudo-F</th>
+            <th>p (raw)</th>
+            <th>p (BH-FDR)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in sections.pairwise_permanova.rows %}
+        <tr{% if row.significant %} class="significant"{% endif %}>
+            <td>{{ row.pair }}</td>
+            <td>{{ row.f_statistic }}</td>
+            <td>{{ row.p_raw }}</td>
+            <td>{{ row.p_corrected }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="card-footnote">
+    Metric: {{ sections.pairwise_permanova.metric }};
+    permutations: {{ sections.pairwise_permanova.n_permutations }};
+    method: <code>{{ sections.pairwise_permanova.method }}</code>.
+</p>
+{% endif %}
+
+{% if sections.pairwise_mmd.rows %}
+<h3 class="card-subhead" style="margin-top: 1.5rem;">Pairwise Gaussian-RBF MMD²</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Group pair</th>
+            <th>MMD²</th>
+            <th>p (raw)</th>
+            <th>p (BH-FDR)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in sections.pairwise_mmd.rows %}
+        <tr{% if row.significant %} class="significant"{% endif %}>
+            <td>{{ row.pair }}</td>
+            <td>{{ row.mmd2 }}</td>
+            <td>{{ row.p_raw }}</td>
+            <td>{{ row.p_corrected }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="card-footnote">
+    Kernel bandwidth σ = {{ sections.pairwise_mmd.sigma }} (median heuristic
+    on pooled per-image features); permutations:
+    {{ sections.pairwise_mmd.n_permutations }};
+    method: <code>{{ sections.pairwise_mmd.method }}</code>.
+</p>
+{% endif %}
+
+{% if sections.per_cluster_kw.rows %}
+<h3 class="card-subhead" style="margin-top: 1.5rem;">Per-cluster Kruskal-Wallis</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Cluster</th>
+            <th>H statistic</th>
+            <th>p (raw)</th>
+            <th>p (BH-FDR)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in sections.per_cluster_kw.rows %}
+        <tr{% if row.significant %} class="significant"{% endif %}>
+            <td><code>{{ row.cluster }}</code></td>
+            <td>{{ row.statistic }}</td>
+            <td>{{ row.p_raw }}</td>
+            <td>{{ row.p_corrected }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p class="card-footnote">
+    Posthoc on per-image cluster frequencies across groups
+    ({{ sections.per_cluster_kw.group_names|join:", " }}).
+    Method: <code>{{ sections.per_cluster_kw.method }}</code>.
+</p>
+{% endif %}
 {% endcard %}
 {% endif %}
 
