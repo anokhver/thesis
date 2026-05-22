@@ -378,11 +378,11 @@ preset's defaults.
 
 ### Weight initialization
 
-| Source | Description |
-|:-------|:------------|
-| `scratch` | Random init (PyTorch / MONAI defaults) |
-| `moby`    | MoBY contrastive self-supervised Swin-T (Xie et al., 2021) |
-| `tiny22k` | Swin-T ImageNet-22k (timm) |
+| Source | Description | Link |
+|:-------|:------------|:------| 
+| `scratch` | Random init (PyTorch / MONAI defaults) | None | 
+| `moby`    | MoBY contrastive self-supervised Swin-T (Xie et al., 2021) | https://github.com/SwinTransformer/Transformer-SSL https://drive.google.com/file/d/1PS1Q0tAnUfBWLRPxh9iUrinAxeq7Y--u/view |
+| `tiny22k` | Swin-T ImageNet-22k (timm) | https://github.com/SwinTransformer/storage/releases/download/v1.0.8/swin_tiny_patch4_window7_224_22k.pth https://github.com/SwinTransformer |
 
 ### Training features
 
