@@ -245,32 +245,6 @@
 </p>
 
 <div class="group-stats-omnibus">
-    {% if sections.group_cluster_test %}
-    <section>
-        <h3 class="card-subhead">Image-permutation χ² (composition)</h3>
-        {% if sections.group_cluster_test.available %}
-        <table class="data-table">
-            <tbody>
-                <tr><th style="width: 40%;">χ² statistic</th><td>{{ sections.group_cluster_test.statistic }}</td></tr>
-                <tr{% if sections.group_cluster_test.significant %} class="significant"{% endif %}>
-                    <th>Permutation p</th>
-                    <td>{{ sections.group_cluster_test.p_value }}</td>
-                </tr>
-                <tr><th>Groups</th><td>{{ sections.group_cluster_test.group_names|join:", " }}</td></tr>
-                <tr><th>Method</th><td><code>{{ sections.group_cluster_test.method }}</code></td></tr>
-            </tbody>
-        </table>
-        {% if sections.group_cluster_test.per_group %}
-        <p class="card-footnote">Images per group:
-            {% for g, n in sections.group_cluster_test.per_group %}{{ g }} = {{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}
-        </p>
-        {% endif %}
-        {% else %}
-        <p class="card-footnote">Not available — {{ sections.group_cluster_test.method }}.</p>
-        {% endif %}
-    </section>
-    {% endif %}
-
     {% if sections.permanova %}
     <section>
         <h3 class="card-subhead">PERMANOVA on per-image frequencies</h3>
