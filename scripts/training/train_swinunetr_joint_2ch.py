@@ -62,7 +62,8 @@ from synaptic_ssl.utils_data.patch_dataset import PatchDataset
 from synaptic_ssl.segmentation import (
     SegTrainCfg,
     JointChannelSegDataset,
-    JointChannelDiceBCE, JointChannelTversky, compute_dice_metric_per_channel,
+    JointChannelDiceBCE, JointChannelTversky, JointChannelTverskyBCE,
+    compute_dice_metric_per_channel,
     build_swinunetr, load_pretrained_encoder_into_swinunetr, count_params,
     SegTrainTransform, SegValTransform,
     sliding_window_predict_multichannel,
@@ -498,6 +499,11 @@ def _make_loss(seg_cfg: SegTrainCfg) -> nn.Module:
       ``dice_weight`` / ``bce_weight`` / ``dice_smooth``.
     - ``"tversky"``: :class:`JointChannelTversky` with
       ``tversky_alpha`` / ``tversky_beta`` / ``dice_smooth``.
+    - ``"tversky_bce"``: :class:`JointChannelTverskyBCE` -- per-channel
+      Tversky + BCE, uses ``tversky_alpha`` / ``tversky_beta`` /
+      ``bce_weight`` / ``dice_smooth``. Adds the per-pixel BCE term
+      that pure Tversky lacks, preventing the all-zero saturation
+      collapse seen in early pure-Tversky runs.
     """
     loss_type = (getattr(seg_cfg, "loss_type", "dice_bce") or "dice_bce").lower()
     if loss_type == "tversky":
@@ -506,6 +512,13 @@ def _make_loss(seg_cfg: SegTrainCfg) -> nn.Module:
             beta=seg_cfg.tversky_beta,
             smooth=seg_cfg.dice_smooth,
         )
+    if loss_type == "tversky_bce":
+        return JointChannelTverskyBCE(
+            alpha=seg_cfg.tversky_alpha,
+            beta=seg_cfg.tversky_beta,
+            smooth=seg_cfg.dice_smooth,
+            bce_weight=seg_cfg.bce_weight,
+        )
     if loss_type == "dice_bce":
         return JointChannelDiceBCE(
             dice_weight=seg_cfg.dice_weight,
@@ -513,7 +526,8 @@ def _make_loss(seg_cfg: SegTrainCfg) -> nn.Module:
             smooth=seg_cfg.dice_smooth,
         )
     raise ValueError(
-        f"Unknown seg.loss_type {loss_type!r}; expected 'dice_bce' or 'tversky'."
+        f"Unknown seg.loss_type {loss_type!r}; "
+        f"expected 'dice_bce', 'tversky', or 'tversky_bce'."
     )
 
 

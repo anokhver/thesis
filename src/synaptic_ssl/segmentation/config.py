@@ -54,8 +54,12 @@ class SegTrainCfg:
     dice_smooth: float = 1.0
 
     # loss selection (default keeps the original Dice+BCE behaviour)
-    # "dice_bce" -> :class:`JointChannelDiceBCE` (uses dice_weight, bce_weight, dice_smooth)
-    # "tversky"  -> :class:`JointChannelTversky` (uses tversky_alpha, tversky_beta, dice_smooth)
+    # "dice_bce"    -> :class:`JointChannelDiceBCE`    (uses dice_weight, bce_weight, dice_smooth)
+    # "tversky"     -> :class:`JointChannelTversky`     (uses tversky_alpha, tversky_beta, dice_smooth)
+    # "tversky_bce" -> :class:`JointChannelTverskyBCE`  (uses tversky_alpha, tversky_beta,
+    #                                                    bce_weight, dice_smooth) -- adds a
+    #                  per-pixel BCE term to Tversky to avoid the all-zero saturation
+    #                  collapse observed in pure-Tversky runs.
     loss_type: str = "dice_bce"
     tversky_alpha: float = 0.3   # FP weight (< beta => false positives forgiven)
     tversky_beta: float = 0.7    # FN weight

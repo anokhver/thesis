@@ -1,0 +1,803 @@
+source_image,group,n_patches
+1_8_KONTROLA_1_Multichannel Z-Stack_20251030_118.npy,Control,324
+2.1.hrmin1_Multichannel Z-Stack_20251017_01.npy,Harmine,324
+2.1.hrmin2_Multichannel Z-Stack_20251017_02.npy,Harmine,324
+2_1_harmin_10_Multichannel Z-Stack_20251017_10.npy,Harmine,324
+2_1_harmin_3_Multichannel Z-Stack_20251017_03.npy,Harmine,324
+2_1_harmin_4_Multichannel Z-Stack_20251017_04.npy,Harmine,324
+2_1_harmin_4_Multichannel Z-Stack_20251017_05.npy,Harmine,324
+2_1_harmin_4_Multichannel Z-Stack_20251017_06.npy,Harmine,324
+2_1_harmin_7_Multichannel Z-Stack_20251017_07.npy,Harmine,324
+2_1_harmin_8_Multichannel Z-Stack_20251017_08.npy,Harmine,324
+2_1_harmin_9_Multichannel Z-Stack_20251017_09.npy,Harmine,324
+2_1_kontrola_10_Multichannel Z-Stack_20251017_20.npy,Control,324
+2_1_kontrola_1_Multichannel Z-Stack_20251017_11.npy,Control,324
+2_1_kontrola_2_Multichannel Z-Stack_20251017_12.npy,Control,324
+2_1_kontrola_3_Multichannel Z-Stack_20251017_13.npy,Control,324
+2_1_kontrola_4_Multichannel Z-Stack_20251017_14.npy,Control,324
+2_1_kontrola_5_Multichannel Z-Stack_20251017_15.npy,Control,324
+2_1_kontrola_6_Multichannel Z-Stack_20251017_16.npy,Control,324
+2_1_kontrola_7_Multichannel Z-Stack_20251017_17.npy,Control,324
+2_1_kontrola_8_Multichannel Z-Stack_20251017_18.npy,Control,324
+2_1_kontrola_9_Multichannel Z-Stack_20251017_19.npy,Control,324
+2_2_PSIHARMIN_10_Multichannel Z-Stack_20251017_40.npy,Psilocin + harmine,324
+2_2_PSIHARMIN_1_Multichannel Z-Stack_20251017_31.npy,Psilocin + harmine,324
+2_2_PSIHARMIN_2_Multichannel Z-Stack_20251017_32.npy,Psilocin + harmine,324
+2_2_PSIHARMIN_3_Multichannel Z-Stack_20251017_33.npy,Psilocin + harmine,324
+2_2_PSIHARMIN_4_Multichannel Z-Stack_20251017_34.npy,Psilocin + harmine,324
+2_2_PSIHARMIN_5_Multichannel Z-Stack_20251017_35.npy,Psilocin + harmine,324
+2_2_PSIHARMIN_6_Multichannel Z-Stack_20251017_36.npy,Psilocin + harmine,324
+2_2_PSIHARMIN_7_Multichannel Z-Stack_20251017_37.npy,Psilocin + harmine,324
+2_2_PSIHARMIN_8_Multichannel Z-Stack_20251017_38.npy,Psilocin + harmine,324
+2_2_PSIHARMIN_9_Multichannel Z-Stack_20251017_39.npy,Psilocin + harmine,324
+2_2_PSI_10_Multichannel Z-Stack_20251017_30.npy,Psilocin,324
+2_2_PSI_1_Multichannel Z-Stack_20251017_21.npy,Psilocin,324
+2_2_PSI_2_Multichannel Z-Stack_20251017_22.npy,Psilocin,324
+2_2_PSI_3010_Multichannel Z-Stack_20251030_51.npy,Psilocin,324
+2_2_PSI_3010_Multichannel Z-Stack_20251030_52.npy,Psilocin,324
+2_2_PSI_30_10_3_Multichannel Z-Stack_20251030_53.npy,Psilocin,324
+2_2_PSI_30_10_4_Multichannel Z-Stack_20251030_54.npy,Psilocin,324
+2_2_PSI_30_10_5_Multichannel Z-Stack_20251030_55.npy,Psilocin,324
+2_2_PSI_3_Multichannel Z-Stack_20251017_23.npy,Psilocin,324
+2_2_PSI_4_Multichannel Z-Stack_20251017_24.npy,Psilocin,324
+2_2_PSI_5_Multichannel Z-Stack_20251017_25.npy,Psilocin,324
+2_2_PSI_6_Multichannel Z-Stack_20251017_26.npy,Psilocin,324
+2_2_PSI_7_Multichannel Z-Stack_20251017_27.npy,Psilocin,324
+2_2_PSI_8_Multichannel Z-Stack_20251017_28.npy,Psilocin,324
+2_2_PSI_9_Multichannel Z-Stack_20251017_29.npy,Psilocin,324
+2_3_PSYHARMIN_10_Multichannel Z-Stack_20251030_75.npy,Psilocybin + harmine,324
+2_3_PSYHARMIN_1_Multichannel Z-Stack_20251030_66.npy,Psilocybin + harmine,324
+2_3_PSYHARMIN_2_Multichannel Z-Stack_20251030_67.npy,Psilocybin + harmine,324
+2_3_PSYHARMIN_3_Multichannel Z-Stack_20251030_68.npy,Psilocybin + harmine,324
+2_3_PSYHARMIN_4_Multichannel Z-Stack_20251030_69.npy,Psilocybin + harmine,324
+2_3_PSYHARMIN_5_Multichannel Z-Stack_20251030_70.npy,Psilocybin + harmine,324
+2_3_PSYHARMIN_6_Multichannel Z-Stack_20251030_71.npy,Psilocybin + harmine,324
+2_3_PSYHARMIN_7_Multichannel Z-Stack_20251030_72.npy,Psilocybin + harmine,324
+2_3_PSYHARMIN_8_Multichannel Z-Stack_20251030_73.npy,Psilocybin + harmine,324
+2_3_PSYHARMIN_9_Multichannel Z-Stack_20251030_74.npy,Psilocybin + harmine,324
+2_3_PSY_10_Multichannel Z-Stack_20251030_65.npy,Psilocybin,324
+2_3_PSY_1_Multichannel Z-Stack_20251030_56.npy,Psilocybin,324
+2_3_PSY_2_Multichannel Z-Stack_20251030_57.npy,Psilocybin,324
+2_3_PSY_3_Multichannel Z-Stack_20251030_58.npy,Psilocybin,324
+2_3_PSY_4_Multichannel Z-Stack_20251030_59.npy,Psilocybin,324
+2_3_PSY_5_Multichannel Z-Stack_20251030_60.npy,Psilocybin,324
+2_3_PSY_6_Multichannel Z-Stack_20251030_61.npy,Psilocybin,324
+2_3_PSY_6_Multichannel Z-Stack_20251030_62.npy,Psilocybin,324
+2_3_PSY_8_Multichannel Z-Stack_20251030_63.npy,Psilocybin,324
+2_3_PSY_9_Multichannel Z-Stack_20251030_64.npy,Psilocybin,324
+2_4_NORPSIHARMIN_10_Multichannel Z-Stack_20251030_95.npy,Norpsilocin + harmine,324
+2_4_NORPSIHARMIN_1_Multichannel Z-Stack_20251030_86.npy,Norpsilocin + harmine,324
+2_4_NORPSIHARMIN_2_Multichannel Z-Stack_20251030_87.npy,Norpsilocin + harmine,324
+2_4_NORPSIHARMIN_3_Multichannel Z-Stack_20251030_88.npy,Norpsilocin + harmine,324
+2_4_NORPSIHARMIN_4_Multichannel Z-Stack_20251030_89.npy,Norpsilocin + harmine,324
+2_4_NORPSIHARMIN_5_Multichannel Z-Stack_20251030_90.npy,Norpsilocin + harmine,324
+2_4_NORPSIHARMIN_6_Multichannel Z-Stack_20251030_91.npy,Norpsilocin + harmine,324
+2_4_NORPSIHARMIN_7_Multichannel Z-Stack_20251030_92.npy,Norpsilocin + harmine,324
+2_4_NORPSIHARMIN_8_Multichannel Z-Stack_20251030_93.npy,Norpsilocin + harmine,324
+2_4_NORPSIHARMIN_9_Multichannel Z-Stack_20251030_94.npy,Norpsilocin + harmine,324
+2_4_NORPSI_10_Multichannel Z-Stack_20251030_85.npy,Norpsilocin,324
+2_4_NORPSI_1_Multichannel Z-Stack_20251030_76.npy,Norpsilocin,324
+2_4_NORPSI_2_Multichannel Z-Stack_20251030_77.npy,Norpsilocin,324
+2_4_NORPSI_3_Multichannel Z-Stack_20251030_78.npy,Norpsilocin,324
+2_4_NORPSI_4_Multichannel Z-Stack_20251030_79.npy,Norpsilocin,324
+2_4_NORPSI_5_Multichannel Z-Stack_20251030_80.npy,Norpsilocin,324
+2_4_NORPSI_6_Multichannel Z-Stack_20251030_81.npy,Norpsilocin,324
+2_4_NORPSI_7_Multichannel Z-Stack_20251030_82.npy,Norpsilocin,324
+2_4_NORPSI_8_Multichannel Z-Stack_20251030_83.npy,Norpsilocin,324
+2_4_NORPSI_9_Multichannel Z-Stack_20251030_84.npy,Norpsilocin,324
+2_5_BAEOHARMIN_10_Multichannel Z-Stack_20251030_117.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_1_Multichannel Z-Stack_20251030_107.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_1_Multichannel Z-Stack_20251030_108.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_2_Multichannel Z-Stack_20251030_109.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_3_Multichannel Z-Stack_20251030_110.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_4_Multichannel Z-Stack_20251030_111.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_5_Multichannel Z-Stack_20251030_112.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_6_Multichannel Z-Stack_20251030_113.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_7_Multichannel Z-Stack_20251030_114.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_8_Multichannel Z-Stack_20251030_115.npy,Baeocystin + harmine,324
+2_5_BAEOHARMIN_9_Multichannel Z-Stack_20251030_116.npy,Baeocystin + harmine,324
+2_5_BAEO_10_Multichannel Z-Stack_20251030_106.npy,Baeocystin,324
+2_5_BAEO_1_Multichannel Z-Stack_20251030_96.npy,Baeocystin,324
+2_5_BAEO_1_Multichannel Z-Stack_20251030_97.npy,Baeocystin,324
+2_5_BAEO_3_Multichannel Z-Stack_20251030_98.npy,Baeocystin,324
+2_5_BAEO_4_Multichannel Z-Stack_20251030_99.npy,Baeocystin,324
+2_5_BAEO_5_Multichannel Z-Stack_20251030_100.npy,Baeocystin,324
+2_5_BAEO_5_Multichannel Z-Stack_20251030_101.npy,Baeocystin,324
+2_5_BAEO_6_Multichannel Z-Stack_20251030_102.npy,Baeocystin,324
+2_5_BAEO_6_Multichannel Z-Stack_20251030_103.npy,Baeocystin,324
+2_5_BAEO_8_Multichannel Z-Stack_20251030_104.npy,Baeocystin,324
+2_5_BAEO_9_Multichannel Z-Stack_20251030_105.npy,Baeocystin,324
+2_6_NORBAEOHARMIN_10_Multichannel Z-Stack_20251104_219.npy,Norbaeocystin + harmine,324
+2_6_NORBAEOHARMIN_1_Multichannel Z-Stack_20251104_210.npy,Norbaeocystin + harmine,324
+2_6_NORBAEOHARMIN_2_Multichannel Z-Stack_20251104_211.npy,Norbaeocystin + harmine,324
+2_6_NORBAEOHARMIN_3_Multichannel Z-Stack_20251104_212.npy,Norbaeocystin + harmine,324
+2_6_NORBAEOHARMIN_4_Multichannel Z-Stack_20251104_213.npy,Norbaeocystin + harmine,324
+2_6_NORBAEOHARMIN_5_Multichannel Z-Stack_20251104_214.npy,Norbaeocystin + harmine,324
+2_6_NORBAEOHARMIN_6_Multichannel Z-Stack_20251104_215.npy,Norbaeocystin + harmine,324
+2_6_NORBAEOHARMIN_7_Multichannel Z-Stack_20251104_216.npy,Norbaeocystin + harmine,324
+2_6_NORBAEOHARMIN_8_Multichannel Z-Stack_20251104_217.npy,Norbaeocystin + harmine,324
+2_6_NORBAEOHARMIN_9_Multichannel Z-Stack_20251104_218.npy,Norbaeocystin + harmine,324
+2_6_NORBAEO_10_Multichannel Z-Stack_20251104_209.npy,Norbaeocystin,324
+2_6_NORBAEO_1_Multichannel Z-Stack_20251104_199.npy,Norbaeocystin,324
+2_6_NORBAEO_2_Multichannel Z-Stack_20251104_200.npy,Norbaeocystin,324
+2_6_NORBAEO_3_Multichannel Z-Stack_20251104_201.npy,Norbaeocystin,324
+2_6_NORBAEO_4A_Multichannel Z-Stack_20251104_203.npy,Norbaeocystin,324
+2_6_NORBAEO_4_Multichannel Z-Stack_20251104_202.npy,Norbaeocystin,324
+2_6_NORBAEO_5_Multichannel Z-Stack_20251104_204.npy,Norbaeocystin,324
+2_6_NORBAEO_6_Multichannel Z-Stack_20251104_205.npy,Norbaeocystin,324
+2_6_NORBAEO_7_Multichannel Z-Stack_20251104_206.npy,Norbaeocystin,324
+2_6_NORBAEO_8_Multichannel Z-Stack_20251104_207.npy,Norbaeocystin,324
+2_6_NORBAEO_9_Multichannel Z-Stack_20251104_208.npy,Norbaeocystin,324
+2_6_NORBAEO_HARMIN_1_Multichannel Z-Stack_20251104_197.npy,Norbaeocystin + harmine,324
+2_6_NORBAEO_HARMIN_1a_Multichannel Z-Stack_20251104_198.npy,Norbaeocystin + harmine,324
+2_8_KONTROLAA_10_Multichannel Z-Stack_20251104_196.npy,Control,324
+2_8_KONTROLAA_1_Multichannel Z-Stack_20251104_187.npy,Control,324
+2_8_KONTROLAA_2_Multichannel Z-Stack_20251104_188.npy,Control,324
+2_8_KONTROLAA_3_Multichannel Z-Stack_20251104_189.npy,Control,324
+2_8_KONTROLAA_4_Multichannel Z-Stack_20251104_190.npy,Control,324
+2_8_KONTROLAA_5_Multichannel Z-Stack_20251104_191.npy,Control,324
+2_8_KONTROLAA_6_Multichannel Z-Stack_20251104_192.npy,Control,324
+2_8_KONTROLAA_7_Multichannel Z-Stack_20251104_193.npy,Control,324
+2_8_KONTROLAA_8_Multichannel Z-Stack_20251104_194.npy,Control,324
+2_8_KONTROLAA_9_Multichannel Z-Stack_20251104_195.npy,Control,324
+2_8_LITHIUM_10_Multichannel Z-Stack_20251017_50.npy,Lithium,324
+2_8_LITHIUM_1_Multichannel Z-Stack_20251017_41.npy,Lithium,324
+2_8_LITHIUM_2_Multichannel Z-Stack_20251017_42.npy,Lithium,324
+2_8_LITHIUM_3_Multichannel Z-Stack_20251017_43.npy,Lithium,324
+2_8_LITHIUM_4_Multichannel Z-Stack_20251017_44.npy,Lithium,324
+2_8_LITHIUM_5_Multichannel Z-Stack_20251017_45.npy,Lithium,324
+2_8_LITHIUM_6_Multichannel Z-Stack_20251017_46.npy,Lithium,324
+2_8_LITHIUM_7_Multichannel Z-Stack_20251017_47.npy,Lithium,324
+2_8_LITHIUM_8_Multichannel Z-Stack_20251017_48.npy,Lithium,324
+2_8_LITHIUM_9_Multichannel Z-Stack_20251017_49.npy,Lithium,324
+3_1_KONTROLA_10_Multichannel Z-Stack_20251104_128.npy,Control,324
+3_1_KONTROLA_1_Multichannel Z-Stack_20251104_119.npy,Control,324
+3_1_KONTROLA_2_Multichannel Z-Stack_20251104_120.npy,Control,324
+3_1_KONTROLA_3_Multichannel Z-Stack_20251104_121.npy,Control,324
+3_1_KONTROLA_4_Multichannel Z-Stack_20251104_122.npy,Control,324
+3_1_KONTROLA_5_Multichannel Z-Stack_20251104_123.npy,Control,324
+3_1_KONTROLA_6_Multichannel Z-Stack_20251104_124.npy,Control,324
+3_1_KONTROLA_7_Multichannel Z-Stack_20251104_125.npy,Control,324
+3_1_KONTROLA_8_Multichannel Z-Stack_20251104_126.npy,Control,324
+3_1_KONTROLA_9_Multichannel Z-Stack_20251104_127.npy,Control,324
+3_1_LITHIUM_10_Multichannel Z-Stack_20251104_139.npy,Lithium,324
+3_1_LITHIUM_1_Multichannel Z-Stack_20251104_129.npy,Lithium,324
+3_1_LITHIUM_1_Multichannel Z-Stack_20251104_130.npy,Lithium,324
+3_1_LITHIUM_2_Multichannel Z-Stack_20251104_131.npy,Lithium,324
+3_1_LITHIUM_3_Multichannel Z-Stack_20251104_132.npy,Lithium,324
+3_1_LITHIUM_4_Multichannel Z-Stack_20251104_133.npy,Lithium,324
+3_1_LITHIUM_5_Multichannel Z-Stack_20251104_134.npy,Lithium,324
+3_1_LITHIUM_6_Multichannel Z-Stack_20251104_135.npy,Lithium,324
+3_1_LITHIUM_7_Multichannel Z-Stack_20251104_136.npy,Lithium,324
+3_1_LITHIUM_8_Multichannel Z-Stack_20251104_137.npy,Lithium,324
+3_1_LITHIUM_9_Multichannel Z-Stack_20251104_138.npy,Lithium,324
+3_2_PSIHARMIN_10_Multichannel Z-Stack_20251104_165.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_1_Multichannel Z-Stack_20251104_154.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_2_Multichannel Z-Stack_20251104_155.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_3A_Multichannel Z-Stack_20251104_157.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_3_Multichannel Z-Stack_20251104_156.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_4_Multichannel Z-Stack_20251104_158.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_5_Multichannel Z-Stack_20251104_159.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_6_Multichannel Z-Stack_20251104_160.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_7_Multichannel Z-Stack_20251104_161.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_8A_Multichannel Z-Stack_20251104_163.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_8_Multichannel Z-Stack_20251104_162.npy,Psilocin + harmine,324
+3_2_PSIHARMIN_9_Multichannel Z-Stack_20251104_164.npy,Psilocin + harmine,324
+3_2_PSI_10_Multichannel Z-Stack_20251104_153.npy,Psilocin,324
+3_2_PSI_1_Multichannel Z-Stack_20251104_140.npy,Psilocin,324
+3_2_PSI_2_Multichannel Z-Stack_20251104_141.npy,Psilocin,324
+3_2_PSI_3 100MS_Multichannel Z-Stack_20251104_144.npy,Psilocin,324
+3_2_PSI_3 AUTOM. EXPOZICE_Multichannel Z-Stack_20251104_142.npy,Psilocin,324
+3_2_PSI_3_Multichannel Z-Stack_20251104_143.npy,Psilocin,324
+3_2_PSI_4_Multichannel Z-Stack_20251104_145.npy,Psilocin,324
+3_2_PSI_4_Multichannel Z-Stack_20251104_146.npy,Psilocin,324
+3_2_PSI_5_Multichannel Z-Stack_20251104_147.npy,Psilocin,324
+3_2_PSI_6_Multichannel Z-Stack_20251104_148.npy,Psilocin,324
+3_2_PSI_7_Multichannel Z-Stack_20251104_149.npy,Psilocin,324
+3_2_PSI_8_Multichannel Z-Stack_20251104_150.npy,Psilocin,324
+3_2_PSI_8a_Multichannel Z-Stack_20251104_151.npy,Psilocin,324
+3_2_PSI_9_Multichannel Z-Stack_20251104_152.npy,Psilocin,324
+3_3_PSYHARMIN_10_Multichannel Z-Stack_20251104_186.npy,Psilocybin + harmine,324
+3_3_PSYHARMIN_1_Multichannel Z-Stack_20251104_177.npy,Psilocybin + harmine,324
+3_3_PSYHARMIN_2_Multichannel Z-Stack_20251104_178.npy,Psilocybin + harmine,324
+3_3_PSYHARMIN_3_Multichannel Z-Stack_20251104_179.npy,Psilocybin + harmine,324
+3_3_PSYHARMIN_4_Multichannel Z-Stack_20251104_180.npy,Psilocybin + harmine,324
+3_3_PSYHARMIN_5_Multichannel Z-Stack_20251104_181.npy,Psilocybin + harmine,324
+3_3_PSYHARMIN_6_Multichannel Z-Stack_20251104_182.npy,Psilocybin + harmine,324
+3_3_PSYHARMIN_7_Multichannel Z-Stack_20251104_183.npy,Psilocybin + harmine,324
+3_3_PSYHARMIN_8_Multichannel Z-Stack_20251104_184.npy,Psilocybin + harmine,324
+3_3_PSYHARMIN_9_Multichannel Z-Stack_20251104_185.npy,Psilocybin + harmine,324
+3_3_PSY_10_Multichannel Z-Stack_20251104_176.npy,Psilocybin,324
+3_3_PSY_1A_Multichannel Z-Stack_20251104_167.npy,Psilocybin,324
+3_3_PSY_1_Multichannel Z-Stack_20251104_166.npy,Psilocybin,324
+3_3_PSY_2_Multichannel Z-Stack_20251104_168.npy,Psilocybin,324
+3_3_PSY_3_Multichannel Z-Stack_20251104_169.npy,Psilocybin,324
+3_3_PSY_4_Multichannel Z-Stack_20251104_170.npy,Psilocybin,324
+3_3_PSY_5_Multichannel Z-Stack_20251104_171.npy,Psilocybin,324
+3_3_PSY_6_Multichannel Z-Stack_20251104_172.npy,Psilocybin,324
+3_3_PSY_7_Multichannel Z-Stack_20251104_173.npy,Psilocybin,324
+3_3_PSY_8_Multichannel Z-Stack_20251104_174.npy,Psilocybin,324
+3_3_PSY_9_Multichannel Z-Stack_20251104_175.npy,Psilocybin,324
+5_KONTROLA_10_Multichannel Z-Stack_20251205_128.npy,Control,324
+5_KONTROLA_1_Multichannel Z-Stack_20251205_119.npy,Control,324
+5_KONTROLA_21_Multichannel Z-Stack_20251205_129.npy,Control,324
+5_KONTROLA_21_Multichannel Z-Stack_20251205_130.npy,Control,324
+5_KONTROLA_22_Multichannel Z-Stack_20251205_131.npy,Control,324
+5_KONTROLA_23_Multichannel Z-Stack_20251205_132.npy,Control,324
+5_KONTROLA_24_Multichannel Z-Stack_20251205_133.npy,Control,324
+5_KONTROLA_25_Multichannel Z-Stack_20251205_134.npy,Control,324
+5_KONTROLA_26_Multichannel Z-Stack_20251205_135.npy,Control,324
+5_KONTROLA_27_Multichannel Z-Stack_20251205_136.npy,Control,324
+5_KONTROLA_28_Multichannel Z-Stack_20251205_137.npy,Control,324
+5_KONTROLA_29_Multichannel Z-Stack_20251205_138.npy,Control,324
+5_KONTROLA_2_Multichannel Z-Stack_20251205_120.npy,Control,324
+5_KONTROLA_30_Multichannel Z-Stack_20251205_139.npy,Control,324
+5_KONTROLA_3_Multichannel Z-Stack_20251205_121.npy,Control,324
+5_KONTROLA_4_Multichannel Z-Stack_20251205_122.npy,Control,324
+5_KONTROLA_5_Multichannel Z-Stack_20251205_123.npy,Control,324
+5_KONTROLA_6_Multichannel Z-Stack_20251205_124.npy,Control,324
+5_KONTROLA_7_Multichannel Z-Stack_20251205_125.npy,Control,324
+5_KONTROLA_8_Multichannel Z-Stack_20251205_126.npy,Control,324
+5_KONTROLA_9_Multichannel Z-Stack_20251205_127.npy,Control,324
+5_KONTROLA_A_72HOD_10_Multichannel Z-Stack_20251213_495.npy,Control | 72h,324
+5_KONTROLA_A_72HOD_1_Multichannel Z-Stack_20251213_486.npy,Control | 72h,324
+5_KONTROLA_A_72HOD_2_Multichannel Z-Stack_20251213_487.npy,Control | 72h,324
+5_KONTROLA_A_72HOD_3_Multichannel Z-Stack_20251213_488.npy,Control | 72h,324
+5_KONTROLA_A_72HOD_4_Multichannel Z-Stack_20251213_489.npy,Control | 72h,324
+5_KONTROLA_A_72HOD_5_Multichannel Z-Stack_20251213_490.npy,Control | 72h,324
+5_KONTROLA_A_72HOD_6_Multichannel Z-Stack_20251213_491.npy,Control | 72h,324
+5_KONTROLA_A_72HOD_7_Multichannel Z-Stack_20251213_492.npy,Control | 72h,324
+5_KONTROLA_A_72HOD_8_Multichannel Z-Stack_20251213_493.npy,Control | 72h,324
+5_KONTROLA_A_72HOD_9_Multichannel Z-Stack_20251213_494.npy,Control | 72h,324
+5_KONTROLA_WO_10_Multichannel Z-Stack_20251205_149.npy,Control,324
+5_KONTROLA_WO_11_Multichannel Z-Stack_20251205_150.npy,Control,324
+5_KONTROLA_WO_1_Multichannel Z-Stack_20251205_140.npy,Control,324
+5_KONTROLA_WO_2_Multichannel Z-Stack_20251205_141.npy,Control,324
+5_KONTROLA_WO_3_Multichannel Z-Stack_20251205_142.npy,Control,324
+5_KONTROLA_WO_48HOD_10_Multichannel Z-Stack_20251213_423.npy,Control | 48h,324
+5_KONTROLA_WO_48HOD_1_Multichannel Z-Stack_20251213_414.npy,Control | 48h,324
+5_KONTROLA_WO_48HOD_2_Multichannel Z-Stack_20251213_415.npy,Control | 48h,324
+5_KONTROLA_WO_48HOD_3_Multichannel Z-Stack_20251213_416.npy,Control | 48h,324
+5_KONTROLA_WO_48HOD_4_Multichannel Z-Stack_20251213_417.npy,Control | 48h,324
+5_KONTROLA_WO_48HOD_5_Multichannel Z-Stack_20251213_418.npy,Control | 48h,324
+5_KONTROLA_WO_48HOD_6_Multichannel Z-Stack_20251213_419.npy,Control | 48h,324
+5_KONTROLA_WO_48HOD_7_Multichannel Z-Stack_20251213_420.npy,Control | 48h,324
+5_KONTROLA_WO_48HOD_8_Multichannel Z-Stack_20251213_421.npy,Control | 48h,324
+5_KONTROLA_WO_48HOD_9_Multichannel Z-Stack_20251213_422.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_10_Multichannel Z-Stack_20251208_219.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_1A_Multichannel Z-Stack_20251208_210.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_1_Multichannel Z-Stack_20251208_209.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_2_Multichannel Z-Stack_20251208_211.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_3_Multichannel Z-Stack_20251208_212.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_4_Multichannel Z-Stack_20251208_213.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_5_Multichannel Z-Stack_20251208_214.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_6_Multichannel Z-Stack_20251208_215.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_7_Multichannel Z-Stack_20251208_216.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_8_Multichannel Z-Stack_20251208_217.npy,Control | 48h,324
+5_KONTROLA_WO_48hod_9_Multichannel Z-Stack_20251208_218.npy,Control | 48h,324
+5_KONTROLA_WO_4_Multichannel Z-Stack_20251205_143.npy,Control,324
+5_KONTROLA_WO_5_Multichannel Z-Stack_20251205_144.npy,Control,324
+5_KONTROLA_WO_6_Multichannel Z-Stack_20251205_145.npy,Control,324
+5_KONTROLA_WO_7_Multichannel Z-Stack_20251205_146.npy,Control,324
+5_KONTROLA_WO_8_Multichannel Z-Stack_20251205_147.npy,Control,324
+5_KONTROLA_WO_9_Multichannel Z-Stack_20251205_148.npy,Control,324
+5_PSI1H10UM_WO_48HOD_10_Multichannel Z-Stack_20251213_453.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1H10UM_WO_48HOD_1_Multichannel Z-Stack_20251213_444.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1H10UM_WO_48HOD_2_Multichannel Z-Stack_20251213_445.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1H10UM_WO_48HOD_3_Multichannel Z-Stack_20251213_446.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1H10UM_WO_48HOD_4_Multichannel Z-Stack_20251213_447.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1H10UM_WO_48HOD_5_Multichannel Z-Stack_20251213_448.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1H10UM_WO_48HOD_6_Multichannel Z-Stack_20251213_449.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1H10UM_WO_48HOD_7_Multichannel Z-Stack_20251213_450.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1H10UM_WO_48HOD_8_Multichannel Z-Stack_20251213_451.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1H10UM_WO_48HOD_9_Multichannel Z-Stack_20251213_452.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_10_Multichannel Z-Stack_20251205_172.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_1_Multichannel Z-Stack_20251205_162.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_2_Multichannel Z-Stack_20251205_163.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_3_Multichannel Z-Stack_20251205_164.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_4_Multichannel Z-Stack_20251205_165.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_5_Multichannel Z-Stack_20251205_166.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_6_Multichannel Z-Stack_20251205_167.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_7_Multichannel Z-Stack_20251205_168.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_8_Multichannel Z-Stack_20251205_169.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_9_Multichannel Z-Stack_20251205_170.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_24hod_9_Multichannel Z-Stack_20251205_171.npy,Psilocin | 10 uM | 24h | 1h pulse,324
+5_PSI1h10uM_WO_48hod_10_Multichannel Z-Stack_20251208_250.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1h10uM_WO_48hod_3_Multichannel Z-Stack_20251208_243.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1h10uM_WO_48hod_4_Multichannel Z-Stack_20251208_244.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1h10uM_WO_48hod_5_Multichannel Z-Stack_20251208_245.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1h10uM_WO_48hod_6_Multichannel Z-Stack_20251208_246.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1h10uM_WO_48hod_7_Multichannel Z-Stack_20251208_247.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI1h10uM_WO_48hod_8_Multichannel Z-Stack_20251208_248.npy,Psilocin | 10 uM | 48h | 1h pulse,324
+5_PSI_01UM_48HOD_10_Multichannel Z-Stack_20251213_433.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48HOD_1_Multichannel Z-Stack_20251213_424.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48HOD_2_Multichannel Z-Stack_20251213_425.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48HOD_3_Multichannel Z-Stack_20251213_426.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48HOD_4_Multichannel Z-Stack_20251213_427.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48HOD_5_Multichannel Z-Stack_20251213_428.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48HOD_6_Multichannel Z-Stack_20251213_429.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48HOD_7_Multichannel Z-Stack_20251213_430.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48HOD_8_Multichannel Z-Stack_20251213_431.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48HOD_9_Multichannel Z-Stack_20251213_432.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_10_Multichannel Z-Stack_20251208_230.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_1_Multichannel Z-Stack_20251208_220.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_2_Multichannel Z-Stack_20251208_221.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_3_Multichannel Z-Stack_20251208_222.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_4_Multichannel Z-Stack_20251208_223.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_5_Multichannel Z-Stack_20251208_224.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_6_Multichannel Z-Stack_20251208_225.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_6_Multichannel Z-Stack_20251208_226.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_7_Multichannel Z-Stack_20251208_227.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_8_Multichannel Z-Stack_20251208_228.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_48hod_9_Multichannel Z-Stack_20251208_229.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01UM_72HOD_10_Multichannel Z-Stack_20251213_485.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_1_Multichannel Z-Stack_20251213_474.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_2_Multichannel Z-Stack_20251213_475.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_3_Multichannel Z-Stack_20251213_476.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_4_Multichannel Z-Stack_20251213_477.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_5_Multichannel Z-Stack_20251213_478.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_5{2]_Multichannel Z-Stack_20251213_479.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_5{3]_Multichannel Z-Stack_20251213_480.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_6_Multichannel Z-Stack_20251213_481.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_7_Multichannel Z-Stack_20251213_482.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_8_Multichannel Z-Stack_20251213_483.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01UM_72HOD_9_Multichannel Z-Stack_20251213_484.npy,Psilocin | 0.1 uM | 72h,324
+5_PSI_01uM_24hod_10_Multichannel Z-Stack_20251205_183.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_1_Multichannel Z-Stack_20251205_173.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_2_Multichannel Z-Stack_20251205_174.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_3_Multichannel Z-Stack_20251205_175.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_4_Multichannel Z-Stack_20251205_176.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_5_Multichannel Z-Stack_20251205_177.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_6_Multichannel Z-Stack_20251205_178.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_7_Multichannel Z-Stack_20251205_179.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_7_Multichannel Z-Stack_20251205_180.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_8_Multichannel Z-Stack_20251205_181.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_24hod_9_Multichannel Z-Stack_20251205_182.npy,Psilocin | 0.1 uM | 24h,324
+5_PSI_01uM_48hod_3_Multichannel Z-Stack_20251208_253.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_01uM_48hod_5_Multichannel Z-Stack_20251208_255.npy,Psilocin | 0.1 uM | 48h,324
+5_PSI_10UM_48HOD_10_Multichannel Z-Stack_20251213_473.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10UM_48HOD_1_Multichannel Z-Stack_20251213_464.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10UM_48HOD_2_Multichannel Z-Stack_20251213_465.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10UM_48HOD_3_Multichannel Z-Stack_20251213_466.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10UM_48HOD_4_Multichannel Z-Stack_20251213_467.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10UM_48HOD_5_Multichannel Z-Stack_20251213_468.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10UM_48HOD_6_Multichannel Z-Stack_20251213_469.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10UM_48HOD_7_Multichannel Z-Stack_20251213_470.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10UM_48HOD_8_Multichannel Z-Stack_20251213_471.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10UM_48HOD_9_Multichannel Z-Stack_20251213_472.npy,Psilocin | 10 uM | 48h,324
+5_PSI_10uM_24hod_10_Multichannel Z-Stack_20251205_205.npy,Psilocin | 10 uM | 24h,324
+5_PSI_10uM_24hod_3A_Multichannel Z-Stack_20251205_197.npy,Psilocin | 10 uM | 24h,324
+5_PSI_10uM_24hod_4_Multichannel Z-Stack_20251205_198.npy,Psilocin | 10 uM | 24h,324
+5_PSI_10uM_24hod_5_Multichannel Z-Stack_20251205_199.npy,Psilocin | 10 uM | 24h,324
+5_PSI_10uM_24hod_6_Multichannel Z-Stack_20251205_200.npy,Psilocin | 10 uM | 24h,324
+5_PSI_10uM_24hod_6_Multichannel Z-Stack_20251205_201.npy,Psilocin | 10 uM | 24h,324
+5_PSI_10uM_24hod_7_Multichannel Z-Stack_20251205_202.npy,Psilocin | 10 uM | 24h,324
+5_PSI_10uM_24hod_8_Multichannel Z-Stack_20251205_203.npy,Psilocin | 10 uM | 24h,324
+5_PSI_10uM_24hod_9_Multichannel Z-Stack_20251205_204.npy,Psilocin | 10 uM | 24h,324
+5_PSI_1UM_48HOD_10_Multichannel Z-Stack_20251213_463.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1UM_48HOD_1_Multichannel Z-Stack_20251213_454.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1UM_48HOD_2_Multichannel Z-Stack_20251213_455.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1UM_48HOD_3_Multichannel Z-Stack_20251213_456.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1UM_48HOD_4_Multichannel Z-Stack_20251213_457.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1UM_48HOD_5_Multichannel Z-Stack_20251213_458.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1UM_48HOD_6_Multichannel Z-Stack_20251213_459.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1UM_48HOD_7_Multichannel Z-Stack_20251213_460.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1UM_48HOD_8_Multichannel Z-Stack_20251213_461.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1UM_48HOD_9_Multichannel Z-Stack_20251213_462.npy,Psilocin | 1 uM | 48h,324
+5_PSI_1uM_24hod_10_Multichannel Z-Stack_20251205_193.npy,Psilocin | 1 uM | 24h,324
+5_PSI_1uM_24hod_1_Multichannel Z-Stack_20251205_184.npy,Psilocin | 1 uM | 24h,324
+5_PSI_1uM_24hod_2_Multichannel Z-Stack_20251205_185.npy,Psilocin | 1 uM | 24h,324
+5_PSI_1uM_24hod_3_Multichannel Z-Stack_20251205_186.npy,Psilocin | 1 uM | 24h,324
+5_PSI_1uM_24hod_4_Multichannel Z-Stack_20251205_187.npy,Psilocin | 1 uM | 24h,324
+5_PSI_1uM_24hod_5_Multichannel Z-Stack_20251205_188.npy,Psilocin | 1 uM | 24h,324
+5_PSI_1uM_24hod_6_Multichannel Z-Stack_20251205_189.npy,Psilocin | 1 uM | 24h,324
+5_PSI_1uM_24hod_7_Multichannel Z-Stack_20251205_190.npy,Psilocin | 1 uM | 24h,324
+5_PSI_1uM_24hod_8_Multichannel Z-Stack_20251205_191.npy,Psilocin | 1 uM | 24h,324
+5_PSI_1uM_24hod_9_Multichannel Z-Stack_20251205_192.npy,Psilocin | 1 uM | 24h,324
+6_1_HARMIN_24hod_10_Multichannel Z-Stack_20251213_311.npy,Harmine | 24h,324
+6_1_HARMIN_24hod_1_Multichannel Z-Stack_20251213_302.npy,Harmine | 24h,324
+6_1_HARMIN_24hod_2_Multichannel Z-Stack_20251213_303.npy,Harmine | 24h,324
+6_1_HARMIN_24hod_3_Multichannel Z-Stack_20251213_304.npy,Harmine | 24h,324
+6_1_HARMIN_24hod_4_Multichannel Z-Stack_20251213_305.npy,Harmine | 24h,324
+6_1_HARMIN_24hod_5_Multichannel Z-Stack_20251213_306.npy,Harmine | 24h,324
+6_1_HARMIN_24hod_6_Multichannel Z-Stack_20251213_307.npy,Harmine | 24h,324
+6_1_HARMIN_24hod_7_Multichannel Z-Stack_20251213_308.npy,Harmine | 24h,324
+6_1_HARMIN_24hod_8_Multichannel Z-Stack_20251213_309.npy,Harmine | 24h,324
+6_1_HARMIN_24hod_9_Multichannel Z-Stack_20251213_310.npy,Harmine | 24h,324
+6_1_KONTROLA_24hod_10_Multichannel Z-Stack_20251213_301.npy,Control | 24h,324
+6_1_KONTROLA_24hod_1_Multichannel Z-Stack_20251213_292.npy,Control | 24h,324
+6_1_KONTROLA_24hod_2_Multichannel Z-Stack_20251213_293.npy,Control | 24h,324
+6_1_KONTROLA_24hod_3_Multichannel Z-Stack_20251213_294.npy,Control | 24h,324
+6_1_KONTROLA_24hod_4_Multichannel Z-Stack_20251213_295.npy,Control | 24h,324
+6_1_KONTROLA_24hod_5_Multichannel Z-Stack_20251213_296.npy,Control | 24h,324
+6_1_KONTROLA_24hod_6_Multichannel Z-Stack_20251213_297.npy,Control | 24h,324
+6_1_KONTROLA_24hod_7_Multichannel Z-Stack_20251213_298.npy,Control | 24h,324
+6_1_KONTROLA_24hod_8_Multichannel Z-Stack_20251213_299.npy,Control | 24h,324
+6_1_KONTROLA_24hod_9_Multichannel Z-Stack_20251213_300.npy,Control | 24h,324
+6_2_PSIHARMIN_24hod_10_Multichannel Z-Stack_20251213_331.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_11_Multichannel Z-Stack_20251213_332.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_1_Multichannel Z-Stack_20251213_322.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_2_Multichannel Z-Stack_20251213_323.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_3_Multichannel Z-Stack_20251213_324.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_4_Multichannel Z-Stack_20251213_325.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_5_Multichannel Z-Stack_20251213_326.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_6_Multichannel Z-Stack_20251213_327.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_7_Multichannel Z-Stack_20251213_328.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_8_Multichannel Z-Stack_20251213_329.npy,Psilocin + harmine | 24h,324
+6_2_PSIHARMIN_24hod_9_Multichannel Z-Stack_20251213_330.npy,Psilocin + harmine | 24h,324
+6_2_PSI_24hod_10_Multichannel Z-Stack_20251213_321.npy,Psilocin | 24h,324
+6_2_PSI_24hod_1_Multichannel Z-Stack_20251213_312.npy,Psilocin | 24h,324
+6_2_PSI_24hod_2_Multichannel Z-Stack_20251213_313.npy,Psilocin | 24h,324
+6_2_PSI_24hod_3_Multichannel Z-Stack_20251213_314.npy,Psilocin | 24h,324
+6_2_PSI_24hod_4_Multichannel Z-Stack_20251213_315.npy,Psilocin | 24h,324
+6_2_PSI_24hod_5_Multichannel Z-Stack_20251213_316.npy,Psilocin | 24h,324
+6_2_PSI_24hod_6_Multichannel Z-Stack_20251213_317.npy,Psilocin | 24h,324
+6_2_PSI_24hod_7_Multichannel Z-Stack_20251213_318.npy,Psilocin | 24h,324
+6_2_PSI_24hod_8_Multichannel Z-Stack_20251213_319.npy,Psilocin | 24h,324
+6_2_PSI_24hod_9_Multichannel Z-Stack_20251213_320.npy,Psilocin | 24h,324
+6_3_PSYHARMIN_24hod_10_Multichannel Z-Stack_20251213_352.npy,Psilocybin + harmine | 24h,324
+6_3_PSYHARMIN_24hod_1_Multichannel Z-Stack_20251213_343.npy,Psilocybin + harmine | 24h,324
+6_3_PSYHARMIN_24hod_2_Multichannel Z-Stack_20251213_344.npy,Psilocybin + harmine | 24h,324
+6_3_PSYHARMIN_24hod_3_Multichannel Z-Stack_20251213_345.npy,Psilocybin + harmine | 24h,324
+6_3_PSYHARMIN_24hod_4_Multichannel Z-Stack_20251213_346.npy,Psilocybin + harmine | 24h,324
+6_3_PSYHARMIN_24hod_5_Multichannel Z-Stack_20251213_347.npy,Psilocybin + harmine | 24h,324
+6_3_PSYHARMIN_24hod_6_Multichannel Z-Stack_20251213_348.npy,Psilocybin + harmine | 24h,324
+6_3_PSYHARMIN_24hod_7_Multichannel Z-Stack_20251213_349.npy,Psilocybin + harmine | 24h,324
+6_3_PSYHARMIN_24hod_8_Multichannel Z-Stack_20251213_350.npy,Psilocybin + harmine | 24h,324
+6_3_PSYHARMIN_24hod_9_Multichannel Z-Stack_20251213_351.npy,Psilocybin + harmine | 24h,324
+6_3_PSY_24hod_10_Multichannel Z-Stack_20251213_342.npy,Psilocybin | 24h,324
+6_3_PSY_24hod_1_Multichannel Z-Stack_20251213_333.npy,Psilocybin | 24h,324
+6_3_PSY_24hod_2_Multichannel Z-Stack_20251213_334.npy,Psilocybin | 24h,324
+6_3_PSY_24hod_3_Multichannel Z-Stack_20251213_335.npy,Psilocybin | 24h,324
+6_3_PSY_24hod_4_Multichannel Z-Stack_20251213_336.npy,Psilocybin | 24h,324
+6_3_PSY_24hod_5_Multichannel Z-Stack_20251213_337.npy,Psilocybin | 24h,324
+6_3_PSY_24hod_6_Multichannel_20251213_338.npy,Psilocybin | 24h,324
+6_3_PSY_24hod_7_Multichannel Z-Stack_20251213_339.npy,Psilocybin | 24h,324
+6_3_PSY_24hod_9_Multichannel Z-Stack_20251213_341.npy,Psilocybin | 24h,324
+6_4_NORPSIHARMIN_24hod_10_Multichannel Z-Stack_20251213_373.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_1A_Multichannel Z-Stack_20251213_364.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_1_Multichannel Z-Stack_20251213_363.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_2_Multichannel Z-Stack_20251213_365.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_3_Multichannel Z-Stack_20251213_366.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_4_Multichannel Z-Stack_20251213_367.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_5_Multichannel Z-Stack_20251213_368.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_6_Multichannel Z-Stack_20251213_369.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_7_Multichannel Z-Stack_20251213_370.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_8_Multichannel Z-Stack_20251213_371.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSIHARMIN_24hod_9_Multichannel Z-Stack_20251213_372.npy,Norpsilocin + harmine | 24h,324
+6_4_NORPSI_24hod_10_Multichannel Z-Stack_20251213_362.npy,Norpsilocin | 24h,324
+6_4_NORPSI_24hod_1_Multichannel Z-Stack_20251213_353.npy,Norpsilocin | 24h,324
+6_4_NORPSI_24hod_2_Multichannel Z-Stack_20251213_354.npy,Norpsilocin | 24h,324
+6_4_NORPSI_24hod_3_Multichannel Z-Stack_20251213_355.npy,Norpsilocin | 24h,324
+6_4_NORPSI_24hod_4_Multichannel Z-Stack_20251213_356.npy,Norpsilocin | 24h,324
+6_4_NORPSI_24hod_5_Multichannel Z-Stack_20251213_357.npy,Norpsilocin | 24h,324
+6_4_NORPSI_24hod_6_Multichannel Z-Stack_20251213_358.npy,Norpsilocin | 24h,324
+6_4_NORPSI_24hod_7_Multichannel Z-Stack_20251213_359.npy,Norpsilocin | 24h,324
+6_4_NORPSI_24hod_8_Multichannel Z-Stack_20251213_360.npy,Norpsilocin | 24h,324
+6_4_NORPSI_24hod_9_Multichannel Z-Stack_20251213_361.npy,Norpsilocin | 24h,324
+6_5_BAEOHARMIN_24hod_10_Multichannel Z-Stack_20251213_393.npy,Baeocystin + harmine | 24h,324
+6_5_BAEOHARMIN_24hod_1_Multichannel Z-Stack_20251213_384.npy,Baeocystin + harmine | 24h,324
+6_5_BAEOHARMIN_24hod_2_Multichannel Z-Stack_20251213_385.npy,Baeocystin + harmine | 24h,324
+6_5_BAEOHARMIN_24hod_3_Multichannel Z-Stack_20251213_386.npy,Baeocystin + harmine | 24h,324
+6_5_BAEOHARMIN_24hod_4_Multichannel Z-Stack_20251213_387.npy,Baeocystin + harmine | 24h,324
+6_5_BAEOHARMIN_24hod_5_Multichannel Z-Stack_20251213_388.npy,Baeocystin + harmine | 24h,324
+6_5_BAEOHARMIN_24hod_6_Multichannel Z-Stack_20251213_389.npy,Baeocystin + harmine | 24h,324
+6_5_BAEOHARMIN_24hod_7_Multichannel Z-Stack_20251213_390.npy,Baeocystin + harmine | 24h,324
+6_5_BAEOHARMIN_24hod_8_Multichannel Z-Stack_20251213_391.npy,Baeocystin + harmine | 24h,324
+6_5_BAEOHARMIN_24hod_9_Multichannel Z-Stack_20251213_392.npy,Baeocystin + harmine | 24h,324
+6_5_BAEO_24hod_10_Multichannel Z-Stack_20251213_383.npy,Baeocystin | 24h,324
+6_5_BAEO_24hod_1_Multichannel Z-Stack_20251213_374.npy,Baeocystin | 24h,324
+6_5_BAEO_24hod_2_Multichannel Z-Stack_20251213_375.npy,Baeocystin | 24h,324
+6_5_BAEO_24hod_3_Multichannel Z-Stack_20251213_376.npy,Baeocystin | 24h,324
+6_5_BAEO_24hod_4_Multichannel Z-Stack_20251213_377.npy,Baeocystin | 24h,324
+6_5_BAEO_24hod_5_Multichannel Z-Stack_20251213_378.npy,Baeocystin | 24h,324
+6_5_BAEO_24hod_6_Multichannel Z-Stack_20251213_379.npy,Baeocystin | 24h,324
+6_5_BAEO_24hod_7_Multichannel Z-Stack_20251213_380.npy,Baeocystin | 24h,324
+6_5_BAEO_24hod_8_Multichannel Z-Stack_20251213_381.npy,Baeocystin | 24h,324
+6_5_BAEO_24hod_9_Multichannel Z-Stack_20251213_382.npy,Baeocystin | 24h,324
+6_6_AERUG_24hod_10_Multichannel Z-Stack_20251213_413.npy,Aeruginascin | 24h,324
+6_6_AERUG_24hod_1_Multichannel Z-Stack_20251213_404.npy,Aeruginascin | 24h,324
+6_6_AERUG_24hod_2_Multichannel Z-Stack_20251213_405.npy,Aeruginascin | 24h,324
+6_6_AERUG_24hod_3_Multichannel Z-Stack_20251213_406.npy,Aeruginascin | 24h,324
+6_6_AERUG_24hod_4_Multichannel Z-Stack_20251213_407.npy,Aeruginascin | 24h,324
+6_6_AERUG_24hod_5_Multichannel Z-Stack_20251213_408.npy,Aeruginascin | 24h,324
+6_6_AERUG_24hod_6_Multichannel Z-Stack_20251213_409.npy,Aeruginascin | 24h,324
+6_6_AERUG_24hod_7_Multichannel Z-Stack_20251213_410.npy,Aeruginascin | 24h,324
+6_6_AERUG_24hod_8_Multichannel Z-Stack_20251213_411.npy,Aeruginascin | 24h,324
+6_6_AERUG_24hod_9_Multichannel Z-Stack_20251213_412.npy,Aeruginascin | 24h,324
+6_6_NORBAEO_24hod_10_Multichannel Z-Stack_20251213_403.npy,Norbaeocystin | 24h,324
+6_6_NORBAEO_24hod_1_Multichannel Z-Stack_20251213_394.npy,Norbaeocystin | 24h,324
+6_6_NORBAEO_24hod_2_Multichannel Z-Stack_20251213_395.npy,Norbaeocystin | 24h,324
+6_6_NORBAEO_24hod_3_Multichannel Z-Stack_20251213_396.npy,Norbaeocystin | 24h,324
+6_6_NORBAEO_24hod_4_Multichannel Z-Stack_20251213_397.npy,Norbaeocystin | 24h,324
+6_6_NORBAEO_24hod_5_Multichannel Z-Stack_20251213_398.npy,Norbaeocystin | 24h,324
+6_6_NORBAEO_24hod_6_Multichannel Z-Stack_20251213_399.npy,Norbaeocystin | 24h,324
+6_6_NORBAEO_24hod_7_Multichannel Z-Stack_20251213_400.npy,Norbaeocystin | 24h,324
+6_6_NORBAEO_24hod_8_Multichannel Z-Stack_20251213_401.npy,Norbaeocystin | 24h,324
+6_6_NORBAEO_24hod_9_Multichannel Z-Stack_20251213_402.npy,Norbaeocystin | 24h,324
+7_1_HARMIN_24hod_10_Multichannel Z-Stack_20251219_517.npy,Harmine | 24h,324
+7_1_HARMIN_24hod_1_Multichannel Z-Stack_20251219_508.npy,Harmine | 24h,324
+7_1_HARMIN_24hod_2_Multichannel Z-Stack_20251219_509.npy,Harmine | 24h,324
+7_1_HARMIN_24hod_3_Multichannel Z-Stack_20251219_510.npy,Harmine | 24h,324
+7_1_HARMIN_24hod_4_Multichannel Z-Stack_20251219_511.npy,Harmine | 24h,324
+7_1_HARMIN_24hod_5_Multichannel Z-Stack_20251219_512.npy,Harmine | 24h,324
+7_1_HARMIN_24hod_6_Multichannel Z-Stack_20251219_513.npy,Harmine | 24h,324
+7_1_HARMIN_24hod_7_Multichannel Z-Stack_20251219_514.npy,Harmine | 24h,324
+7_1_HARMIN_24hod_8_Multichannel Z-Stack_20251219_515.npy,Harmine | 24h,324
+7_1_HARMIN_24hod_9_Multichannel Z-Stack_20251219_516.npy,Harmine | 24h,324
+7_1_KONTROLA_24hod_10_Multichannel Z-Stack_20251219_507.npy,Control | 24h,324
+7_1_KONTROLA_24hod_1_Multichannel Z-Stack_20251219_498.npy,Control | 24h,324
+7_1_KONTROLA_24hod_2_Multichannel Z-Stack_20251219_499.npy,Control | 24h,324
+7_1_KONTROLA_24hod_3_Multichannel Z-Stack_20251219_500.npy,Control | 24h,324
+7_1_KONTROLA_24hod_4_Multichannel Z-Stack_20251219_501.npy,Control | 24h,324
+7_1_KONTROLA_24hod_5_Multichannel Z-Stack_20251219_502.npy,Control | 24h,324
+7_1_KONTROLA_24hod_6_Multichannel Z-Stack_20251219_503.npy,Control | 24h,324
+7_1_KONTROLA_24hod_7_Multichannel Z-Stack_20251219_504.npy,Control | 24h,324
+7_1_KONTROLA_24hod_8_Multichannel Z-Stack_20251219_505.npy,Control | 24h,324
+7_1_KONTROLA_24hod_9_Multichannel Z-Stack_20251219_506.npy,Control | 24h,324
+7_2_PSIHARMIN_24hod_10_Multichannel Z-Stack_20251219_537.npy,Psilocin + harmine | 24h,324
+7_2_PSIHARMIN_24hod_11_Multichannel Z-Stack_20251219_528.npy,Psilocin + harmine | 24h,324
+7_2_PSIHARMIN_24hod_2_Multichannel Z-Stack_20251219_529.npy,Psilocin + harmine | 24h,324
+7_2_PSIHARMIN_24hod_3_Multichannel Z-Stack_20251219_530.npy,Psilocin + harmine | 24h,324
+7_2_PSIHARMIN_24hod_4_Multichannel Z-Stack_20251219_531.npy,Psilocin + harmine | 24h,324
+7_2_PSIHARMIN_24hod_5_Multichannel Z-Stack_20251219_532.npy,Psilocin + harmine | 24h,324
+7_2_PSIHARMIN_24hod_6_Multichannel Z-Stack_20251219_533.npy,Psilocin + harmine | 24h,324
+7_2_PSIHARMIN_24hod_7_Multichannel Z-Stack_20251219_534.npy,Psilocin + harmine | 24h,324
+7_2_PSIHARMIN_24hod_8_Multichannel Z-Stack_20251219_535.npy,Psilocin + harmine | 24h,324
+7_2_PSIHARMIN_24hod_9_Multichannel Z-Stack_20251219_536.npy,Psilocin + harmine | 24h,324
+7_2_PSI_24hod_10_Multichannel Z-Stack_20251219_527.npy,Psilocin | 24h,324
+7_2_PSI_24hod_1_Multichannel Z-Stack_20251219_518.npy,Psilocin | 24h,324
+7_2_PSI_24hod_2_Multichannel Z-Stack_20251219_519.npy,Psilocin | 24h,324
+7_2_PSI_24hod_3_Multichannel Z-Stack_20251219_520.npy,Psilocin | 24h,324
+7_2_PSI_24hod_4_Multichannel Z-Stack_20251219_521.npy,Psilocin | 24h,324
+7_2_PSI_24hod_5_Multichannel Z-Stack_20251219_522.npy,Psilocin | 24h,324
+7_2_PSI_24hod_6_Multichannel Z-Stack_20251219_523.npy,Psilocin | 24h,324
+7_2_PSI_24hod_7_Multichannel Z-Stack_20251219_524.npy,Psilocin | 24h,324
+7_2_PSI_24hod_8_Multichannel Z-Stack_20251219_525.npy,Psilocin | 24h,324
+7_2_PSI_24hod_9_Multichannel Z-Stack_20251219_526.npy,Psilocin | 24h,324
+7_3_PSYHARMIN_24hod_10_Multichannel Z-Stack_20251219_557.npy,Psilocybin + harmine | 24h,324
+7_3_PSYHARMIN_24hod_1_Multichannel Z-Stack_20251219_548.npy,Psilocybin + harmine | 24h,324
+7_3_PSYHARMIN_24hod_2_Multichannel Z-Stack_20251219_549.npy,Psilocybin + harmine | 24h,324
+7_3_PSYHARMIN_24hod_3_Multichannel Z-Stack_20251219_550.npy,Psilocybin + harmine | 24h,324
+7_3_PSYHARMIN_24hod_4_Multichannel Z-Stack_20251219_551.npy,Psilocybin + harmine | 24h,324
+7_3_PSYHARMIN_24hod_5_Multichannel Z-Stack_20251219_552.npy,Psilocybin + harmine | 24h,324
+7_3_PSYHARMIN_24hod_6_Multichannel Z-Stack_20251219_553.npy,Psilocybin + harmine | 24h,324
+7_3_PSYHARMIN_24hod_7_Multichannel Z-Stack_20251219_554.npy,Psilocybin + harmine | 24h,324
+7_3_PSYHARMIN_24hod_8_Multichannel Z-Stack_20251219_555.npy,Psilocybin + harmine | 24h,324
+7_3_PSYHARMIN_24hod_9_Multichannel Z-Stack_20251219_556.npy,Psilocybin + harmine | 24h,324
+7_3_PSY_24hod_10_Multichannel Z-Stack_20251219_547.npy,Psilocybin | 24h,324
+7_3_PSY_24hod_1_Multichannel Z-Stack_20251219_538.npy,Psilocybin | 24h,324
+7_3_PSY_24hod_2_Multichannel Z-Stack_20251219_539.npy,Psilocybin | 24h,324
+7_3_PSY_24hod_3_Multichannel Z-Stack_20251219_540.npy,Psilocybin | 24h,324
+7_3_PSY_24hod_4_Multichannel Z-Stack_20251219_541.npy,Psilocybin | 24h,324
+7_3_PSY_24hod_5_Multichannel Z-Stack_20251219_542.npy,Psilocybin | 24h,324
+7_3_PSY_24hod_6_Multichannel Z-Stack_20251219_543.npy,Psilocybin | 24h,324
+7_3_PSY_24hod_7_Multichannel Z-Stack_20251219_544.npy,Psilocybin | 24h,324
+7_3_PSY_24hod_8_Multichannel Z-Stack_20251219_545.npy,Psilocybin | 24h,324
+7_3_PSY_24hod_9_Multichannel Z-Stack_20251219_546.npy,Psilocybin | 24h,324
+7_4_NORPSIHARMIN_24hod_10_Multichannel Z-Stack_20251219_577.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSIHARMIN_24hod_1_Multichannel Z-Stack_20251219_568.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSIHARMIN_24hod_2_Multichannel Z-Stack_20251219_569.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSIHARMIN_24hod_3_Multichannel Z-Stack_20251219_570.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSIHARMIN_24hod_4_Multichannel Z-Stack_20251219_571.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSIHARMIN_24hod_5_Multichannel Z-Stack_20251219_572.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSIHARMIN_24hod_6_Multichannel Z-Stack_20251219_573.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSIHARMIN_24hod_7_Multichannel Z-Stack_20251219_574.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSIHARMIN_24hod_8_Multichannel Z-Stack_20251219_575.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSIHARMIN_24hod_9_Multichannel Z-Stack_20251219_576.npy,Norpsilocin + harmine | 24h,324
+7_4_NORPSI_24hod_10_Multichannel Z-Stack_20251219_567.npy,Norpsilocin | 24h,324
+7_4_NORPSI_24hod_1_Multichannel Z-Stack_20251219_558.npy,Norpsilocin | 24h,324
+7_4_NORPSI_24hod_2_Multichannel Z-Stack_20251219_559.npy,Norpsilocin | 24h,324
+7_4_NORPSI_24hod_3_Multichannel Z-Stack_20251219_560.npy,Norpsilocin | 24h,324
+7_4_NORPSI_24hod_4_Multichannel Z-Stack_20251219_561.npy,Norpsilocin | 24h,324
+7_4_NORPSI_24hod_5_Multichannel Z-Stack_20251219_562.npy,Norpsilocin | 24h,324
+7_4_NORPSI_24hod_6_Multichannel Z-Stack_20251219_563.npy,Norpsilocin | 24h,324
+7_4_NORPSI_24hod_7_Multichannel Z-Stack_20251219_564.npy,Norpsilocin | 24h,324
+7_4_NORPSI_24hod_8_Multichannel Z-Stack_20251219_565.npy,Norpsilocin | 24h,324
+7_4_NORPSI_24hod_9_Multichannel Z-Stack_20251219_566.npy,Norpsilocin | 24h,324
+7_5_BAEOHARMIN_24hod_10_Multichannel Z-Stack_20251219_597.npy,Baeocystin + harmine | 24h,324
+7_5_BAEOHARMIN_24hod_1_Multichannel Z-Stack_20251219_588.npy,Baeocystin + harmine | 24h,324
+7_5_BAEOHARMIN_24hod_2_Multichannel Z-Stack_20251219_589.npy,Baeocystin + harmine | 24h,324
+7_5_BAEOHARMIN_24hod_3_Multichannel Z-Stack_20251219_590.npy,Baeocystin + harmine | 24h,324
+7_5_BAEOHARMIN_24hod_4_Multichannel Z-Stack_20251219_591.npy,Baeocystin + harmine | 24h,324
+7_5_BAEOHARMIN_24hod_5_Multichannel Z-Stack_20251219_592.npy,Baeocystin + harmine | 24h,324
+7_5_BAEOHARMIN_24hod_6_Multichannel Z-Stack_20251219_593.npy,Baeocystin + harmine | 24h,324
+7_5_BAEOHARMIN_24hod_7_Multichannel Z-Stack_20251219_594.npy,Baeocystin + harmine | 24h,324
+7_5_BAEOHARMIN_24hod_8_Multichannel Z-Stack_20251219_595.npy,Baeocystin + harmine | 24h,324
+7_5_BAEOHARMIN_24hod_9_Multichannel Z-Stack_20251219_596.npy,Baeocystin + harmine | 24h,324
+7_5_BAEO_24hod_10_Multichannel Z-Stack_20251219_587.npy,Baeocystin | 24h,324
+7_5_BAEO_24hod_1_Multichannel Z-Stack_20251219_578.npy,Baeocystin | 24h,324
+7_5_BAEO_24hod_2_Multichannel Z-Stack_20251219_579.npy,Baeocystin | 24h,324
+7_5_BAEO_24hod_3_Multichannel Z-Stack_20251219_580.npy,Baeocystin | 24h,324
+7_5_BAEO_24hod_4_Multichannel Z-Stack_20251219_581.npy,Baeocystin | 24h,324
+7_5_BAEO_24hod_5_Multichannel Z-Stack_20251219_582.npy,Baeocystin | 24h,324
+7_5_BAEO_24hod_6_Multichannel Z-Stack_20251219_583.npy,Baeocystin | 24h,324
+7_5_BAEO_24hod_7_Multichannel Z-Stack_20251219_584.npy,Baeocystin | 24h,324
+7_5_BAEO_24hod_8_Multichannel Z-Stack_20251219_585.npy,Baeocystin | 24h,324
+7_5_BAEO_24hod_9_Multichannel Z-Stack_20251219_586.npy,Baeocystin | 24h,324
+7_6_NORBAEOHARMIN_24hod_10_Multichannel Z-Stack_20251219_618.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_1_Multichannel Z-Stack_20251219_608.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_2_Multichannel Z-Stack_20251219_609.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_3_Multichannel Z-Stack_20251219_610.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_3b_Multichannel Z-Stack_20251219_611.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_4_Multichannel Z-Stack_20251219_612.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_5_Multichannel Z-Stack_20251219_613.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_6_Multichannel Z-Stack_20251219_614.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_7_Multichannel Z-Stack_20251219_615.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_8_Multichannel Z-Stack_20251219_616.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEOHARMIN_24hod_9_Multichannel Z-Stack_20251219_617.npy,Norbaeocystin + harmine | 24h,324
+7_6_NORBAEO_24hod_10_Multichannel Z-Stack_20251219_607.npy,Norbaeocystin | 24h,324
+7_6_NORBAEO_24hod_1_Multichannel Z-Stack_20251219_598.npy,Norbaeocystin | 24h,324
+7_6_NORBAEO_24hod_2_Multichannel Z-Stack_20251219_599.npy,Norbaeocystin | 24h,324
+7_6_NORBAEO_24hod_3_Multichannel Z-Stack_20251219_600.npy,Norbaeocystin | 24h,324
+7_6_NORBAEO_24hod_4_Multichannel Z-Stack_20251219_601.npy,Norbaeocystin | 24h,324
+7_6_NORBAEO_24hod_5_Multichannel Z-Stack_20251219_602.npy,Norbaeocystin | 24h,324
+7_6_NORBAEO_24hod_6_Multichannel Z-Stack_20251219_603.npy,Norbaeocystin | 24h,324
+7_6_NORBAEO_24hod_7_Multichannel Z-Stack_20251219_604.npy,Norbaeocystin | 24h,324
+7_6_NORBAEO_24hod_8_Multichannel Z-Stack_20251219_605.npy,Norbaeocystin | 24h,324
+7_6_NORBAEO_24hod_9_Multichannel Z-Stack_20251219_606.npy,Norbaeocystin | 24h,324
+7_7_AERUGHARMIN_24hod_10_Multichannel Z-Stack_20251219_639.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUGHARMIN_24hod_1_Multichannel Z-Stack_20251219_630.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUGHARMIN_24hod_2_Multichannel Z-Stack_20251219_631.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUGHARMIN_24hod_3_Multichannel Z-Stack_20251219_632.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUGHARMIN_24hod_4_Multichannel Z-Stack_20251219_633.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUGHARMIN_24hod_5_Multichannel Z-Stack_20251219_634.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUGHARMIN_24hod_6_Multichannel Z-Stack_20251219_635.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUGHARMIN_24hod_7_Multichannel Z-Stack_20251219_636.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUGHARMIN_24hod_8_Multichannel Z-Stack_20251219_637.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUGHARMIN_24hod_9_Multichannel Z-Stack_20251219_638.npy,Aeruginascin + harmine | 24h,324
+7_7_AERUG_24hod_10_Multichannel Z-Stack_20251219_629.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_1_Multichannel Z-Stack_20251219_619.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_1b_Multichannel Z-Stack_20251219_620.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_2_Multichannel Z-Stack_20251219_621.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_3_Multichannel Z-Stack_20251219_622.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_4_Multichannel Z-Stack_20251219_623.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_5_Multichannel Z-Stack_20251219_624.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_6_Multichannel Z-Stack_20251219_625.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_7_Multichannel Z-Stack_20251219_626.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_8_Multichannel Z-Stack_20251219_627.npy,Aeruginascin | 24h,324
+7_7_AERUG_24hod_9_Multichannel Z-Stack_20251219_628.npy,Aeruginascin | 24h,324
+8_6_NORBAOHARMIN_24hod_10_Multichannel Z-Stack_20251220_752.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_1_Multichannel Z-Stack_20251220_742.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_2_Multichannel Z-Stack_20251220_743.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_3_Multichannel Z-Stack_20251220_744.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_3_Multichannel Z-Stack_20251220_745.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_4_Multichannel Z-Stack_20251220_746.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_5_Multichannel Z-Stack_20251220_747.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_6_Multichannel Z-Stack_20251220_748.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_7_Multichannel Z-Stack_20251220_749.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_8_Multichannel Z-Stack_20251220_750.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAOHARMIN_24hod_9_Multichannel Z-Stack_20251220_751.npy,Norbaeocystin + harmine | 24h,324
+8_6_NORBAO_24hod_10_Multichannel Z-Stack_20251220_741.npy,Norbaeocystin | 24h,324
+8_6_NORBAO_24hod_1_Multichannel Z-Stack_20251220_732.npy,Norbaeocystin | 24h,324
+8_6_NORBAO_24hod_2_Multichannel Z-Stack_20251220_733.npy,Norbaeocystin | 24h,324
+8_6_NORBAO_24hod_2_Multichannel Z-Stack_20251220_734.npy,Norbaeocystin | 24h,324
+8_6_NORBAO_24hod_4_Multichannel Z-Stack_20251220_735.npy,Norbaeocystin | 24h,324
+8_6_NORBAO_24hod_5_Multichannel Z-Stack_20251220_736.npy,Norbaeocystin | 24h,324
+8_6_NORBAO_24hod_6_Multichannel Z-Stack_20251220_737.npy,Norbaeocystin | 24h,324
+8_6_NORBAO_24hod_7_Multichannel Z-Stack_20251220_738.npy,Norbaeocystin | 24h,324
+8_6_NORBAO_24hod_8_Multichannel Z-Stack_20251220_739.npy,Norbaeocystin | 24h,324
+8_6_NORBAO_24hod_9_Multichannel Z-Stack_20251220_740.npy,Norbaeocystin | 24h,324
+8_7_AERUGHARMIN_24hod_10_Multichannel Z-Stack_20251220_763.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_1_Multichannel Z-Stack_20251220_753.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_1_Multichannel Z-Stack_20251220_754.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_2_Multichannel Z-Stack_20251220_755.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_3_Multichannel Z-Stack_20251220_756.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_4_Multichannel Z-Stack_20251220_757.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_5_Multichannel Z-Stack_20251220_758.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_6_Multichannel Z-Stack_20251220_759.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_7_Multichannel Z-Stack_20251220_760.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_8_Multichannel Z-Stack_20251220_761.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUGHARMIN_24hod_9_Multichannel Z-Stack_20251220_762.npy,Aeruginascin + harmine | 24h,324
+8_7_AERUG_24hod_10_Multichannel Z-Stack_20251220_774.npy,Aeruginascin | 24h,324
+8_7_AERUG_24hod_1_Multichannel Z-Stack_20251220_764.npy,Aeruginascin | 24h,324
+8_7_AERUG_24hod_2_Multichannel Z-Stack_20251220_765.npy,Aeruginascin | 24h,324
+8_7_AERUG_24hod_3_Multichannel Z-Stack_20251220_766.npy,Aeruginascin | 24h,324
+8_7_AERUG_24hod_4_Multichannel Z-Stack_20251220_767.npy,Aeruginascin | 24h,324
+8_7_AERUG_24hod_5_Multichannel Z-Stack_20251220_768.npy,Aeruginascin | 24h,324
+8_7_AERUG_24hod_6_Multichannel Z-Stack_20251220_769.npy,Aeruginascin | 24h,324
+8_7_AERUG_24hod_7_Multichannel Z-Stack_20251220_770.npy,Aeruginascin | 24h,324
+8_7_AERUG_24hod_7_Multichannel Z-Stack_20251220_771.npy,Aeruginascin | 24h,16
+8_7_AERUG_24hod_8_Multichannel Z-Stack_20251220_772.npy,Aeruginascin | 24h,324
+8_7_AERUG_24hod_9_Multichannel Z-Stack_20251220_773.npy,Aeruginascin | 24h,324
+8_7_BAEO24_hod_10_Multichannel Z-Stack_20251219_721.npy,Baeocystin | 24h,324
+8_7_BAEO24_hod_1_Multichannel Z-Stack_20251219_712.npy,Baeocystin | 24h,324
+8_7_BAEO24_hod_2_Multichannel Z-Stack_20251219_713.npy,Baeocystin | 24h,324
+8_7_BAEO24_hod_3_Multichannel Z-Stack_20251219_714.npy,Baeocystin | 24h,324
+8_7_BAEO24_hod_4_Multichannel Z-Stack_20251219_715.npy,Baeocystin | 24h,324
+8_7_BAEO24_hod_5_Multichannel Z-Stack_20251219_716.npy,Baeocystin | 24h,324
+8_7_BAEO24_hod_6_Multichannel Z-Stack_20251219_717.npy,Baeocystin | 24h,324
+8_7_BAEO24_hod_7_Multichannel Z-Stack_20251219_718.npy,Baeocystin | 24h,324
+8_7_BAEO24_hod_8_Multichannel Z-Stack_20251219_719.npy,Baeocystin | 24h,324
+8_7_BAEO24_hod_9_Multichannel Z-Stack_20251219_720.npy,Baeocystin | 24h,324
+8_7_BAEOHARMIN24_hod_10_Multichannel Z-Stack_20251219_731.npy,Baeocystin + harmine | 24h,324
+8_7_BAEOHARMIN24_hod_1_Multichannel Z-Stack_20251219_722.npy,Baeocystin + harmine | 24h,324
+8_7_BAEOHARMIN24_hod_2_Multichannel Z-Stack_20251219_723.npy,Baeocystin + harmine | 24h,324
+8_7_BAEOHARMIN24_hod_3_Multichannel Z-Stack_20251219_724.npy,Baeocystin + harmine | 24h,324
+8_7_BAEOHARMIN24_hod_4_Multichannel Z-Stack_20251219_725.npy,Baeocystin + harmine | 24h,324
+8_7_BAEOHARMIN24_hod_5_Multichannel Z-Stack_20251219_726.npy,Baeocystin + harmine | 24h,324
+8_7_BAEOHARMIN24_hod_6_Multichannel Z-Stack_20251219_727.npy,Baeocystin + harmine | 24h,324
+8_7_BAEOHARMIN24_hod_7_Multichannel Z-Stack_20251219_728.npy,Baeocystin + harmine | 24h,324
+8_7_BAEOHARMIN24_hod_8_Multichannel Z-Stack_20251219_729.npy,Baeocystin + harmine | 24h,324
+8_7_BAEOHARMIN24_hod_9_Multichannel Z-Stack_20251219_730.npy,Baeocystin + harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_10_Multichannel Z-Stack_20251219_659.npy,Harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_1_Multichannel Z-Stack_20251219_650.npy,Harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_2_Multichannel Z-Stack_20251219_651.npy,Harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_3_Multichannel Z-Stack_20251219_652.npy,Harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_4_Multichannel Z-Stack_20251219_653.npy,Harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_5_Multichannel Z-Stack_20251219_654.npy,Harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_6_Multichannel Z-Stack_20251219_655.npy,Harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_7_Multichannel Z-Stack_20251219_656.npy,Harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_8_Multichannel Z-Stack_20251219_657.npy,Harmine | 24h,324
+8_7_KONTROLAHARMIN_24hod_9_Multichannel Z-Stack_20251219_658.npy,Harmine | 24h,324
+8_7_KONTROLA_24hod_10_Multichannel Z-Stack_20251219_649.npy,Control | 24h,324
+8_7_KONTROLA_24hod_1_Multichannel Z-Stack_20251219_640.npy,Control | 24h,324
+8_7_KONTROLA_24hod_2_Multichannel Z-Stack_20251219_641.npy,Control | 24h,324
+8_7_KONTROLA_24hod_3_Multichannel Z-Stack_20251219_642.npy,Control | 24h,324
+8_7_KONTROLA_24hod_4_Multichannel Z-Stack_20251219_643.npy,Control | 24h,324
+8_7_KONTROLA_24hod_5_Multichannel Z-Stack_20251219_644.npy,Control | 24h,324
+8_7_KONTROLA_24hod_6_Multichannel Z-Stack_20251219_645.npy,Control | 24h,324
+8_7_KONTROLA_24hod_7_Multichannel Z-Stack_20251219_646.npy,Control | 24h,324
+8_7_KONTROLA_24hod_8_Multichannel Z-Stack_20251219_647.npy,Control | 24h,324
+8_7_KONTROLA_24hod_9_Multichannel Z-Stack_20251219_648.npy,Control | 24h,324
+8_7_NORPSI24_hod_10_Multichannel Z-Stack_20251219_701.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_1_Multichannel Z-Stack_20251219_691.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_2_Multichannel Z-Stack_20251219_692.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_3_Multichannel Z-Stack_20251219_693.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_4_Multichannel Z-Stack_20251219_694.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_5_Multichannel Z-Stack_20251219_695.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_6_Multichannel Z-Stack_20251219_696.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_7_Multichannel Z-Stack_20251219_697.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_8_Multichannel Z-Stack_20251219_698.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_9B_Multichannel Z-Stack_20251219_700.npy,Norpsilocin | 24h,324
+8_7_NORPSI24_hod_9_Multichannel Z-Stack_20251219_699.npy,Norpsilocin | 24h,324
+8_7_NORPSIHARMIN24_hod_10_Multichannel Z-Stack_20251219_711.npy,Norpsilocin + harmine | 24h,324
+8_7_NORPSIHARMIN24_hod_1_Multichannel Z-Stack_20251219_702.npy,Norpsilocin + harmine | 24h,324
+8_7_NORPSIHARMIN24_hod_2_Multichannel Z-Stack_20251219_703.npy,Norpsilocin + harmine | 24h,324
+8_7_NORPSIHARMIN24_hod_3_Multichannel Z-Stack_20251219_704.npy,Norpsilocin + harmine | 24h,324
+8_7_NORPSIHARMIN24_hod_4_Multichannel Z-Stack_20251219_705.npy,Norpsilocin + harmine | 24h,324
+8_7_NORPSIHARMIN24_hod_5_Multichannel Z-Stack_20251219_706.npy,Norpsilocin + harmine | 24h,324
+8_7_NORPSIHARMIN24_hod_6_Multichannel Z-Stack_20251219_707.npy,Norpsilocin + harmine | 24h,324
+8_7_NORPSIHARMIN24_hod_7_Multichannel Z-Stack_20251219_708.npy,Norpsilocin + harmine | 24h,324
+8_7_NORPSIHARMIN24_hod_8_Multichannel Z-Stack_20251219_709.npy,Norpsilocin + harmine | 24h,324
+8_7_NORPSIHARMIN24_hod_9_Multichannel Z-Stack_20251219_710.npy,Norpsilocin + harmine | 24h,324
+8_7_PPKONTROLA_24hod_10_Multichannel Z-Stack_20251220_800.npy,Control | 24h,324
+8_7_PPKONTROLA_24hod_1_Multichannel Z-Stack_20251220_791.npy,Control | 24h,324
+8_7_PPKONTROLA_24hod_2_Multichannel Z-Stack_20251220_792.npy,Control | 24h,324
+8_7_PPKONTROLA_24hod_3_Multichannel Z-Stack_20251220_793.npy,Control | 24h,324
+8_7_PPKONTROLA_24hod_4_Multichannel Z-Stack_20251220_794.npy,Control | 24h,324
+8_7_PPKONTROLA_24hod_5_Multichannel Z-Stack_20251220_795.npy,Control | 24h,324
+8_7_PPKONTROLA_24hod_6_Multichannel Z-Stack_20251220_796.npy,Control | 24h,324
+8_7_PPKONTROLA_24hod_7_Multichannel Z-Stack_20251220_797.npy,Control | 24h,324
+8_7_PPKONTROLA_24hod_8_Multichannel Z-Stack_20251220_798.npy,Control | 24h,324
+8_7_PPKONTROLA_24hod_9_Multichannel Z-Stack_20251220_799.npy,Control | 24h,324
+8_7_PSI24_hod_10_Multichannel Z-Stack_20251219_669.npy,Psilocin | 24h,324
+8_7_PSI24_hod_1_Multichannel Z-Stack_20251219_660.npy,Psilocin | 24h,324
+8_7_PSI24_hod_2_Multichannel Z-Stack_20251219_661.npy,Psilocin | 24h,324
+8_7_PSI24_hod_3_Multichannel Z-Stack_20251219_662.npy,Psilocin | 24h,324
+8_7_PSI24_hod_4_Multichannel Z-Stack_20251219_663.npy,Psilocin | 24h,324
+8_7_PSI24_hod_5_Multichannel Z-Stack_20251219_664.npy,Psilocin | 24h,324
+8_7_PSI24_hod_6_Multichannel Z-Stack_20251219_665.npy,Psilocin | 24h,324
+8_7_PSI24_hod_7_Multichannel Z-Stack_20251219_666.npy,Psilocin | 24h,324
+8_7_PSI24_hod_8_Multichannel Z-Stack_20251219_667.npy,Psilocin | 24h,324
+8_7_PSI24_hod_9_Multichannel Z-Stack_20251219_668.npy,Psilocin | 24h,324
+8_7_PSIHARMIN24_hod_10_Multichannel Z-Stack_20251219_679.npy,Psilocin + harmine | 24h,324
+8_7_PSIHARMIN24_hod_1_Multichannel Z-Stack_20251219_670.npy,Psilocin + harmine | 24h,324
+8_7_PSIHARMIN24_hod_2_Multichannel Z-Stack_20251219_671.npy,Psilocin + harmine | 24h,324
+8_7_PSIHARMIN24_hod_3_Multichannel Z-Stack_20251219_672.npy,Psilocin + harmine | 24h,324
+8_7_PSIHARMIN24_hod_4_Multichannel Z-Stack_20251219_673.npy,Psilocin + harmine | 24h,324
+8_7_PSIHARMIN24_hod_5_Multichannel Z-Stack_20251219_674.npy,Psilocin + harmine | 24h,324
+8_7_PSIHARMIN24_hod_6_Multichannel Z-Stack_20251219_675.npy,Psilocin + harmine | 24h,324
+8_7_PSIHARMIN24_hod_7_Multichannel Z-Stack_20251219_676.npy,Psilocin + harmine | 24h,324
+8_7_PSIHARMIN24_hod_8_Multichannel Z-Stack_20251219_677.npy,Psilocin + harmine | 24h,324
+8_7_PSIHARMIN24_hod_9_Multichannel Z-Stack_20251219_678.npy,Psilocin + harmine | 24h,324
+8_7_PSY24_hod_10_Multichannel Z-Stack_20251219_689.npy,Psilocybin | 24h,324
+8_7_PSY24_hod_1_Multichannel Z-Stack_20251219_680.npy,Psilocybin | 24h,324
+8_7_PSY24_hod_2_Multichannel Z-Stack_20251219_681.npy,Psilocybin | 24h,324
+8_7_PSY24_hod_3_Multichannel Z-Stack_20251219_682.npy,Psilocybin | 24h,324
+8_7_PSY24_hod_4_Multichannel Z-Stack_20251219_683.npy,Psilocybin | 24h,324
+8_7_PSY24_hod_5_Multichannel Z-Stack_20251219_684.npy,Psilocybin | 24h,324
+8_7_PSY24_hod_6_Multichannel Z-Stack_20251219_685.npy,Psilocybin | 24h,324
+8_7_PSY24_hod_7_Multichannel Z-Stack_20251219_686.npy,Psilocybin | 24h,324
+8_7_PSY24_hod_8_Multichannel Z-Stack_20251219_687.npy,Psilocybin | 24h,324
+8_7_PSY24_hod_9_Multichannel Z-Stack_20251219_688.npy,Psilocybin | 24h,324

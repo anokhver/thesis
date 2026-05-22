@@ -12,10 +12,10 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 
-# Data (too large for GitHub) — master's authoritative rules
-data/*
-!data/imaging_outputs/
-!data/data_analysis/
+# Data (too large for GitHub) ï¿½ master's authoritative rules
+# data/*
+# !data/imaging_outputs/
+# !data/data_analysis/
 *.pth
 *.pt
 *.ckpt
@@ -23,6 +23,7 @@ data/*
 *.npz
 *.zip
 *.tar*
+*.png
 training_outputs_old/
 *patches*/
 
@@ -57,6 +58,3 @@ staticfiles/
 # Secrets & logs
 .env
 *.log
-
-# Agent rules (local-only, not for upstream)
-AGENTS.md

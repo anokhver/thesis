@@ -15,7 +15,7 @@
     "seed": 42,
     "output_root": "../data/training_outputs/joint_2ch",
     "experiment_name": "swinunetr_joint_2ch",
-    "tag": "pretrained_enc_dice_only",
+    "tag": "pretrained_enc_dice_only_bcefix",
     "method_name": "swinunetr_seg_joint",
     "init_source": "moby_simmim_vicreg",
     "pretrained_ckpt_path": "../data/checkpoints/pretrained_encoder_moby_fourier_vicreg_on.pt",
@@ -24,12 +24,18 @@
   },
   "data": {
     "data_root": "../data/patches_128_from_zip",
-    "exclude_patterns": ["KONTROLA"],
+    "exclude_patterns": [
+      "KONTROLA"
+    ],
     "val_split": 0.15,
     "batch_size": 32,
     "num_workers": 6,
     "pin_memory": true,
-    "channel_names": ["pre_synaptic", "post_synaptic", "structural"],
+    "channel_names": [
+      "pre_synaptic",
+      "post_synaptic",
+      "structural"
+    ],
     "channel_stats_max_samples": 4096
   },
   "model": {
@@ -38,8 +44,18 @@
     "feature_size": 96,
     "patch_size": 2,
     "window_size": 7,
-    "depths": [2, 2, 6, 2],
-    "num_heads": [3, 6, 12, 24],
+    "depths": [
+      2,
+      2,
+      6,
+      2
+    ],
+    "num_heads": [
+      3,
+      6,
+      12,
+      24
+    ],
     "dropout_path_rate": 0.1
   },
   "seg": {
@@ -56,9 +72,10 @@
     "val_metric_direction": "max",
     "model_save_name": "swinunetr_joint_2ch_best.pt",
     "dice_weight": 1.0,
-    "bce_weight": 0.0,
+    "bce_weight": 1.0,
     "dice_smooth": 1.0,
-    "pseudolabel_cache_dir": null
+    "pseudolabel_cache_dir": null,
+    "loss_type": "dice_bce"
   },
   "pseudolabels": {
     "mask_root": "../data/pseudolabels/spotiflow",

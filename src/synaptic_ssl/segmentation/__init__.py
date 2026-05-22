@@ -11,7 +11,7 @@ from .dataset_puncta import (
 from .losses import (
     DiceBCELoss, SoftDiceLoss, compute_dice_metric,
     JointChannelDiceBCE, compute_dice_metric_per_channel,
-    TverskyLoss, JointChannelTversky,
+    TverskyLoss, JointChannelTversky, JointChannelTverskyBCE,
 )
 from .model import (
     build_swinunetr,
@@ -62,7 +62,7 @@ __all__ = [
     "PunctaSegDataset", "PRE_CHANNEL", "POST_CHANNEL", "positive_patch_fraction",
     "DiceBCELoss", "SoftDiceLoss", "compute_dice_metric",
     "JointChannelDiceBCE", "compute_dice_metric_per_channel",
-    "TverskyLoss", "JointChannelTversky",
+    "TverskyLoss", "JointChannelTversky", "JointChannelTverskyBCE",
     "build_swinunetr",
     "load_pretrained_encoder_into_swinunetr",
     "load_full_swinunetr_from_ckpt",

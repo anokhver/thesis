@@ -84,8 +84,20 @@ def plot_2d_clusters(Z2: np.ndarray, labels: np.ndarray, *,
                    color=cmap(i % 20), alpha=0.8, label=f"c{c}")
     ax.set_xlabel("UMAP-1"); ax.set_ylabel("UMAP-2")
     ax.set_title(title)
-    if len(uniq) <= 20:
-        ax.legend(loc="best", fontsize=7, markerscale=2)
+    # Always show a legend so colours are interpretable. Anchor outside
+    # the axes and use multi-column for large K so the legend doesn't
+    # eat the plot area.
+    n_l = len(uniq)
+    ncol = 1 if n_l <= 12 else (2 if n_l <= 24 else 3)
+    ax.legend(
+        loc="upper left", bbox_to_anchor=(1.02, 1.0),
+        fontsize=7, markerscale=2, framealpha=0.85,
+        ncol=ncol, handletextpad=0.4, borderaxespad=0.2,
+    )
+    try:
+        ax.figure.tight_layout()
+    except Exception:
+        pass
     return ax
 
 
@@ -135,8 +147,17 @@ def plot_3d_clusters(
     ax.set_xlabel("UMAP-1"); ax.set_ylabel("UMAP-2"); ax.set_zlabel("UMAP-3")
     ax.set_title(title)
     ax.view_init(elev=elev, azim=azim)
-    if len(uniq) <= 20:
-        ax.legend(loc="best", fontsize=7, markerscale=2)
+    n_l = len(uniq)
+    ncol = 1 if n_l <= 12 else (2 if n_l <= 24 else 3)
+    ax.legend(
+        loc="upper left", bbox_to_anchor=(1.02, 1.0),
+        fontsize=7, markerscale=2, framealpha=0.85,
+        ncol=ncol, handletextpad=0.4, borderaxespad=0.2,
+    )
+    try:
+        ax.figure.tight_layout()
+    except Exception:
+        pass
     return ax
 
 
@@ -217,10 +238,18 @@ def plot_3d_groups(
     ax.set_xlabel("UMAP-1"); ax.set_ylabel("UMAP-2"); ax.set_zlabel("UMAP-3")
     ax.set_title(title)
     ax.view_init(elev=elev, azim=azim)
+    n_g = len(groups)
+    ncol = 2 if n_g > 18 else 1
     ax.legend(
         handles=[handles[g] for g in groups],
-        loc="best", fontsize=8, framealpha=0.85,
+        loc="upper left", bbox_to_anchor=(1.02, 1.0),
+        fontsize=7, framealpha=0.85, ncol=ncol,
+        handletextpad=0.4, borderaxespad=0.2,
     )
+    try:
+        ax.figure.tight_layout()
+    except Exception:
+        pass
     return ax
 
 
@@ -290,17 +319,23 @@ def plot_image_cluster_heatmap(
         step = max(1, len(image_names) // max_images)
         freq = freq[::step]; image_names = image_names[::step]
     if ax is None:
-        _, ax = plt.subplots(figsize=(max(6, 0.3 * len(cluster_ids) + 2),
-                                       max(4, 0.18 * len(image_names) + 1)))
+        fig, ax = plt.subplots(figsize=(max(6, 0.3 * len(cluster_ids) + 2),
+                                        max(4, 0.18 * len(image_names) + 1)))
+    else:
+        fig = ax.figure
     im = ax.imshow(freq, aspect="auto", cmap="magma", vmin=0,
                    vmax=min(1.0, max(0.1, freq.max())))
     ax.set_xticks(range(len(cluster_ids)))
     ax.set_xticklabels([str(c) for c in cluster_ids], fontsize=8)
     ax.set_yticks(range(len(image_names)))
-    ax.set_yticklabels(image_names, fontsize=6)
+    ax.set_yticklabels(
+        list(image_names), fontsize=6, ha="right", va="center",
+    )
+    ax.tick_params(axis="y", pad=2)
     ax.set_xlabel("cluster"); ax.set_ylabel("source_image")
     ax.set_title("Per-image cluster frequencies")
     plt.colorbar(im, ax=ax, fraction=0.04, pad=0.02, label="fraction")
+    fig.tight_layout()
     return ax
 
 
@@ -498,10 +533,20 @@ def plot_2d_groups(
 
     ax.set_xlabel("UMAP-1"); ax.set_ylabel("UMAP-2")
     ax.set_title(title)
-    ax.legend(
+    # Legend outside the axes; multi-column when many groups so it doesn't
+    # eat half the plot area (was a problem at 30+ groups).
+    n_g = len(groups)
+    ncol = 2 if n_g > 18 else 1
+    leg = ax.legend(
         handles=[handles[g] for g in groups],
-        loc="best", fontsize=8, framealpha=0.85,
+        loc="upper left", bbox_to_anchor=(1.02, 1.0),
+        fontsize=7, framealpha=0.85, ncol=ncol,
+        handletextpad=0.4, borderaxespad=0.2,
     )
+    try:
+        ax.figure.tight_layout()
+    except Exception:
+        pass
     return ax
 
 
@@ -521,19 +566,27 @@ def plot_group_cluster_heatmap(
         row_sum = data.sum(axis=1, keepdims=True).clip(min=1)
         data = data / row_sum
     if ax is None:
-        _, ax = plt.subplots(
-            figsize=(max(5, 0.4 * len(cluster_ids) + 2),
-                     max(2, 0.5 * len(group_names) + 1)),
-        )
+        # Scale height/width with #groups and #clusters; long group names need
+        # a wide left margin (handled by tight_layout below + ha='right').
+        height = max(3.5, 0.30 * len(group_names) + 1.5)
+        width  = max(7.0, 0.55 * len(cluster_ids) + 4.0)
+        fig, ax = plt.subplots(figsize=(width, height))
+    else:
+        fig = ax.figure
     im = ax.imshow(data, aspect="auto", cmap="YlOrRd", vmin=0)
     ax.set_xticks(range(len(cluster_ids)))
     ax.set_xticklabels([str(c) for c in cluster_ids], fontsize=8)
     ax.set_yticks(range(len(group_names)))
-    ax.set_yticklabels(group_names, fontsize=10)
+    ax.set_yticklabels(
+        list(group_names), fontsize=8,
+        ha="right", va="center",
+    )
+    ax.tick_params(axis="y", pad=2)
     ax.set_xlabel("cluster"); ax.set_ylabel("group")
     ax.set_title("Group × cluster frequencies")
     plt.colorbar(im, ax=ax, fraction=0.04, pad=0.02,
                  label="fraction" if normalise else "count")
+    fig.tight_layout()
     return ax
 
 
@@ -546,13 +599,20 @@ def plot_group_frequency_boxplots(
     max_clusters: int = 20,
     figsize: tuple[float, float] | None = None,
     q_values: np.ndarray | None = None,
+    ncols: int = 3,
 ):
-    """Per-cluster boxplot of image frequencies, split by group.
+    """Per-cluster boxplots of image frequencies, faceted by cluster.
 
-    Shows which clusters drive group differences. When ``q_values`` is
-    given (one corrected p per cluster, e.g. from
-    :func:`per_cluster_kruskal_wallis`), each cluster is annotated with
-    ``*``/``**``/``***`` for q < 0.05/0.01/0.001 and ``n.s.`` otherwise.
+    For each of the first ``max_clusters`` clusters we draw a small
+    subplot with one box per biological group on the x-axis (rotated
+    labels so >20 groups stay legible). When ``q_values`` is given
+    (one corrected p per cluster, e.g. from
+    :func:`per_cluster_kruskal_wallis`), each subplot title is
+    annotated with ``q=…`` and ``***``/``**``/``*`` significance stars.
+
+    This replaces the older overlaid-boxes-by-group layout that became
+    unreadable at ~30 treatment groups (each box <0.03 in width and
+    the legend occluded the x-axis).
     """
     import matplotlib.pyplot as plt
 
@@ -560,61 +620,72 @@ def plot_group_frequency_boxplots(
     k = min(len(cluster_ids), max_clusters)
     cids = cluster_ids[:k]
 
+    # Precompute per-group image masks once (reused for every cluster facet).
+    group_masks = {
+        g: np.array([group_map.get(str(img)) == g for img in image_names])
+        for g in groups
+    }
+    cmap = plt.get_cmap("tab20")
+    colours = [cmap(i % 20) for i in range(len(groups))]
+
+    nrows = int(np.ceil(k / ncols))
     if figsize is None:
-        figsize = (max(8, 1.2 * k), 4)
-    fig, ax = plt.subplots(figsize=figsize)
+        # Width scales with #groups so labels don't crush together; height
+        # scales with #rows.
+        figsize = (max(6.0, 0.28 * len(groups) * ncols + 1.0),
+                   3.2 * nrows + 0.5)
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize, sharey=True)
+    axes = np.atleast_1d(axes).ravel()
 
-    width = 0.8 / len(groups)
-    cmap = plt.get_cmap("Set1")
+    q_arr = (np.asarray(q_values, dtype=np.float64)
+             if q_values is not None else None)
 
-    for gi, g in enumerate(groups):
-        img_mask = np.array(
-            [group_map.get(str(img)) == g for img in image_names]
-        )
-        if not img_mask.any():
-            continue
-        positions = np.arange(k) + (gi - len(groups) / 2 + 0.5) * width
-        data = [freq[img_mask, ci] for ci in range(k)]
-        bp = ax.boxplot(
-            data, positions=positions, widths=width * 0.85,
-            patch_artist=True, showfliers=False, medianprops={"color": "black"},
-        )
-        for patch in bp["boxes"]:
-            patch.set_facecolor(cmap(gi % 9))
-            patch.set_alpha(0.6)
-        ax.plot([], [], color=cmap(gi % 9), label=g, linewidth=6, alpha=0.6)
-
-    ax.set_xticks(range(k))
-    ax.set_xticklabels([str(c) for c in cids], fontsize=8)
-    ax.set_xlabel("cluster")
-    ax.set_ylabel("per-image frequency")
-    ax.set_title("Cluster frequency by group")
-    ax.legend(fontsize=9)
-    ax.grid(axis="y", alpha=0.3)
-
-    if q_values is not None:
-        q_arr = np.asarray(q_values, dtype=np.float64)
-        # headroom for stars
-        ymax_per_k = freq[:, :k].max(axis=0) if freq.shape[1] >= k else \
-            np.full(k, np.nan)
-        ylim_top = float(np.nanmax(ymax_per_k)) if np.isfinite(
-            np.nanmax(ymax_per_k)) else 1.0
-        ax.set_ylim(top=ylim_top * 1.15)
-        for ki in range(k):
-            if ki >= len(q_arr) or not np.isfinite(q_arr[ki]):
+    for ki, (ax, cid) in enumerate(zip(axes, cids)):
+        data = []
+        positions = []
+        face_colours = []
+        for gi, g in enumerate(groups):
+            mask = group_masks[g]
+            if not mask.any():
                 continue
+            data.append(freq[mask, ki])
+            positions.append(gi)
+            face_colours.append(colours[gi])
+        bp = ax.boxplot(
+            data, positions=positions, widths=0.7,
+            patch_artist=True, showfliers=False,
+            medianprops={"color": "black"},
+        )
+        for patch, fc in zip(bp["boxes"], face_colours):
+            patch.set_facecolor(fc)
+            patch.set_alpha(0.7)
+
+        ax.set_xticks(range(len(groups)))
+        ax.set_xticklabels(groups, rotation=60, ha="right", fontsize=7)
+        ax.set_xlim(-0.7, len(groups) - 0.3)
+        ax.grid(axis="y", alpha=0.3)
+        if ki % ncols == 0:
+            ax.set_ylabel("per-image frequency")
+
+        # Title with optional q-annotation
+        title = f"cluster {cid}"
+        if q_arr is not None and ki < len(q_arr) and np.isfinite(q_arr[ki]):
             q = q_arr[ki]
             if q < 0.001:
-                ann, weight = "***", "bold"
+                stars = "***"
             elif q < 0.01:
-                ann, weight = "**", "bold"
+                stars = "**"
             elif q < 0.05:
-                ann, weight = "*", "bold"
+                stars = "*"
             else:
-                ann, weight = "n.s.", "normal"
-            ax.text(ki, ymax_per_k[ki] * 1.05, ann,
-                    ha="center", va="bottom",
-                    fontsize=9, fontweight=weight)
+                stars = "n.s."
+            title = f"cluster {cid}   q={q:.2g} {stars}"
+        ax.set_title(title, fontsize=9)
 
+    # Hide unused subplots
+    for ax in axes[k:]:
+        ax.set_visible(False)
+
+    fig.suptitle("Per-cluster frequency by treatment group", y=1.00, fontsize=11)
     fig.tight_layout()
     return fig
