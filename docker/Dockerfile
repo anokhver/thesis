@@ -2,7 +2,7 @@
 # Stage 1 installs the Python wheels + builds the synaptic_ssl package.
 # Stage 2 copies only the venv + source needed at runtime.
 
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.12.13-slim-bookworm AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -30,14 +30,14 @@ RUN pip install .
 # ---------------------------------------------------------------------------
 # Runtime image
 # ---------------------------------------------------------------------------
-FROM python:3.11-slim-bookworm AS runtime
+FROM python:3.12.13-slim-bookworm AS runtime
 
 # OCI image annotations for Docker Hub / GHCR provenance.
 LABEL org.opencontainers.image.title="Synaptic Cluster Explorer" \
-      org.opencontainers.image.description="Clustering analysis UI for the SynAPSeg self-supervised microscopy pipeline" \
-      org.opencontainers.image.authors="Veronika Anokhina <veronika.i.anokhina@gmail.com>" \
-      org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.version="0.1.0"
+    org.opencontainers.image.description="Clustering analysis UI for the SynAPSeg self-supervised microscopy pipeline" \
+    org.opencontainers.image.authors="Veronika Anokhina <veronika.i.anokhina@gmail.com>" \
+    org.opencontainers.image.licenses="MIT" \
+    org.opencontainers.image.version="0.1.0"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -72,7 +72,7 @@ EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request, sys; \
-sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3).status == 200 else 1)"
+    sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3).status == 200 else 1)"
 
 # gunicorn with one process so the in-process job executor's single
 # worker contract (services/jobs.py) is preserved, plus 4 threads so
@@ -81,9 +81,9 @@ sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz/', timeout=3
 # real datasets); torch and numpy release the GIL for compute so polling
 # threads still serve status JSON during a run.
 CMD ["gunicorn", "synapse_config.wsgi:application", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "1", \
-     "--threads", "4", \
-     "--timeout", "1800", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+    "--bind", "0.0.0.0:8000", \
+    "--workers", "1", \
+    "--threads", "4", \
+    "--timeout", "1800", \
+    "--access-logfile", "-", \
+    "--error-logfile", "-"]
