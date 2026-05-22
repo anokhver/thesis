@@ -24,9 +24,15 @@ data/
 ├── checkpoints/                       # pretrained encoder weights
 │   └── README.md                      #   download links (Swin-T 22k, MoBY) — TRACKED
 │
+├── embeddings/                        # cached encoder embeddings (.npy) for clustering
+├── imaging_outputs/                   # figures and renders from `imaging/` scripts
+│
 ├── training_outputs/                  # one timestamped subdir per training run
 │   ├── pretrain_moby/.gitkeep         #   placeholders — TRACKED
 │   ├── pretrain_scratch/.gitkeep
+│   ├── pretrain_tinny22k/.gitkeep
+│   ├── segmentation/.gitkeep          #   SwinUNETR joint 2-channel runs
+│   ├── encoder_audit/.gitkeep         #   encoder_feature_audit.py outputs
 │   ├── clustering/.gitkeep
 │   └── segmentation/.gitkeep
 │
@@ -41,7 +47,11 @@ data/
 | `scripts/preprocess/batch_preprocess.py`            | `patches_128/<session>/*.npy` + per-folder `index.csv`. |
 | `scripts/preprocess/tile_from_mip.py`               | `patches_128_from_zip/<date>/...` from pre-MIPped `.npy`. |
 | `scripts/training/pretrain_simmim_vicreg.py`        | `training_outputs/<run_label>/` (config, checkpoints, metrics, plots). |
-| `scripts/evaluation/extract_embeddings.py`          | `training_outputs/<run>/embeddings.npy`. |
+| `scripts/training/train_swinunetr_joint_2ch.py`     | `training_outputs/segmentation/<run_label>/` (SwinUNETR checkpoints + plots). |
+| `scripts/evaluation/extract_embeddings.py`          | `embeddings/<run>.npy` (or `training_outputs/<run>/embeddings.npy`). |
+| `scripts/run_clustering.py`                         | `training_outputs/clustering/<run>/` (Leiden + PERMANOVA + plots). |
+| `scripts/pseudolabels/*_from_mip.py`                | Pseudo-label masks alongside the source MIPs. |
+| `imaging/preview_*.py`, `imaging/draw_*.py`        | `imaging_outputs/...` figures. |
 
 ## Pretrained weights
 

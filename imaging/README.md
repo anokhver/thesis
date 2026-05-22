@@ -15,6 +15,7 @@ figures. Not part of the installable package (`pyproject.toml` packages
 | `view3d.py`             | Quick napari 3D viewer for a single volume. |
 | `preview_ets_stack.py`  | CLI: before/after preprocessing PNG of an `.ets` z-stack. |
 | `preview_patch_grid.py` | CLI: reassembled image with the 128×128 patch grid overlaid. |
+| `draw_sim_vicreg_architecture.py` | CLI: render the SimMIM + VICReg + Fourier pretraining schematic as SVG (thesis figure). |
 
 The two CLI scripts (`preview_*.py`) inject `src/` into `sys.path`, so
 they work without `pip install -e .`. The library modules (`volume`,

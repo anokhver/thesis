@@ -31,7 +31,9 @@ thesis/
 │   ├── preprocess/               #   Patch extraction (128 / 32)
 │   ├── pretrain_moby/            #   Pretrain init: MoBY contrastive Swin-T
 │   ├── pretrain_scratch/         #   Pretrain init: random
-│   └── pretrain_tinny/           #   Pretrain init: Swin-T ImageNet-22k (typo: "tinny" → "tiny22k")
+│   ├── pretrain_tinny/           #   Pretrain init: Swin-T ImageNet-22k (typo: "tinny" → "tiny22k")
+│   ├── segmentation/             #   SwinUNETR joint 2-channel fine-tuning recipes
+│   └── clustering/               #   Embedding-clustering grouping patterns
 │
 ├── notebooks/                    # Jupyter notebooks
 │   ├── loaded-weights/           #   MoBY- and tiny22k-initialised pretraining
@@ -46,10 +48,18 @@ thesis/
 ├── scripts/                      # Headless entry points + cluster jobs (see "Scripts" below)
 │   ├── preprocess/               #   Patch tiling, preprocessing orchestration, noise scoring
 │   ├── metadata/                 #   Microscope/experiment metadata extraction
-│   ├── training/                 #   SSL pretraining + post-training recovery
+│   ├── pseudolabels/             #   Puncta / dendrite / soma pseudo-label generation from MIPs
+│   ├── training/                 #   SSL pretraining, SwinUNETR fine-tuning, post-training recovery
 │   ├── evaluation/               #   Embedding extraction from a trained checkpoint
 │   ├── metacentrum/              #   PBS submission scripts (Metacentrum / CESNET)
-│   └── nudz/                     #   SLURM scripts + Windows .bat/.ps1 wrappers (NUDZ cluster)
+│   ├── nudz/                     #   SLURM scripts + Windows .bat/.ps1 wrappers (NUDZ cluster)
+│   ├── run_clustering.py         #   Run the Leiden clustering pipeline on cached embeddings
+│   ├── replot_clustering.py      #   Regenerate clustering plots from a saved run
+│   ├── extract_full_embeddings.py # Per-patch (un-pooled) embedding dump
+│   ├── plot_image_level_umap.py  #   Image-level UMAP over pooled embeddings
+│   ├── encoder_feature_audit.py  #   Probe encoder feature statistics on a checkpoint
+│   ├── check_gpu_compat.py       #   CUDA / torch compatibility check
+│   └── _build_joint_2ch_notebook.py # Generate the joint 2-channel segmentation notebook
 │
 ├── imaging/                      # Microscopy browsing + figure helpers (NOT in pip package)
 │   └── README.md                 #   imaging/ contents — see there
@@ -90,8 +100,15 @@ thesis/
     │   ├── reassemble.py         #   ImageCache + reassemble + load_patch_records
     │   ├── load_data.py          #   Microscopy file loading utilities
     │   └── split.py              #   Train/val splitting
-    │
-    ├── segmentation/             # Downstream segmentation
+    │    ├── utils_metadata/           # Microscopy session/experiment metadata
+│   ├── extractors.py         #   Per-file microscope metadata extractors
+│   ├── sessions.py           #   Per-session aggregation
+│   ├── experiment_report.py  #   Per-experiment metadata + patch index merge
+│   ├── olympus_matcher.py    #   Match acquisitions against Olympus catalogue
+│   ├── source_names.py       #   Parse experiment names
+│   ├── z_range.py            #   Per-file z-range scan
+│   └── flatten.py            #   JSON flattening helpers
+    │    ├── segmentation/             # Downstream segmentation
     │   ├── model.py              #   SwinUNETR wrapper + encoder weight loading
     │   ├── dataset.py            #   Pseudo-label segmentation dataset
     │   ├── losses.py             #   Dice / BCE losses + Dice metric
@@ -148,6 +165,7 @@ python scripts/training/pretrain_simmim_vicreg.py --config configs/pretrain_moby
 ```
 
 **Notebook mode** (interactive, with inline plots):
+
 - `notebooks/loaded-weights/pretrain_simmim_vicreg_moby.ipynb`
 - `notebooks/loaded-weights/pretrain_simmim_vicreg_tiny22k.ipynb`
 - `notebooks/from-scratch/pretrain_simmim_vicreg.ipynb`
@@ -155,6 +173,7 @@ python scripts/training/pretrain_simmim_vicreg.py --config configs/pretrain_moby
 ### 4. Cluster submission
 
 PBS (Metacentrum / CESNET):
+
 ```bash
 qsub scripts/metacentrum/submit_pretrain_moby_py.sh                  # script-based, default config
 qsub -v CONFIG=configs/pretrain_moby/128_no_fourier_vicreg_on.json \
@@ -166,6 +185,7 @@ qsub scripts/metacentrum/submit_all.sh [all|loadedmoby|scratch|cluster|chain]
 ```
 
 SLURM (NUDZ):
+
 ```bash
 sbatch scripts/nudz/submit_pretrain_moby_py.slurm.sh
 sbatch scripts/nudz/submit_from_scratch.slurm.sh
@@ -173,6 +193,7 @@ bash   scripts/nudz/submit_all.sh   # convenience wrapper, calls sbatch
 ```
 
 Windows (NUDZ workstation, pre-staging from a mounted disk):
+
 ```powershell
 scripts\nudz\run_extract_metadata_windows.ps1 -Mode smoke
 scripts\nudz\run_preprocess_windows.ps1       -Mode full -Workers 4
@@ -239,9 +260,20 @@ To run on GPU, install `nvidia-container-toolkit` on the host and add
 | `metadata/batch_extract_metadata.py`         | One-pass extraction of microscope metadata per session (`metadata.csv`, `metadata_full.json`). |
 | `metadata/gather_experiment_metadata.py`     | Aggregate per-experiment metadata (parsed names + patch index + optional Olympus enrichment). |
 | `metadata/scan_z_range_all_images.py`        | Per-file z-bounds scan over a microscopy tree. |
+| `pseudolabels/puncta_from_mip.py`            | LoG-based pre/post-synaptic puncta pseudo-labels from MIPs. |
+| `pseudolabels/puncta_spotiflow_from_mip.py`  | Spotiflow-based puncta pseudo-labels. |
+| `pseudolabels/dendrite_from_mip.py`          | Dendrite-mask pseudo-labels. |
+| `pseudolabels/soma_from_mip.py`              | Soma-mask pseudo-labels. |
 | `training/pretrain_simmim_vicreg.py`         | Headless SimMIM + VICReg pretraining (equivalent to the notebooks). |
+| `training/train_swinunetr_joint_2ch.py`      | Joint 2-channel SwinUNETR fine-tuning on pseudo-labels. |
 | `training/recover_post_training_viz.py`      | Regenerate post-training plots from a completed/partial run folder. |
 | `evaluation/extract_embeddings.py`           | Cache pooled encoder embeddings for downstream clustering. |
+| `run_clustering.py`                          | Run the Leiden clustering pipeline on cached embeddings. |
+| `replot_clustering.py`                       | Regenerate clustering plots from an existing clustering run. |
+| `extract_full_embeddings.py`                 | Dump per-patch (un-pooled) encoder embeddings. |
+| `plot_image_level_umap.py`                   | Image-level UMAP over pooled embeddings. |
+| `encoder_feature_audit.py`                   | Audit encoder feature statistics for a checkpoint. |
+| `check_gpu_compat.py`                        | Quick CUDA / torch compatibility check. |
 
 ### Cluster submission
 
@@ -262,19 +294,37 @@ configs/
 │   └── patches_32.json           # 32×32 patch extraction
 │
 ├── pretrain_moby/                # init from MoBY contrastive Swin-T weights
-│   ├── 128_default.json          #   SimMIM + VICReg + Fourier  (recommended)
-│   ├── 128_no_fourier_vicreg_on.json   # SimMIM + VICReg, no Fourier
-│   └── 128_no_fourier_vicreg_off.json  # SimMIM only
+│   ├── 128_default.json                  # SimMIM + VICReg + Fourier  (recommended)
+│   ├── 128_fourier_vicreg_on.json        # SimMIM + VICReg + Fourier, explicit on
+│   ├── 128_fourier_vicreg_weak.json      # Same, with reduced VICReg weight
+│   ├── 128_no_fourier_vicreg_on.json     # SimMIM + VICReg, no Fourier
+│   └── 128_no_fourier_vicreg_off.json    # SimMIM only
 │
 ├── pretrain_scratch/             # random init
 │   ├── 128_default.json
+│   ├── 128_fourier_vicreg_on.json
+│   ├── 128_fourier_vicreg_weak.json
+│   ├── 128_long_weak.json                # Long schedule with weak VICReg
 │   ├── 128_no_fourier_vicreg_on.json
 │   └── 128_no_fourier_vicreg_off.json
 │
-└── pretrain_tinny/               # init from Swin-T ImageNet-22k weights ("tinny" is a typo of "tiny22k")
-    ├── 128_default.json
-    ├── 128_no_fourier_vicreg_on.json
-    └── 128_no_fourier_vicreg_off.json
+├── pretrain_tinny/               # init from Swin-T ImageNet-22k weights ("tinny" is a typo of "tiny22k")
+│   ├── 128_default.json
+│   ├── 128_fourier_vicreg_on.json
+│   ├── 128_fourier_vicreg_weak.json
+│   ├── 128_no_fourier_vicreg_on.json
+│   └── 128_no_fourier_vicreg_off.json
+│
+├── segmentation/                 # SwinUNETR joint 2-channel fine-tuning recipes
+│   ├── joint_2ch_default.json    #   Baseline recipe
+│   ├── joint_2ch_dice_only.json  #   Dice-only loss variant
+│   ├── joint_2ch_tversky.json    #   Tversky-loss variant
+│   ├── joint_2ch_recipeA.json    #   Tuned "recipe A" variant
+│   ├── joint_2ch_smoke.json      #   Small smoke-test config
+│   └── *_log.json                #   Logged-input variants of the above
+│
+└── clustering/
+    └── group_patterns.json       # Regex patterns for grouping runs/conditions
 ```
 
 Each filename names two axes: `<resolution>_<variant>.json`. The
