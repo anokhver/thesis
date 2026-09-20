@@ -17,4 +17,8 @@ from .puncta_log import (  # noqa: F401
     derive_zscore_floors,
     detect_puncta_channel,
 )
-from .puncta_common import puncta_to_mask, restrict_puncta_to_near  # noqa: F401
+from .puncta_common import (  # noqa: F401
+    puncta_to_mask,
+    restrict_puncta_to_near,
+    mask_overlap,
+)

@@ -126,6 +126,7 @@ from synaptic_ssl.pseudolabels.puncta import (  # noqa: E402
     detect_puncta_channel,
     restrict_puncta_to_near,
     filter_by_size_shape,
+    mask_overlap,
 )
 
 logging.basicConfig(
@@ -152,6 +153,11 @@ PUNCTA_INDEX_FIELDS: tuple[str, ...] = (
     "n_post_raw",
     "n_pre_on_near",     # kept after centre-on-near gate
     "n_post_on_near",
+    "n_pre_components",
+    "n_post_components",
+    "n_overlap_components",
+    "overlap_fraction",
+    "overlap_mask_filename",
     "pre_tophat_r",
     "pre_floor_sigma_bg",
     "pre_floor_min_inner",
@@ -182,6 +188,10 @@ PATCH_PUNCTA_INDEX_FIELDS: tuple[str, ...] = (
     "n_post_full_on_near",
     "n_pre_pixels_patch",
     "n_post_pixels_patch",
+    "n_overlap_pixels_patch",
+    "n_overlap_components",
+    "overlap_fraction",
+    "overlap_mask_filename",
     "pre_tophat_r",
     "pre_floor_sigma_bg",
     "pre_floor_min_inner",
@@ -221,6 +231,7 @@ def _run_puncta(
     near_dilate_px: int,
     auto_floors: bool,
     apply_shape_filter: bool,
+    overlap_fraction: float,
 ) -> dict:
     """Full pipeline on already-loaded full-shape arrays.
 
@@ -266,6 +277,10 @@ def _run_puncta(
         pre_mask = filter_by_size_shape(pre_mask, cfg_pre).astype(bool)
         post_mask = filter_by_size_shape(post_mask, cfg_post).astype(bool)
 
+    overlap_mask, n_pre_components, n_post_components, n_overlap_components = (
+        mask_overlap(pre_mask, post_mask, min_fraction=overlap_fraction)
+    )
+
     # Extract floor values from the effective configs
     fp = (cfg_eff_pre.zscore_sigma_bg_floor,
           cfg_eff_pre.zscore_min_inner,
@@ -277,11 +292,16 @@ def _run_puncta(
     return dict(
         pre_mask=pre_mask,
         post_mask=post_mask,
+        overlap_mask=overlap_mask,
         near_mask=near_mask,
         n_pre_raw=int(kept_pre.shape[0]),
         n_post_raw=int(kept_post.shape[0]),
         n_pre_on_near=int(on_pre.shape[0]),
         n_post_on_near=int(on_post.shape[0]),
+        n_pre_components=n_pre_components,
+        n_post_components=n_post_components,
+        n_overlap_components=n_overlap_components,
+        overlap_fraction=overlap_fraction,
         pre_floors=fp,
         post_floors=fq,
     )
@@ -305,6 +325,10 @@ def _pre_mask_path(out_dir: Path, stem: str) -> Path:
 
 def _post_mask_path(out_dir: Path, stem: str) -> Path:
     return out_dir / f"{stem}_post.npy"
+
+
+def _overlap_mask_path(out_dir: Path, stem: str) -> Path:
+    return out_dir / f"{stem}_overlap.npy"
 
 
 def _stitch_tiled_mask(mask_dir: Path, stem: str, kind: str,
@@ -362,6 +386,7 @@ def puncta_one(
     near_dilate_px: int,
     auto_floors: bool,
     apply_shape_filter: bool,
+    overlap_fraction: float,
     overwrite: bool,
 ) -> dict | None:
     """Detect puncta on one MIP .npy. Save ``<stem>_pre.npy`` and
@@ -369,6 +394,7 @@ def puncta_one(
     """
     pre_path = _pre_mask_path(output_dir, npy_path.stem)
     post_path = _post_mask_path(output_dir, npy_path.stem)
+    overlap_path = _overlap_mask_path(output_dir, npy_path.stem)
     soma_full = _soma_mask_path(soma_dir, npy_path.stem)
     dend_full = _dend_mask_path(dend_dir, npy_path.stem)
     soma_tiles = sorted(soma_dir.glob(f"{npy_path.stem}_r??_c??_soma.npy"))
@@ -389,7 +415,7 @@ def puncta_one(
     soma_path = soma_full if soma_full.exists() else soma_tiles[0]
     dend_path = dend_full if dend_full.exists() else dend_tiles[0]
 
-    if pre_path.exists() and post_path.exists() and not overwrite:
+    if pre_path.exists() and post_path.exists() and overlap_path.exists() and not overwrite:
         logger.info(
             f"  {npy_path.name}: pre+post masks exist, skipping "
             f"(use --overwrite to redo)"
@@ -397,16 +423,24 @@ def puncta_one(
         try:
             pm = _np_load(pre_path, mmap_mode="r")
             qm = _np_load(post_path, mmap_mode="r")
+            om = _np_load(overlap_path, mmap_mode="r")
             H, W = pm.shape
             n_pre_pix = int(pm.sum())
             n_post_pix = int(qm.sum())
+            n_overlap_pix = int(om.sum())
+            _, n_pre_components, n_post_components, n_overlap_components = mask_overlap(
+                pm, qm, min_fraction=overlap_fraction
+            )
         except Exception:
             H = W = 0
             n_pre_pix = n_post_pix = -1
+            n_overlap_pix = -1
+            n_pre_components = n_post_components = n_overlap_components = -1
         return {
             "source_npy": npy_path.name,
             "pre_mask_filename": pre_path.name,
             "post_mask_filename": post_path.name,
+            "overlap_mask_filename": overlap_path.name,
             "soma_mask_filename": soma_path.name,
             "dend_mask_filename": dend_path.name,
             "height": H,
@@ -419,6 +453,10 @@ def puncta_one(
             "n_post_raw": -1,
             "n_pre_on_near": n_pre_pix,   # px count as a stale proxy
             "n_post_on_near": n_post_pix,
+            "n_pre_components": n_pre_components,
+            "n_post_components": n_post_components,
+            "n_overlap_components": n_overlap_components,
+            "overlap_fraction": overlap_fraction,
             "pre_tophat_r": cfg_pre.intensity_tophat_radius,
             "pre_floor_sigma_bg": float("nan"),
             "pre_floor_min_inner": float("nan"),
@@ -451,6 +489,7 @@ def puncta_one(
             near_dilate_px=near_dilate_px,
             auto_floors=auto_floors,
             apply_shape_filter=apply_shape_filter,
+            overlap_fraction=overlap_fraction,
         )
     except Exception as e:
         logger.error(f"  {npy_path.name}: FAILED ({e})")
@@ -459,6 +498,7 @@ def puncta_one(
     output_dir.mkdir(parents=True, exist_ok=True)
     np.save(pre_path, result["pre_mask"].astype(np.uint8))
     np.save(post_path, result["post_mask"].astype(np.uint8))
+    np.save(overlap_path, result["overlap_mask"].astype(np.uint8))
     H, W = result["pre_mask"].shape
     fp = result["pre_floors"]
     fq = result["post_floors"]
@@ -466,6 +506,7 @@ def puncta_one(
         f"  {npy_path.name}: {H}x{W} -> "
         f"pre {result['n_pre_raw']}->{result['n_pre_on_near']}  "
         f"post {result['n_post_raw']}->{result['n_post_on_near']}  "
+        f"overlap={result['n_overlap_components']}  "
         f"near={result['near_mask'].mean():.2%}"
     )
 
@@ -473,6 +514,7 @@ def puncta_one(
         "source_npy": npy_path.name,
         "pre_mask_filename": pre_path.name,
         "post_mask_filename": post_path.name,
+        "overlap_mask_filename": overlap_path.name,
         "soma_mask_filename": soma_path.name,
         "dend_mask_filename": dend_path.name,
         "height": H,
@@ -485,6 +527,10 @@ def puncta_one(
         "n_post_raw": result["n_post_raw"],
         "n_pre_on_near": result["n_pre_on_near"],
         "n_post_on_near": result["n_post_on_near"],
+        "n_pre_components": result["n_pre_components"],
+        "n_post_components": result["n_post_components"],
+        "n_overlap_components": result["n_overlap_components"],
+        "overlap_fraction": result["overlap_fraction"],
         "pre_tophat_r": cfg_pre.intensity_tophat_radius,
         "pre_floor_sigma_bg": float(fp[0]),
         "pre_floor_min_inner": float(fp[1]),
@@ -503,11 +549,11 @@ def puncta_one(
 def _puncta_one_worker(args: tuple) -> dict | None:
     (npy_path, output_dir, soma_dir, dend_dir,
      cfg_pre, cfg_post, pre_ch, post_ch, near_dilate_px,
-     auto_floors, apply_shape_filter, overwrite) = args
+    auto_floors, apply_shape_filter, overlap_fraction, overwrite) = args
     return puncta_one(
         Path(npy_path), Path(output_dir), Path(soma_dir), Path(dend_dir),
         cfg_pre, cfg_post, pre_ch, post_ch, near_dilate_px,
-        auto_floors, apply_shape_filter, overwrite,
+        auto_floors, apply_shape_filter, overlap_fraction, overwrite,
     )
 
 
@@ -523,6 +569,7 @@ def process_dir(
     near_dilate_px: int,
     auto_floors: bool,
     apply_shape_filter: bool,
+    overlap_fraction: float,
     workers: int,
     overwrite: bool,
 ) -> list[dict]:
@@ -543,7 +590,7 @@ def process_dir(
     work_items = [
         (str(p), str(output_dir), str(soma_dir), str(dend_dir),
          cfg_pre, cfg_post, pre_channel, post_channel, near_dilate_px,
-         auto_floors, apply_shape_filter, overwrite)
+         auto_floors, apply_shape_filter, overlap_fraction, overwrite)
         for p in npy_files
     ]
 
@@ -681,6 +728,7 @@ def puncta_for_source(
     near_dilate_px: int,
     auto_floors: bool,
     apply_shape_filter: bool,
+    overlap_fraction: float,
     overwrite: bool,
 ) -> list[dict]:
     """Stitch one source's patches + masks, run puncta, write per-patch masks."""
@@ -727,6 +775,9 @@ def puncta_for_source(
                 "n_post_full_on_near": -1,
                 "n_pre_pixels_patch": n_pre_pix,
                 "n_post_pixels_patch": n_post_pix,
+                "n_overlap_pixels_patch": -1,
+                "n_overlap_components": -1,
+                "overlap_fraction": overlap_fraction,
                 "pre_tophat_r": cfg_pre.intensity_tophat_radius,
                 "pre_floor_sigma_bg": float("nan"),
                 "pre_floor_min_inner": float("nan"),
@@ -747,6 +798,7 @@ def puncta_for_source(
         near_dilate_px=near_dilate_px,
         auto_floors=auto_floors,
         apply_shape_filter=apply_shape_filter,
+        overlap_fraction=overlap_fraction,
     )
     full_pre = result["pre_mask"]
     full_post = result["post_mask"]
@@ -768,13 +820,17 @@ def puncta_for_source(
         y0, x0 = gr * ps, gcol * ps
         pre_tile = full_pre[y0:y0 + ps, x0:x0 + ps].copy()
         post_tile = full_post[y0:y0 + ps, x0:x0 + ps].copy()
+        overlap_tile = result["overlap_mask"][y0:y0 + ps, x0:x0 + ps].copy()
         near_tile = full_near[y0:y0 + ps, x0:x0 + ps]
+        overlap_path = _overlap_mask_path(output_dir, Path(r["filename"]).stem)
         np.save(pp, pre_tile.astype(np.uint8))
         np.save(qp, post_tile.astype(np.uint8))
+        np.save(overlap_path, overlap_tile.astype(np.uint8))
         records.append({
             "filename": r["filename"],
             "pre_mask_filename": pp.name,
             "post_mask_filename": qp.name,
+            "overlap_mask_filename": overlap_path.name,
             "soma_mask_filename": sp.name,
             "dend_mask_filename": dp.name,
             "source_npy": source_npy,
@@ -790,6 +846,9 @@ def puncta_for_source(
             "n_post_full_on_near": int(result["n_post_on_near"]),
             "n_pre_pixels_patch": int(pre_tile.sum()),
             "n_post_pixels_patch": int(post_tile.sum()),
+            "n_overlap_pixels_patch": int((pre_tile & post_tile).sum()),
+            "n_overlap_components": int(result["n_overlap_components"]),
+            "overlap_fraction": overlap_fraction,
             "pre_tophat_r": cfg_pre.intensity_tophat_radius,
             "pre_floor_sigma_bg": float(fp[0]),
             "pre_floor_min_inner": float(fp[1]),
@@ -808,12 +867,12 @@ def puncta_for_source(
 def _puncta_for_source_worker(args: tuple) -> list[dict]:
     (patch_dir, output_dir, soma_dir, dend_dir, source_npy, rows,
      cfg_pre, cfg_post, pre_ch, post_ch, near_dilate_px,
-     auto_floors, apply_shape_filter, overwrite) = args
+    auto_floors, apply_shape_filter, overlap_fraction, overwrite) = args
     return puncta_for_source(
         Path(patch_dir), Path(output_dir), Path(soma_dir), Path(dend_dir),
         source_npy, rows, cfg_pre, cfg_post,
         pre_ch, post_ch, near_dilate_px,
-        auto_floors, apply_shape_filter, overwrite,
+        auto_floors, apply_shape_filter, overlap_fraction, overwrite,
     )
 
 
@@ -829,6 +888,7 @@ def process_patches_dir(
     near_dilate_px: int,
     auto_floors: bool,
     apply_shape_filter: bool,
+    overlap_fraction: float,
     workers: int,
     overwrite: bool,
 ) -> list[dict]:
@@ -861,7 +921,7 @@ def process_patches_dir(
         (str(patch_dir), str(output_dir), str(soma_dir), str(dend_dir),
          key, rows, cfg_pre, cfg_post,
          pre_channel, post_channel, near_dilate_px,
-         auto_floors, apply_shape_filter, overwrite)
+         auto_floors, apply_shape_filter, overlap_fraction, overwrite)
         for key, rows in sorted(groups.items())
     ]
 
@@ -1019,6 +1079,14 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--overlap_fraction", type=float, default=0.8,
+        help=(
+            "Legacy threshold for the smaller-component overlap rule. "
+            "The default overlap rule is the SynBot/Puncta Analyzer-style "
+            "centre-distance criterion (default: 0.8)."
+        ),
+    )
+    parser.add_argument(
         "--max_folders", type=int, default=0,
         help="Process at most this many session folders (0 = all; root modes only).",
     )
@@ -1075,6 +1143,7 @@ def main() -> None:
         logger.info(f"Near dilate:    {args.near_dilate_px} px")
         logger.info(f"Auto floors:    {auto_floors}")
         logger.info(f"Shape filter:   {args.apply_shape_filter}")
+        logger.info(f"Overlap fraction: {args.overlap_fraction:.2f}")
         logger.info(f"Workers:        {workers}")
         logger.info(
             f"PRE  cfg: sigma=[{cfg_pre.log_min_sigma}, {cfg_pre.log_max_sigma}] "
@@ -1119,6 +1188,7 @@ def main() -> None:
             cfg_pre, cfg_post,
             args.pre_channel, args.post_channel, args.near_dilate_px,
             auto_floors, args.apply_shape_filter,
+            args.overlap_fraction,
             workers, args.overwrite,
         )
         return
@@ -1152,6 +1222,7 @@ def main() -> None:
             cfg_pre, cfg_post,
             args.pre_channel, args.post_channel, args.near_dilate_px,
             auto_floors, args.apply_shape_filter,
+            args.overlap_fraction,
             workers, args.overwrite,
         )
         return
@@ -1244,6 +1315,7 @@ def main() -> None:
             cfg_pre, cfg_post,
             args.pre_channel, args.post_channel, args.near_dilate_px,
             auto_floors, args.apply_shape_filter,
+            args.overlap_fraction,
             workers, args.overwrite,
         )
         results[folder.name] = len(recs)

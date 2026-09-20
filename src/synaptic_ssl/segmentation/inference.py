@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -9,6 +10,58 @@ import torch
 import torch.nn as nn
 
 from ..utils_data.reassemble import reassemble_image
+from ..pseudolabels.puncta_common import mask_overlap
+
+
+@dataclass
+class JointMaskResult:
+    """Thresholded PRE/POST masks and deterministic overlap statistics."""
+
+    pre_mask: np.ndarray
+    post_mask: np.ndarray
+    overlap_mask: np.ndarray
+    n_pre_components: int
+    n_post_components: int
+    n_overlap_components: int
+    threshold: float
+    overlap_fraction: float
+
+
+def postprocess_joint_probability_map(
+    prob_map: np.ndarray,
+    *,
+    threshold: float = 0.5,
+    overlap_fraction: float = 0.8,
+) -> JointMaskResult:
+    """Threshold PRE/POST probabilities and derive overlap/counts.
+
+    ``prob_map`` must have shape ``(2, H, W)`` with PRE in channel 0 and
+    POST in channel 1. The model remains responsible only for predicting
+    these two channels; overlap is derived deterministically afterward.
+    """
+    prob_map = np.asarray(prob_map)
+    if prob_map.ndim != 3 or prob_map.shape[0] != 2:
+        raise ValueError(
+            f"expected probability map with shape (2, H, W), got {prob_map.shape}"
+        )
+    if not 0.0 <= threshold <= 1.0:
+        raise ValueError(f"threshold must be in [0, 1], got {threshold}")
+
+    pre_mask = prob_map[0] >= threshold
+    post_mask = prob_map[1] >= threshold
+    overlap_mask, n_pre, n_post, n_overlap = mask_overlap(
+        pre_mask, post_mask, min_fraction=overlap_fraction
+    )
+    return JointMaskResult(
+        pre_mask=pre_mask,
+        post_mask=post_mask,
+        overlap_mask=overlap_mask,
+        n_pre_components=n_pre,
+        n_post_components=n_post,
+        n_overlap_components=n_overlap,
+        threshold=threshold,
+        overlap_fraction=overlap_fraction,
+    )
 
 
 # D4 symmetry group: 8 elements built from hflip, vflip, rot90.

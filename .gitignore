@@ -13,9 +13,8 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data (too large for GitHub) � master's authoritative rules
-# data/*
-# !data/imaging_outputs/
-# !data/data_analysis/
+data/*
+!data/data_analysis/
 *.pth
 *.pt
 *.ckpt

@@ -21,6 +21,7 @@ from .model import (
 )
 from .augment import SegTrainTransform, SegValTransform
 from .inference import (
+    JointMaskResult, postprocess_joint_probability_map,
     predict_d4_tta,
     sliding_window_predict, predict_full_image,
     sliding_window_predict_multichannel, predict_full_image_multichannel,
@@ -68,6 +69,7 @@ __all__ = [
     "load_full_swinunetr_from_ckpt",
     "count_params",
     "SegTrainTransform", "SegValTransform",
+    "JointMaskResult", "postprocess_joint_probability_map",
     "predict_d4_tta", "sliding_window_predict", "predict_full_image",
     "sliding_window_predict_multichannel", "predict_full_image_multichannel",
     "refresh_pseudolabels",
