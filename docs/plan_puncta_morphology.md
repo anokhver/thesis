@@ -1,113 +1,97 @@
 # Plan: puncta density and shape analysis
 
-Goal: for every image, count the PRE and POST puncta, normalise the count by
-dendrite area, describe each punctum's shape with an ellipse fitted from
-moments, and export everything to one table, split into the 24 h and 1 h
-groups.
+Goal: for every image, detect the PRE and POST puncta with LoG, measure each
+punctum's shape with an ellipse fitted from moments, and write one CSV with
+one row per punctum. Every histogram and density value is computed from that
+CSV alone.
 
 Existing building blocks:
 
 | Need | Already in repo |
 |---|---|
 | Puncta centres + LoG scale | `pseudolabels/puncta_log.py` → `detect_puncta_channel()` returns `(row, col, sigma)` |
-| Model-based centres (alternative) | `segmentation/colocalisation.py` → `_prob_to_points()` on the 2-ch probability map |
 | Dendrite mask | `pseudolabels/dendrite_frangi.py` → `run_dendrite_on_image()` |
 | Restrict puncta to dendrite | `pseudolabels/puncta_common.py` → `restrict_puncta_to_near()` |
-| Group / time-point from filename | `clustering/groups.py` + `configs/clustering/group_patterns.json` (`24h`, `1h pulse`) |
+| Group name from filename | `clustering/groups.py` + `configs/clustering/group_patterns.json` |
 | Pixel size (µm/px) | `utils_metadata/extractors.py` (microscope metadata) |
 
-New module: `src/synaptic_ssl/analysis/puncta_morphology.py`, plus a CLI
-script `scripts/analysis/puncta_morphology.py`.
+New code:
+- `src/synaptic_ssl/analysis/puncta_morphology.py`: writes the CSV.
+- `scripts/analysis/puncta_morphology.py`: CLI that loops over the images.
+- `notebooks/analysis/puncta_histograms.ipynb`: reads **only** the CSV and
+  draws the plots.
 
 ---
 
-## 1. Number of puncta per dendrite area
+## 1. Puncta per dendrite area
 
 For each image and each channel (PRE, POST):
 
 1. Build the dendrite mask (`run_dendrite_on_image`).
-2. Detect puncta (LoG or model peaks) and keep only those on or near the
-   dendrite (`restrict_puncta_to_near`).
-3. `area_px = mask.sum()`; `area_um2 = area_px * px_size_um**2`.
-4. `density = n_puncta / area_um2` (puncta / µm²). Also report a per-length
-   variant (`n / skeleton_length_um`), because dendrite width differs between
-   images and per-length density is the usual metric in the literature.
+2. Detect puncta with LoG (`detect_puncta_channel`) and keep only those on
+   the dendrite (`restrict_puncta_to_near`).
+3. `dendrite_area_um2 = mask.sum() * px_size_um**2`.
+4. `density_per_um2 = n_puncta / dendrite_area_um2`.
 
-Output: one row per image × channel (`file_name, group, channel, n,
-area_um2, density`).
+`dendrite_area_um2` is written on every row of the CSV, so the density can be
+recomputed from the CSV: group by `file_name` and `channel`, count the rows,
+and divide by `dendrite_area_um2`.
 
-## 2. Histogram of the ranges
+## 2. Histograms of the value ranges
 
-Plot the distributions of the per-punctum quantities from step 4 (radius,
-eccentricity, semi-axes) and of the per-image density from step 1:
+All plots are made from the CSV:
 
-- one histogram per quantity, PRE and POST overlaid;
-- shared bin edges across groups so the groups can be compared;
-- print the range (min / max / 5th–95th percentile) beside each histogram.
+- radius, eccentricity, `a`, `b`: one value per row;
+- density: one value per (`file_name`, `channel`), computed as in step 1.
 
-> Open question: "ranges" here is read as the value ranges of radius and
-> eccentricity. If it means something else (for example the PRE–POST
-> distance range), only this section changes.
+Each plot overlays PRE and POST, uses the same bin edges for every group, and
+lists min / max and the 5th–95th percentile.
 
-## 3. Separate 24 h and 1 h
+## 3. 24 h and 1 h
 
-- Parse each filename with `classify_image_by_patterns()`; the label already
-  holds the time qualifier (`| 24h`, `| 1h pulse`).
-- Add a `time_group` column with values `24h`, `1h`, and `other` (48h, 72h,
-  or unlabelled; these are kept in the CSV but left out of the comparison
-  plots).
-- Make every plot and summary table from steps 1, 2 and 4 once per
-  `time_group`, and inside each time group per treatment.
-- Test the difference between groups with Mann–Whitney U on the per-image
-  medians (not per-punctum values, which are not independent).
+The script does not decide which group an image belongs to. It writes
+`file_name` (and `group_name` from `classify_image_by_patterns()`, which
+already contains `24h` or `1h pulse` when the filename has it) into the CSV.
+The 24 h / 1 h split is then a filter on those columns in the notebook, so it
+can be changed without re-running the analysis.
 
-## 4. Ellipse from moments (instead of the LoG radius)
+## 4. Ellipse from moments
 
-The LoG `sigma` is used only to find the centre. The shape is then measured
-in a local window around that centre:
+LoG gives only the centre. The shape is measured in a local window around it:
 
 1. Crop a window of half-size `k * sigma` (for example `k = 3`) around
    `(row, col)` from the background-subtracted (tophat) image.
 2. Weights `w(x, y)` = intensity minus the local background (annulus median,
-   as in `_score_one_puncta_zscore`), clipped at 0. Optionally restrict them
-   to the connected component that contains the centre.
+   as in `_score_one_puncta_zscore`), clipped at 0.
 3. Moments:
    - `m00 = Σw`
    - centroid `x̄ = Σw·x / m00`, `ȳ = Σw·y / m00` (refined centre)
-   - central second moments `μ20 = Σw(x−x̄)² / m00`, `μ02 = Σw(y−ȳ)² / m00`,
+   - `μ20 = Σw(x−x̄)² / m00`, `μ02 = Σw(y−ȳ)² / m00`,
      `μ11 = Σw(x−x̄)(y−ȳ) / m00`
-4. Covariance `C = [[μ20, μ11], [μ11, μ02]]`; eigenvalues `λ1 ≥ λ2` and
-   eigenvectors give the axes:
-   - semi-major axis `a = 2·√λ1`, semi-minor axis `b = 2·√λ2` (the 2σ
-     ellipse)
+4. Covariance `C = [[μ20, μ11], [μ11, μ02]]`, eigenvalues `λ1 ≥ λ2`:
+   - semi-axes `a = 2·√λ1`, `b = 2·√λ2`
    - orientation `θ = ½·atan2(2μ11, μ20 − μ02)`
-   - equivalent radius `r = √(a·b)` (in px, then × `px_size_um` for µm)
+   - radius `r = √(a·b)`
    - eccentricity `e = √(1 − λ2/λ1)` (0 = circle, close to 1 = elongated)
-5. Continuous distribution: instead of only histograms, fit a KDE
-   (`scipy.stats.gaussian_kde`) to `r` and `e` per group, and optionally a
-   parametric fit (log-normal for `r`, beta for `e`). Compare the groups with
-   a KS test.
-6. Sanity checks: drop puncta whose window touches the image border or has
-   `m00 ≈ 0`. On a few images, overlay the ellipses on the raw image to check
-   them by eye (reuse `pseudolabels/viz.py`).
+5. Continuous distribution: a smooth density curve drawn over each histogram,
+   computed from the radius and eccentricity columns of the CSV
+   (`scipy.stats.gaussian_kde`). It is the same data as the histogram, but
+   the curve does not depend on the chosen bin width.
+6. Drop puncta whose window touches the image border or has `m00 ≈ 0`. On a
+   few images, overlay the ellipses on the raw image to check them by eye.
 
-## 5. Output table
+## 5. CSV
 
-One CSV row per punctum, `;`-separated:
+One row per punctum, `;`-separated:
 
 ```
-file_name;group_name;time_group;channel;x;y;radius_um;a_um;b_um;eccentricity;theta_deg;intensity;density_per_um2
+file_name;group_name;channel;x;y;radius_um;a_um;b_um;eccentricity;theta_deg;intensity;dendrite_area_um2
 ```
 
-- `channel` ∈ {`pre`, `post`}. One row per punctum, with the channel in its
-  own column, is easier to filter than separate `pre`/`post` columns. If the
-  layout should be one row per **matched synapse**, add
-  `pre_x;pre_y;post_x;post_y` using the PRE↔POST matching in
-  `colocalisation.py`.
-- `x`, `y` = refined moment centroid (px, full-image coordinates).
-- Also write a per-image summary CSV: `file_name;group_name;time_group;
-  n_pre;n_post;dendrite_area_um2;density_pre;density_post;median_radius_pre;
-  median_radius_post;median_ecc_pre;median_ecc_post`.
+- `channel` is `pre` or `post`.
+- `x`, `y` are the refined moment centroid in px (full-image coordinates).
+- `radius_um`, `a_um`, `b_um` are converted with the pixel size from the
+  metadata.
 
 ---
 
@@ -115,19 +99,7 @@ file_name;group_name;time_group;channel;x;y;radius_um;a_um;b_um;eccentricity;the
 
 1. `ellipse_from_moments(image, row, col, sigma, k)` → dict. Unit-test it on
    synthetic Gaussians with known σx, σy and rotation.
-2. `analyse_image(path, cfg)` → per-punctum DataFrame plus per-image summary
-   (steps 1, 4, 5).
-3. CLI script that loops over the MIPs, adds `group_name` / `time_group`, and
-   writes both CSVs.
-4. Notebook `notebooks/analysis/puncta_morphology.ipynb`: histograms, KDEs,
-   24 h vs 1 h comparison (steps 2, 3).
-
-## Open questions for the supervisor
-
-- Which detector should give the centres: LoG pseudolabels or the trained
-  model's peaks?
-- Should density be normalised by area (as asked) or by length, or both?
-- Does "1 h" mean the `1h pulse` washout images, or a separate 1 h exposure
-  set?
-- Should the table have one row per punctum or one row per matched synapse
-  (PRE + POST)?
+2. `analyse_image(path, cfg)` → per-punctum DataFrame (steps 1, 4).
+3. CLI script: loop over the MIPs and write the CSV (step 5).
+4. Notebook: read the CSV, filter 24 h / 1 h, draw histograms and density
+   curves (steps 2, 3).
