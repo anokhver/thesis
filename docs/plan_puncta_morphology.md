@@ -25,7 +25,8 @@ New code:
 
 ## 1. Puncta per dendrite area
 
-For each image and each channel (PRE, POST):
+For each image and each channel (PRE, POST; the channel indices are CLI
+arguments `--pre_channel` / `--post_channel`):
 
 1. Build the dendrite mask (`run_dendrite_on_image`).
 2. Detect puncta with LoG (`detect_puncta_channel`) and keep only those on
@@ -34,7 +35,7 @@ For each image and each channel (PRE, POST):
 4. `density_per_um2 = n_puncta / dendrite_area_um2`.
 
 `dendrite_area_um2` is written on every row of the CSV, so the density can be
-recomputed from the CSV: group by `file_name` and `channel`, count the rows,
+recomputed from the CSV: group by `file_name` and `role`, count the rows,
 and divide by `dendrite_area_um2`.
 
 ## 2. Histograms of the value ranges
@@ -42,7 +43,7 @@ and divide by `dendrite_area_um2`.
 All plots are made from the CSV:
 
 - radius, eccentricity, `a`, `b`: one value per row;
-- density: one value per (`file_name`, `channel`), computed as in step 1.
+- density: one value per (`file_name`, `role`), computed as in step 1.
 
 Each plot overlays PRE and POST, uses the same bin edges for every group, and
 lists min / max and the 5th–95th percentile.
@@ -85,10 +86,14 @@ LoG gives only the centre. The shape is measured in a local window around it:
 One row per punctum, `;`-separated:
 
 ```
-file_name;group_name;channel;x;y;radius_um;a_um;b_um;eccentricity;theta_deg;intensity;dendrite_area_um2
+file_name;group_name;role;channel_index;x;y;radius_um;a_um;b_um;eccentricity;theta_deg;intensity;dendrite_area_um2
 ```
 
-- `channel` is `pre` or `post`.
+- `role` is `pre` or `post`, written out explicitly on every row.
+- `channel_index` is the index of the channel in the image stack that the
+  punctum was detected in (the `--pre_channel` / `--post_channel` value, as in
+  `scripts/pseudolabels/puncta_from_mip.py`), so a row can be traced back to
+  the raw data even if the channel order differs between experiments.
 - `x`, `y` are the refined moment centroid in px (full-image coordinates).
 - `radius_um`, `a_um`, `b_um` are converted with the pixel size from the
   metadata.
