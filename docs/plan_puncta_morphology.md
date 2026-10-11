@@ -86,7 +86,7 @@ LoG gives only the centre. The shape is measured in a local window around it:
 One row per punctum, `;`-separated:
 
 ```
-file_name;group_name;role;channel_index;x;y;radius_um;a_um;b_um;eccentricity;theta_deg;intensity;dendrite_area_um2
+file_name;group_name;role;channel_index;dendrite_channel_index;x;y;radius_um;a_um;b_um;eccentricity;theta_deg;intensity;sigma_log;dendrite_area_um2;px_size_um;near_dilate_px
 ```
 
 - `role` is `pre` or `post`, written out explicitly on every row.
@@ -95,8 +95,15 @@ file_name;group_name;role;channel_index;x;y;radius_um;a_um;b_um;eccentricity;the
   `scripts/pseudolabels/puncta_from_mip.py`), so a row can be traced back to
   the raw data even if the channel order differs between experiments.
 - `x`, `y` are the refined moment centroid in px (full-image coordinates).
-- `radius_um`, `a_um`, `b_um` are converted with the pixel size from the
-  metadata.
+- `radius_um`, `a_um`, `b_um` are converted with `px_size_um` (default
+  0.10685 µm/px).
+- `dendrite_area_um2` is the area of the same (dilated) dendrite mask that
+  gated the puncta.
+- A second file, `<name>_images.csv`, has one row per image × role
+  (`file_name;group_name;role;channel_index;n_puncta;dendrite_area_um2`), so
+  images with 0 puncta still count in the density.
+
+The step-by-step implementation prompt is in `docs/prompt_puncta_morphology.md`.
 
 ---
 
