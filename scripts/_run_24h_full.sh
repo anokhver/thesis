@@ -8,6 +8,13 @@ cd /storage/brno2/home/anokhver/thesis
 
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 
+# Both channels search the full size range, from the smallest PSD-95 spot to
+# the largest Synapsin1 bouton: LoG sigma 0.9-3.4 = 2.5-9.6 px = ~270-1030 nm
+# across. Split by size later from the CSV column sigma_log
+# (diameter_nm ~= sigma_log * 2.83 * 107). The z-score thresholds stay the
+# per-channel defaults (pre 4, post 6).
+WIDE_CFG=configs/puncta/wide_range.json
+
 SESSIONS=(20251205 20251213 20251219 20251220)
 OUT_DIR=outs/puncta_morphology_24h
 mkdir -p "$OUT_DIR"
@@ -20,6 +27,8 @@ for d in "${SESSIONS[@]}"; do
         --dendrite_dir "data/pseudolabels/dend/$d" \
         --output_csv "$OUT_DIR/$d.csv" \
         --group_patterns configs/clustering/group_patterns.json \
+        --cfg_pre "$WIDE_CFG" \
+        --cfg_post "$WIDE_CFG" \
         --workers 8
     echo "=== [$(date '+%Y-%m-%d %H:%M:%S')] session $d done ==="
 done

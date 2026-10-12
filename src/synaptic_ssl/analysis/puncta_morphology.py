@@ -1,18 +1,30 @@
 """Per-punctum shape morphology from LoG detections.
 
-``ellipse_from_moments`` fits an ellipse to one LoG-detected punctum by
-computing image moments of the background-subtracted intensity in a
-small window around the detection. This is detector-agnostic geometry
-(like ``pseudolabels.puncta_common``) and does not depend on the
+``fit_ellipse`` fits an elliptical 2D Gaussian (plus a constant
+background) to one LoG-detected punctum in a small circular window
+around the detection. This is detector-agnostic geometry (like
+``pseudolabels.puncta_common``) and does not depend on the
 segmentation model or any particular detection pipeline.
 
+Why a Gaussian fit and not image moments: intensity-weighted moments
+in a window pick up the positive half of the pixel noise, which on
+synthetic spots inflates the size by 20-60 %, makes round spots look
+elongated and biases the orientation towards the window diagonals
+(+-45 deg). A least-squares Gaussian fit stays unbiased in size and
+orientation at the same noise levels (see
+``tests/test_puncta_morphology.py``).
+
 Ellipse convention: ``a`` / ``b`` are the semi-major / semi-minor axis
-lengths in pixels (``a >= b``), derived from the eigenvalues of the
-intensity-weighted covariance matrix of the window (same convention as
-``skimage.measure.regionprops``: axis length = ``4 * sqrt(eigenvalue)``,
-so semi-axis = ``2 * sqrt(eigenvalue)``). ``eccentricity`` follows the
-same definition: ``sqrt(1 - (b / a) ** 2)``. ``theta_deg`` is the angle
-of the major axis in degrees, measured from the column axis.
+lengths in pixels (``a >= b``), equal to twice the fitted Gaussian
+standard deviations (``a = 2 * sigma_major``), i.e. the same scale as
+``skimage.measure.regionprops`` (semi-axis = ``2 * sqrt(eigenvalue)``).
+``eccentricity`` = ``sqrt(1 - (b / a) ** 2)``. ``theta_deg`` is the
+angle of the major axis in degrees, measured from the column axis
+towards the row axis, wrapped to ``(-90, 90]``.
+
+Note that for spots close to the optical resolution, noise alone makes
+a round spot fit as slightly elongated (eccentricity ~0.3-0.5 at
+10-20 % noise), so small eccentricities are not distinguishable from 0.
 """
 from __future__ import annotations
 
@@ -22,6 +34,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import least_squares
 from skimage.morphology import dilation, disk, white_tophat
 
 from synaptic_ssl.clustering.groups import classify_image_by_patterns
@@ -52,30 +65,55 @@ PUNCTA_CSV_COLUMNS: tuple[str, ...] = (
 )
 
 
-def ellipse_from_moments(
+def _gaussian_residuals(
+    p: np.ndarray,
+    y: np.ndarray,
+    x: np.ndarray,
+    v: np.ndarray,
+    nb: np.ndarray,
+) -> np.ndarray:
+    """Elliptical Gaussian + constant background + one round Gaussian per
+    neighbour (centre fixed at its LoG position; height and width free)."""
+    amp, y0, x0, s_major, s_minor, theta, bg = p[:7]
+    ct, st = np.cos(theta), np.sin(theta)
+    u = (x - x0) * ct + (y - y0) * st
+    w = -(x - x0) * st + (y - y0) * ct
+    model = amp * np.exp(-0.5 * (u / s_major) ** 2 - 0.5 * (w / s_minor) ** 2) + bg
+    for (ny, nx), n_amp, n_sig in zip(nb, p[7::2], p[8::2]):
+        model = model + n_amp * np.exp(-0.5 * ((y - ny) ** 2 + (x - nx) ** 2) / n_sig ** 2)
+    return model - v
+
+
+def fit_ellipse(
     image: np.ndarray,
     row: float,
     col: float,
     sigma: float,
     *,
     k: float = 3.0,
+    neighbours: np.ndarray | None = None,
 ) -> dict | None:
-    """Fit an ellipse to one LoG punctum via background-subtracted moments.
+    """Fit an elliptical 2D Gaussian to one LoG punctum.
 
     ``image`` must be 2D and background-subtracted (e.g. the white-tophat
-    channel used by ``detect_puncta_channel``). The window half-size is
-    ``h = max(2, ceil(k * sigma))``, cropped as
-    ``image[row - h : row + h + 1, col - h : col + h + 1]``.
+    channel used by ``detect_puncta_channel``). The fit uses the pixels
+    of a circular window of radius ``h = max(2, ceil(k * sigma))`` around
+    ``(row, col)``. ``neighbours`` is an optional ``(N, 3)`` array of
+    other LoG detections ``(row, col, sigma)`` (the punctum itself may be
+    included; it is skipped). Neighbours whose light reaches the window
+    are fitted jointly as round Gaussians, so a bright neighbour does not
+    stretch or shift the ellipse.
 
     Returns ``None`` if the window would cross the image border, or if
-    the background-subtracted weights sum to (near) zero or degenerate
-    into a zero-area ellipse.
+    the fit fails (no positive peak, a width at its bound, or a centre
+    that drifted more than ``h / 2`` px).
 
-    Returns a dict with keys ``row``, ``col`` (sub-pixel centroid, in
-    absolute image coordinates), ``a``, ``b`` (semi-major / semi-minor
+    Returns a dict with keys ``row``, ``col`` (sub-pixel fitted centre,
+    in absolute image coordinates), ``a``, ``b`` (semi-major / semi-minor
     axis lengths in px, ``a >= b``), ``eccentricity``, ``theta_deg``
-    (major-axis angle, degrees), ``intensity`` (peak background-subtracted
-    value in the window), and ``sigma`` (echoed back for traceability).
+    (major-axis angle, degrees, ``(-90, 90]``), ``intensity`` (fitted peak
+    height above the local background), and ``sigma`` (the LoG scale,
+    echoed back for traceability).
     """
     h = max(2, ceil(k * sigma))
     rc, cc = int(round(row)), int(round(col))
@@ -86,47 +124,64 @@ def ellipse_from_moments(
         return None
 
     window = image[r0:r1, c0:c1].astype(np.float64)
-    ring = np.concatenate(
-        [window[0, :], window[-1, :], window[1:-1, 0], window[1:-1, -1]]
-    )
-    background = float(np.median(ring))
-    weights = np.clip(window - background, 0.0, None)
-    m00 = float(weights.sum())
-    if m00 <= 1e-9:
+    # Offsets from the LoG centre (not the rounded pixel).
+    yy, xx = np.mgrid[r0:r1, c0:c1]
+    yy = yy - float(row)
+    xx = xx - float(col)
+    use = (yy ** 2 + xx ** 2) <= h * h
+    y, x, v = yy[use], xx[use], window[use]
+
+    nb = np.zeros((0, 3))
+    if neighbours is not None and len(neighbours):
+        nb = np.asarray(neighbours, dtype=np.float64)[:, :3].copy()
+        nb[:, :2] -= (row, col)
+        dist = np.hypot(nb[:, 0], nb[:, 1])
+        # Skip self; keep neighbours whose 3-sigma disk overlaps the window.
+        nb = nb[(dist > 1e-6) & (dist < h + 3.0 * nb[:, 2])]
+
+    bg0 = float(np.percentile(v, 25))
+    amp0 = float(v[(y ** 2 + x ** 2) <= max(1.0, sigma) ** 2].max()) - bg0
+    if amp0 <= 1e-9:
         return None
 
-    size = window.shape[0]
-    yy, xx = np.mgrid[0:size, 0:size]
-    cy = float((weights * yy).sum() / m00)
-    cx = float((weights * xx).sum() / m00)
-    dy = yy - cy
-    dx = xx - cx
-    mu20 = float((weights * dy * dy).sum() / m00)
-    mu02 = float((weights * dx * dx).sum() / m00)
-    mu11 = float((weights * dy * dx).sum() / m00)
-
-    cov = np.array([[mu20, mu11], [mu11, mu02]])
-    eigvals, eigvecs = np.linalg.eigh(cov)
-    eigvals = np.clip(eigvals, 0.0, None)
-    lam_minor, lam_major = float(eigvals[0]), float(eigvals[1])
-
-    a = 2.0 * np.sqrt(lam_major)
-    b = 2.0 * np.sqrt(lam_minor)
-    if a <= 1e-9:
+    s_lo, s_hi = 0.3, float(2 * h)
+    p0 = [amp0, 0.0, 0.0, float(sigma), 0.9 * float(sigma), 0.0, bg0]
+    lower = [0.0, -h, -h, s_lo, s_lo, -np.inf, -np.inf]
+    upper = [np.inf, h, h, s_hi, s_hi, np.inf, np.inf]
+    for _, _, n_sig in nb:
+        p0 += [amp0, float(n_sig)]
+        lower += [0.0, 0.5 * float(n_sig)]
+        upper += [np.inf, 2.0 * float(n_sig)]
+    try:
+        fit = least_squares(
+            _gaussian_residuals, p0, bounds=(lower, upper), args=(y, x, v, nb[:, :2])
+        )
+    except (ValueError, np.linalg.LinAlgError):
         return None
-    eccentricity = float(np.sqrt(max(0.0, 1.0 - (b / a) ** 2)))
-    # Major-axis eigenvector [vy, vx] (eigh ascending order -> index 1).
-    vy, vx = eigvecs[:, 1]
-    theta_deg = float(np.degrees(np.arctan2(vy, vx)))
+    if not fit.success:
+        return None
+    amp, dy, dx, s1, s2, theta, _ = (float(t) for t in fit.x[:7])
+    if amp <= 1e-9 or dy * dy + dx * dx > (h / 2) ** 2:
+        return None
+    if min(s1, s2) <= s_lo * 1.01 or max(s1, s2) >= s_hi * 0.99:
+        return None
+    if s2 > s1:
+        s1, s2 = s2, s1
+        theta += np.pi / 2
 
+    a = 2.0 * s1
+    b = 2.0 * s2
+    theta_deg = float((np.degrees(theta) + 90.0) % 180.0 - 90.0)
+    if theta_deg == -90.0:
+        theta_deg = 90.0
     return dict(
-        row=float(r0 + cy),
-        col=float(c0 + cx),
-        a=float(a),
-        b=float(b),
-        eccentricity=eccentricity,
+        row=float(row) + dy,
+        col=float(col) + dx,
+        a=a,
+        b=b,
+        eccentricity=float(np.sqrt(max(0.0, 1.0 - (b / a) ** 2))),
         theta_deg=theta_deg,
-        intensity=float(weights.max()),
+        intensity=amp,
         sigma=float(sigma),
     )
 
@@ -191,7 +246,7 @@ def analyse_image(
 
         n_dropped = 0
         for row, col, sigma in on_near:
-            ellipse = ellipse_from_moments(tophat_img, row, col, sigma, k=k)
+            ellipse = fit_ellipse(tophat_img, row, col, sigma, k=k, neighbours=kept)
             if ellipse is None:
                 n_dropped += 1
                 continue
@@ -219,7 +274,7 @@ def analyse_image(
             )
         if n_dropped:
             logger.info(
-                "%s: dropped %d/%d %s puncta (ellipse fit failed near border)",
+                "%s: dropped %d/%d %s puncta (at image border or ellipse fit failed)",
                 file_name, n_dropped, on_near.shape[0], role,
             )
 

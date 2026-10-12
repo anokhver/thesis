@@ -1,0 +1,9 @@
+{
+  "log_min_sigma": 0.9,
+  "log_max_sigma": 3.4,
+  "log_num_sigma": 11,
+  "log_exclude_border": 10,
+  "zscore_inner_radius": 5,
+  "zscore_outer_radius": 10,
+  "intensity_tophat_radius": 10
+}
