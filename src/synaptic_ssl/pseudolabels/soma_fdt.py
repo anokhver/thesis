@@ -18,6 +18,7 @@ empirically on the 20251219 dataset at 107 nm/px.
 """
 from __future__ import annotations
 
+import io
 from pathlib import Path
 from typing import Optional
 
@@ -437,6 +438,27 @@ def extract_soma_mask(
     )
 
 
+def _np_load(path, *, mmap_mode=None):
+    """Read a .npy via one big sequential read.
+
+    NTFS-3G (FUSE) occasionally returns EIO on np.load's multi-chunk
+    read pattern but tolerates one large read fine. Mirrors the helper
+    in ``scripts/pseudolabels/dendrite_from_mip.py``.
+    """
+    path = Path(path)
+    if mmap_mode is not None:
+        try:
+            return np.load(path, mmap_mode=mmap_mode)
+        except OSError:
+            pass
+    try:
+        with open(path, "rb", buffering=0) as fh:
+            data = fh.read()
+        return np.load(io.BytesIO(data))
+    except OSError as e:
+        raise OSError(f"{e} while reading {path}") from e
+
+
 def run_soma_on_image(
     image_path,
     cfg: Optional[dict] = None,
@@ -450,7 +472,7 @@ def run_soma_on_image(
     slice, the ``compute_pseudo_fdt`` dict, and the ``extract_soma_mask``
     dict.
     """
-    full = np.load(Path(image_path))
+    full = _np_load(image_path)
     structural = full[structural_channel].astype(np.float32)
     fdt_info = compute_pseudo_fdt(structural, cfg)
     blob_info = extract_soma_mask(fdt_info["fdt"], cfg)

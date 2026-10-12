@@ -97,8 +97,8 @@ class PunctaCfg:
 # at 107 nm/px (60x, NA 1.4, 488 nm excitation).
 #
 # Biology → pixel mapping (Harris & Stevens 1989, J Neurosci 9(8):2982–2997):
-#   PRE  (Bassoon/Synaptophysin) bouton: 500–1000 nm EM diameter
-#   POST (PSD-95/Homer)          PSD:    200–500 nm  EM diameter
+#   PRE  (Bassoon/Synaptophysin/Synapsin1) bouton/vesicle cluster: 500–1000 nm EM diameter
+#   POST (PSD-95/Homer)                         PSD:    200–500 nm  EM diameter
 # Convolved with PSF (~200 nm ≈ 1.9 px); observed sizes at 107 nm/px:
 #   PRE  ≈ 5–10 px → LoG sigma 1.8–3.4  (disk ∅ ≈ 2·√2·σ ≈ 5.1–9.6 px)
 #   POST ≈ 2.7–5 px → LoG sigma 1.0–1.8 (disk ∅ ≈ 2.8–5.1 px)
@@ -136,29 +136,30 @@ DEFAULT_PUNCTA_CFG_PRE: dict = dict(
 
 
 DEFAULT_PUNCTA_CFG_POST: dict = dict(
-    # POST PSD observed ≈ 2.7–5 px after PSF convolution.
-    log_min_sigma=1.0,
-    log_max_sigma=1.8,
-    log_num_sigma=4,
+    # Synapsin1 is a presynaptic vesicle-cluster marker, not a PSD marker.
+    # Use the bouton-scale prior; PSD-95/Homer would use the smaller prior.
+    log_min_sigma=1.8,
+    log_max_sigma=3.4,
+    log_num_sigma=5,
     log_threshold=0.030,
     log_overlap=0.5,
     # ~ 3 * max_sigma
-    log_exclude_border=6,
+    log_exclude_border=10,
 
-    # Tighter annulus for smaller spots.
+    # Annulus matched to the larger Synapsin1 puncta.
     use_zscore=True,
-    zscore_inner_radius=3,
-    zscore_outer_radius=6,
+    zscore_inner_radius=5,
+    zscore_outer_radius=10,
     zscore_threshold=6.0,
     zscore_bg_percentile=25,
     zscore_bg_robust_scale=True,
 
     # ~ 2 * sqrt(2) * max_sigma
-    intensity_tophat_radius=5,
+    intensity_tophat_radius=10,
 
-    # pi*(sqrt(2)*sigma)^2: min≈6 at sigma=1.0, max≈20 at sigma=1.8
-    min_size=6,
-    max_size=22,
+    # pi*(sqrt(2)*sigma)^2: min≈20 at sigma=1.8, max≈73 at sigma=3.4
+    min_size=20,
+    max_size=75,
     min_fill=0.5,
     max_wh_ratio=2.0,
 )

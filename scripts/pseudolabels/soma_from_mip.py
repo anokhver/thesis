@@ -49,6 +49,7 @@ from __future__ import annotations
 import argparse
 import csv
 import gc
+import io
 import json
 import logging
 import os
@@ -57,6 +58,28 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
+
+
+def _np_load(path, *, mmap_mode=None):
+    """Read a .npy via one big sequential read.
+
+    NTFS-3G (FUSE) occasionally returns EIO on np.load's multi-chunk
+    read pattern but tolerates one large read fine. Mirrors the helper
+    in ``scripts/pseudolabels/dendrite_from_mip.py``.
+    """
+    path = Path(path)
+    if mmap_mode is not None:
+        try:
+            return np.load(path, mmap_mode=mmap_mode)
+        except OSError:
+            pass
+    try:
+        with open(path, "rb", buffering=0) as fh:
+            data = fh.read()
+        return np.load(io.BytesIO(data))
+    except OSError as e:
+        raise OSError(f"{e} while reading {path}") from e
+
 
 _REPO = Path(__file__).resolve().parents[1]
 _ROOT = _REPO / "src"
@@ -122,7 +145,7 @@ def soma_one(
     if mask_path.exists() and not overwrite:
         logger.info(f"  {npy_path.name}: mask exists, skipping (use --overwrite to redo)")
         try:
-            existing = np.load(mask_path, mmap_mode="r")
+            existing = _np_load(mask_path, mmap_mode="r")
             H, W = existing.shape
             frac = float(existing.mean())
         except Exception:
@@ -268,7 +291,7 @@ def _stitch_structural(
     seen = np.zeros((n_rows, n_cols), dtype=bool)
     for r in rows:
         gr, gcol = int(r["grid_row"]), int(r["grid_col"])
-        patch = np.load(patch_dir / r["filename"])
+        patch = _np_load(patch_dir / r["filename"])
         if patch.ndim != 3:
             raise ValueError(
                 f"patch {r['filename']} has shape {patch.shape}, expected (C, ps, ps)"
@@ -315,7 +338,7 @@ def soma_for_source(
         out: list[dict] = []
         for r, mp in expected:
             try:
-                m = np.load(mp, mmap_mode="r")
+                m = _np_load(mp, mmap_mode="r")
                 frac = float(m.mean())
             except Exception:
                 frac = float("nan")

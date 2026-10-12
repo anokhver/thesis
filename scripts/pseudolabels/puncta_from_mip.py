@@ -730,8 +730,43 @@ def puncta_for_source(
     apply_shape_filter: bool,
     overlap_fraction: float,
     overwrite: bool,
+    image_level_output: bool = False,
 ) -> list[dict]:
-    """Stitch one source's patches + masks, run puncta, write per-patch masks."""
+    """Stitch one source, run puncta, and write image or patch masks."""
+    source_stem = Path(source_npy).stem
+    if image_level_output:
+        pre_image_path = _pre_mask_path(output_dir, source_stem)
+        post_image_path = _post_mask_path(output_dir, source_stem)
+        overlap_image_path = _overlap_mask_path(output_dir, source_stem)
+        if not overwrite and all(
+            path.exists() for path in (pre_image_path, post_image_path, overlap_image_path)
+        ):
+            return [{
+                "source_npy": source_npy,
+                "pre_mask_filename": pre_image_path.name,
+                "post_mask_filename": post_image_path.name,
+                "overlap_mask_filename": overlap_image_path.name,
+                "soma_mask_filename": _soma_mask_path(
+                    soma_dir, Path(rows[0]["filename"]).stem
+                ).name,
+                "dend_mask_filename": _dend_mask_path(
+                    dend_dir, Path(rows[0]["filename"]).stem
+                ).name,
+                "height": int(_np_load(pre_image_path, mmap_mode="r").shape[0]),
+                "width": int(_np_load(pre_image_path, mmap_mode="r").shape[1]),
+                "pre_channel": pre_channel,
+                "post_channel": post_channel,
+                "near_dilate_px": near_dilate_px,
+                "frac_near": float("nan"),
+                "n_pre_raw": -1,
+                "n_post_raw": -1,
+                "n_pre_on_near": -1,
+                "n_post_on_near": -1,
+                "n_pre_components": -1,
+                "n_post_components": -1,
+                "n_overlap_components": -1,
+                "overlap_fraction": overlap_fraction,
+            }]
     expected = [
         (
             r,
@@ -814,6 +849,51 @@ def puncta_for_source(
         f"near={full_near.mean():.2%}"
     )
 
+    if image_level_output:
+        pre_image_path = _pre_mask_path(output_dir, source_stem)
+        post_image_path = _post_mask_path(output_dir, source_stem)
+        overlap_image_path = _overlap_mask_path(output_dir, source_stem)
+        np.save(pre_image_path, full_pre.astype(np.uint8))
+        np.save(post_image_path, full_post.astype(np.uint8))
+        np.save(overlap_image_path, result["overlap_mask"].astype(np.uint8))
+        record = {
+            "source_npy": source_npy,
+            "pre_mask_filename": pre_image_path.name,
+            "post_mask_filename": post_image_path.name,
+            "overlap_mask_filename": overlap_image_path.name,
+            "soma_mask_filename": _soma_mask_path(
+                soma_dir, Path(rows[0]["filename"]).stem
+            ).name,
+            "dend_mask_filename": _dend_mask_path(
+                dend_dir, Path(rows[0]["filename"]).stem
+            ).name,
+            "height": int(full_pre.shape[0]),
+            "width": int(full_pre.shape[1]),
+            "pre_channel": pre_channel,
+            "post_channel": post_channel,
+            "near_dilate_px": near_dilate_px,
+            "frac_near": float(full_near.mean()),
+            "n_pre_raw": result["n_pre_raw"],
+            "n_post_raw": result["n_post_raw"],
+            "n_pre_on_near": result["n_pre_on_near"],
+            "n_post_on_near": result["n_post_on_near"],
+            "n_pre_components": result["n_pre_components"],
+            "n_post_components": result["n_post_components"],
+            "n_overlap_components": result["n_overlap_components"],
+            "overlap_fraction": overlap_fraction,
+            "pre_tophat_r": cfg_pre.intensity_tophat_radius,
+            "pre_floor_sigma_bg": float(fp[0]),
+            "pre_floor_min_inner": float(fp[1]),
+            "pre_floor_min_contrast": float(fp[2]),
+            "post_tophat_r": cfg_post.intensity_tophat_radius,
+            "post_floor_sigma_bg": float(fq[0]),
+            "post_floor_min_inner": float(fq[1]),
+            "post_floor_min_contrast": float(fq[2]),
+        }
+        del pre, post, soma, dend, full_pre, full_post, full_near, result
+        gc.collect()
+        return [record]
+
     records: list[dict] = []
     for r, pp, qp, sp, dp in expected:
         gr, gcol = int(r["grid_row"]), int(r["grid_col"])
@@ -867,12 +947,14 @@ def puncta_for_source(
 def _puncta_for_source_worker(args: tuple) -> list[dict]:
     (patch_dir, output_dir, soma_dir, dend_dir, source_npy, rows,
      cfg_pre, cfg_post, pre_ch, post_ch, near_dilate_px,
-    auto_floors, apply_shape_filter, overlap_fraction, overwrite) = args
+    auto_floors, apply_shape_filter, overlap_fraction, overwrite,
+    image_level_output) = args
     return puncta_for_source(
         Path(patch_dir), Path(output_dir), Path(soma_dir), Path(dend_dir),
         source_npy, rows, cfg_pre, cfg_post,
         pre_ch, post_ch, near_dilate_px,
         auto_floors, apply_shape_filter, overlap_fraction, overwrite,
+        image_level_output,
     )
 
 
@@ -891,6 +973,8 @@ def process_patches_dir(
     overlap_fraction: float,
     workers: int,
     overwrite: bool,
+    source_regex: str | None = None,
+    image_level_output: bool = False,
 ) -> list[dict]:
     """Run puncta per source image in a tiled-patches session folder."""
     index_csv = patch_dir / "index.csv"
@@ -913,6 +997,8 @@ def process_patches_dir(
     groups: dict[str, list[dict]] = {}
     for r in all_rows:
         key = r.get("source_npy") or f"img{int(r.get('image_index', 0)):04d}"
+        if source_regex and not re.search(source_regex, key, flags=re.IGNORECASE):
+            continue
         groups.setdefault(key, []).append(r)
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -921,7 +1007,8 @@ def process_patches_dir(
         (str(patch_dir), str(output_dir), str(soma_dir), str(dend_dir),
          key, rows, cfg_pre, cfg_post,
          pre_channel, post_channel, near_dilate_px,
-         auto_floors, apply_shape_filter, overlap_fraction, overwrite)
+         auto_floors, apply_shape_filter, overlap_fraction, overwrite,
+         image_level_output)
         for key, rows in sorted(groups.items())
     ]
 
@@ -949,19 +1036,17 @@ def process_patches_dir(
             except Exception as e:
                 logger.error(f"  FAILED on {it[4]}: {e}")
 
-    records.sort(
-        key=lambda r: (r["source_npy"], r["grid_row"], r["grid_col"])
-    )
+    records.sort(key=lambda r: (r["source_npy"], r.get("grid_row", -1), r.get("grid_col", -1)))
 
     csv_path = output_dir / "puncta_index.csv"
     if records:
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(
-                f, fieldnames=list(PATCH_PUNCTA_INDEX_FIELDS), extrasaction="ignore"
-            )
+            fields = PUNCTA_INDEX_FIELDS if image_level_output else PATCH_PUNCTA_INDEX_FIELDS
+            w = csv.DictWriter(f, fieldnames=list(fields), extrasaction="ignore")
             w.writeheader()
             w.writerows(records)
-        logger.info(f"  puncta_index.csv -> {csv_path}  ({len(records)} patches)")
+        unit = "images" if image_level_output else "patches"
+        logger.info(f"  puncta_index.csv -> {csv_path}  ({len(records)} {unit})")
     else:
         logger.warning(f"  No masks produced for {patch_dir.name}")
 
@@ -1099,6 +1184,20 @@ def main() -> None:
         help="Recompute and overwrite existing pre+post mask files.",
     )
     parser.add_argument(
+        "--source_regex", type=str, default=None,
+        help=(
+            "Only process patch sources whose source_npy matches this regex "
+            "(case-insensitive; useful for selecting 24hod images)."
+        ),
+    )
+    parser.add_argument(
+        "--image_level_output", action="store_true",
+        help=(
+            "In patch mode, save one full-image PRE/POST/overlap mask per source "
+            "instead of writing masks for every patch."
+        ),
+    )
+    parser.add_argument(
         "--dry_run", action="store_true",
         help="Print what would be done without running the pipeline.",
     )
@@ -1223,7 +1322,7 @@ def main() -> None:
             args.pre_channel, args.post_channel, args.near_dilate_px,
             auto_floors, args.apply_shape_filter,
             args.overlap_fraction,
-            workers, args.overwrite,
+            workers, args.overwrite, args.source_regex, args.image_level_output,
         )
         return
 
@@ -1310,7 +1409,7 @@ def main() -> None:
             logger.error(f"  dend subfolder missing: {dend_sub}; skipping")
             results[folder.name] = 0
             continue
-        recs = per_folder(
+        folder_args = (
             folder, args.output_root / folder.name, soma_sub, dend_sub,
             cfg_pre, cfg_post,
             args.pre_channel, args.post_channel, args.near_dilate_px,
@@ -1318,6 +1417,10 @@ def main() -> None:
             args.overlap_fraction,
             workers, args.overwrite,
         )
+        if args.input_patch_root:
+            folder_args = (*folder_args, args.source_regex)
+            folder_args = (*folder_args, args.image_level_output)
+        recs = per_folder(*folder_args)
         results[folder.name] = len(recs)
 
     logger.info(f"\n{'='*70}")
